@@ -590,6 +590,19 @@ static void exec_delete(Pcs pcs, struct params *params)
 	pcs_pan_api_res_destroy(res);
 }
 
+static void exec_cat(Pcs pcs, struct params *params)
+{
+	const char *res;
+
+	printf("\nCat %s\n", params->args[0]);
+	res = pcs_cat(pcs, params->args[0]);
+	if (res == NULL) {
+		printf("Cat failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		return;
+	}
+	printf(">>>\n%s\n<<<\n", res);
+}
+
 static void exec_search(Pcs pcs, struct params *params)
 {
 	PcsFileInfoList *list;
@@ -633,7 +646,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_delete(pcs, params);
 		break;
 	case ACTION_CAT:
-		//exec_cat(pcs, params);
+		exec_cat(pcs, params);
 		break;
 	case ACTION_ECHO:
 		//exec_echo(pcs, params);
