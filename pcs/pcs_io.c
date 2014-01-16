@@ -59,7 +59,7 @@ void get_password_from_std_input(char *password, int size)
 #else
 #include <unistd.h>
 
-void get_username_from_std_input(char *str, int size)
+void get_string_from_std_input(char *str, int size)
 {
 	struct termios oflags, nflags;
 
