@@ -603,6 +603,68 @@ static void exec_cat(Pcs pcs, struct params *params)
 	printf(">>>\n%s\n<<<\n", res);
 }
 
+static void exec_echo_apend(Pcs pcs, struct params *params)
+{
+	const char *text;
+	char *p;
+	int i;
+	size_t sz;
+	PcsFileInfo *f;
+
+	printf("\nApend text to %s\n", params->args[0]);
+	text = pcs_cat(pcs, params->args[0]);
+	if (text == NULL) {
+		printf("Apend failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		return;
+	}
+	i = strlen(text);
+	sz = strlen(params->args[1]);
+	p = (char *)pcs_malloc(i + sz + 1);
+	if (!p) {
+		printf("Alloc memory failed.\n");
+		return;
+	}
+	memcpy(p, text, i);
+	memcpy(&p[i], params->args[1], sz);
+	p[i + sz] = '\0';
+	sz += i;
+	f = pcs_upload_buffer(pcs, params->args[0], PcsTrue, p, sz);
+	if (f) {
+		printf("Apend text success\n");
+		printf(">>>\n%s\n<<<\n", p);
+		pcs_fileinfo_destroy(f);
+	} else {
+		printf("Apend text failed\n");
+	}
+	pcs_free(p);
+}
+
+static void exec_echo_override(Pcs pcs, struct params *params)
+{
+	char *text;
+	size_t sz;
+	PcsFileInfo *f;
+
+	printf("\nOverwrite text to %s\n", params->args[0]);
+	text = params->args[1];
+	sz = strlen(text);
+	f = pcs_upload_buffer(pcs, params->args[0], PcsTrue, text, sz);
+	if (f) {
+		pcs_fileinfo_destroy(f);
+		printf("Overwirte success\n", params->args[0]);
+	} else {
+		printf("Overwirte failed\n", params->args[0]);
+	}
+}
+
+static void exec_echo(Pcs pcs, struct params *params)
+{
+	if (params->is_append)
+		exec_echo_apend(pcs, params);
+	else
+		exec_echo_override(pcs, params);
+}
+
 static void exec_search(Pcs pcs, struct params *params)
 {
 	PcsFileInfoList *list;
@@ -649,7 +711,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_cat(pcs, params);
 		break;
 	case ACTION_ECHO:
-		//exec_echo(pcs, params);
+		exec_echo(pcs, params);
 		break;
 	case ACTION_SEARCH:
 		//exec_search(pcs, params);

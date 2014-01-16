@@ -80,15 +80,15 @@ PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, Pc
 
 PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location);
 
-PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm **post, const char *param_name, 
+PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, 
 									  const char *filename, const char *simulate_filename);
 
-PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm **post, const char *param_name,
+PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const char *param_name,
 										const char *buffer, long buffer_size, const char *simulate_filename);
 
-PCS_API void pcs_http_form_destroy(PcsHttp handle, PcsHttpForm *post);
+PCS_API void pcs_http_form_destroy(PcsHttp handle, PcsHttpForm post);
 
-PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm *data, PcsBool follow_location);
+PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm data, PcsBool follow_location);
 
 
 #endif
