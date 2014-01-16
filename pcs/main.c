@@ -714,7 +714,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_echo(pcs, params);
 		break;
 	case ACTION_SEARCH:
-		//exec_search(pcs, params);
+		exec_search(pcs, params);
 		break;
 	case ACTION_DOWNLOAD:
 		//exec_download(pcs, params);
