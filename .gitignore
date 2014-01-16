@@ -1,0 +1,14 @@
+Debug
+Release
+ipch
+*.opensdf
+*.sdf
+*.suo
+*.user
+*.exe
+*.o
+obj
+objs
+bin
+libconfig.a
+libpcs.a
