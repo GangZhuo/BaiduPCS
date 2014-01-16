@@ -542,6 +542,19 @@ static void exec_copy(Pcs pcs, struct params *params)
 	pcs_pan_api_res_destroy(res);
 }
 
+static void exec_mkdir(Pcs pcs, struct params *params)
+{
+	PcsRes res;
+
+	printf("\nCreate folder %s\n", params->args[0]);
+	res = pcs_mkdir(pcs, params->args[0]);
+	if (res != PCS_OK) {
+		printf("Create folder failed: %s\n", pcs_strerror(pcs, res));
+		return;
+	}
+	printf("Create %s success.\n", params->args[0]);
+}
+
 static void exec_search(Pcs pcs, struct params *params)
 {
 	PcsFileInfoList *list;
@@ -579,7 +592,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_copy(pcs, params);
 		break;
 	case ACTION_MKDIR:
-		//exec_mkdir(pcs, params);
+		exec_mkdir(pcs, params);
 		break;
 	case ACTION_DELETE:
 		//exec_delete(pcs, params);
