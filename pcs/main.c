@@ -5,6 +5,7 @@
 #include "pcs_mem.h"
 #include "pcs_utils.h"
 #include "pcs.h"
+#include "dir.h"
 #include "main_args.h"
 
 #ifdef WIN32
@@ -146,6 +147,29 @@ static PcsBool cb_get_verify_code_byurlc(unsigned char *ptr, size_t size, char *
 	printf("You can access the verify code image from the url that can find from above html, please input the text in the image: ");
 	get_string_from_std_input(captcha, captchaSize);
 	return PcsTrue;
+}
+
+struct download_state {
+	FILE *pf;
+	char *msg;
+	size_t size;
+};
+
+static int cb_download_write(char *ptr, size_t size, size_t contentlength, void *userdata)
+{
+	struct download_state *ds = (struct download_state *)userdata;
+	FILE *pf = ds->pf;
+	size_t i;
+	char tmp[64];
+	tmp[63] = '\0';
+	i = fwrite(ptr, 1, size, pf);
+	ds->size += i;
+	if (ds->msg)
+		printf(ds->msg);
+	printf("%s", pcs_utils_readable_size(ds->size, tmp, 63, NULL));
+	printf("/%s      \r", pcs_utils_readable_size(contentlength, tmp, 63, NULL));
+	fflush(stdout);
+	return i;
 }
 
 static const char *get_default_cookie_file(const char *username)
@@ -680,6 +704,73 @@ static void exec_search(Pcs pcs, struct params *params)
 	}
 }
 
+static void exec_download_file(Pcs pcs, const char *remote_path, const char *local_path, 
+							   PcsFileInfo *meta, int force)
+{
+	int ft;
+	FILE *pf;
+	PcsRes res;
+	struct download_state ds;
+
+	ft = is_dir_or_file(local_path);
+	if (ft == 2) {
+		printf("The file %s is directory.\n", local_path);
+		return;
+	}
+	else if (ft == 1) {
+		if (!force) {
+			printf("The file %s is exist.\n", local_path);
+			return;
+		}
+	}
+	pf = fopen(local_path, "wb");
+	if (!pf) {
+		printf("Cannot create the local file: %s\n", local_path);
+		return;
+	}
+	putchar('\n');
+	ds.msg = NULL;
+	ds.pf = pf;
+	ds.size = 0;
+	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds);
+	res = pcs_download(pcs, remote_path);
+	fclose(pf);
+	my_dirent_utime(local_path, meta->server_mtime);
+	putchar('\n');
+	putchar('\n');
+	if (res != PCS_OK) {
+		printf("Download %s fail.\n", remote_path);
+	}
+	else {
+		printf("Download %s success. \nLocal Path: %s\n", remote_path, local_path);
+	}
+}
+
+static void exec_download(Pcs pcs, struct params *params)
+{
+	PcsFileInfo *meta;
+
+	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &cb_download_write);
+	printf("\nDownload %s to %s\n", params->args[0], params->args[1]);
+	meta = pcs_meta(pcs, params->args[0]);
+	if (!meta) {
+		printf("File not exist: %s\n", params->args[0]);
+		return;
+	}
+	if (meta->isdir) {
+		//if (exec_download_dir_r(pcs, params->args[0], local_path, params->is_force, params->is_recursion, params->is_synch)) {
+		//	printf("\nFailed.\n", params->args[0]);
+		//}
+		//else {
+		//	printf("\nAll Successfully\n");
+		//}
+	}
+	else {
+		exec_download_file(pcs, params->args[0], params->args[1], meta, params->is_force);
+	}
+	pcs_fileinfo_destroy(meta);
+}
+
 static void exec_cmd(Pcs pcs, struct params *params)
 {
 	switch (params->action)
@@ -717,7 +808,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_search(pcs, params);
 		break;
 	case ACTION_DOWNLOAD:
-		//exec_download(pcs, params);
+		exec_download(pcs, params);
 		break;
 	case ACTION_UPLOAD:
 		//exec_upload(pcs, params);

@@ -1,6 +1,6 @@
 
 OBJS1 = cJSON.o pcs.o pcs_fileinfo.o pcs_http.o pcs_mem.c pcs_pan_api_resinfo.o pcs_slist.o pcs_utils.o utf8.o
-OBJS2 = main.o pcs_io.o main_args.o
+OBJS2 = main.o pcs_io.o main_args.o dir.o hashtable.o
 CCFLAGS = -DHAVE_ASPRINTF -DHAVE_ICONV -DDEBUG -D_DEBUG 
 CC = cc -g
 #
@@ -20,6 +20,10 @@ pcs_io.o: pcs_io.c pcs_io.h
 	$(CC) -o $@ -c pcs_io.c $(PCS_CCFLAGS)
 main_args.o: main_args.c main_args.h pcs_mem.h pcs_utils.h
 	$(CC) -o $@ -c main_args.c $(PCS_CCFLAGS)
+dir.o: dir.c dir.h pcs_mem.h
+	$(CC) -o $@ -c dir.c $(PCS_CCFLAGS)
+hashtable.o: hashtable.c hashtable.h pcs_mem.h
+	$(CC) -o $@ -c hashtable.c $(PCS_CCFLAGS)
 
 cJSON.o: cJSON.c cJSON.h
 	$(CC) -o $@ -c cJSON.c $(PCS_CCFLAGS)
