@@ -73,6 +73,22 @@ PCS_API PcsFileInfo *pcs_fileinfo_clone(PcsFileInfo *fi)
 }
 
 
+PCS_API PcsFileInfoListItem *pcs_filistitem_create()
+{
+	PcsFileInfoListItem *res = 0;
+	res = (PcsFileInfoListItem *)pcs_malloc(sizeof(PcsFileInfoListItem));
+	if (res)
+		memset(res, 0, sizeof(PcsFileInfoListItem));
+	return res;
+}
+
+PCS_API void pcs_filistitem_destroy(PcsFileInfoListItem *item)
+{
+	if (item->info) pcs_fileinfo_destroy(item->info);
+	pcs_free(item);
+}
+
+
 PCS_API PcsFileInfoList *pcs_filist_create()
 {
 	PcsFileInfoList *res = 0;
@@ -84,22 +100,88 @@ PCS_API PcsFileInfoList *pcs_filist_create()
 
 PCS_API void pcs_filist_destroy(PcsFileInfoList *list)
 {
-	PcsFileInfoList *p = list, *p2;
+	PcsFileInfoListItem *p = list->link, *p2;
 	while(p) {
 		p2 = p;
 		p = p->next;
-		if (p2->info.path) pcs_free(p2->info.path);
-		if (p2->info.server_filename) pcs_free(p2->info.server_filename);
-		if (p2->info.md5) pcs_free(p2->info.md5);
-		if (p2->info.dlink) pcs_free(p2->info.dlink);
-		if (p2->info.block_list) {
-			char **p = p2->info.block_list;
-			while(*p) {
-				pcs_free(*p);
-				p++;
-			}
-			pcs_free(p2->info.block_list);
-		}
-		pcs_free(p2);
+		pcs_filistitem_destroy(p2);
+	}
+	pcs_free(list);
+}
+
+PCS_API void pcs_filist_add(PcsFileInfoList *list, PcsFileInfoListItem *item)
+{
+	if (!list->link_tail) {
+		list->link = list->link_tail = item;
+		item->prev = item->next = 0;
+	}
+	else {
+		item->prev = list->link_tail;
+		item->next = 0;
+		list->link_tail->next = item;
+		list->link_tail = item;
+	}
+	list->count++;
+}
+
+PCS_API void pcs_filist_remove(PcsFileInfoList *list, PcsFileInfoListItem *item, PcsFileInfoListIterater *iterater)
+{
+	if (item->prev)
+		item->prev->next = item->next;
+	if (item->next)
+		item->next->prev = item->prev;
+	if (list->link == item)
+		list->link = item->next;
+	if (list->link_tail == item)
+		list->link_tail = item->prev;
+	if (iterater && iterater->cursor == item)
+		iterater->cursor = item->prev;
+	item->prev = item->next = 0;
+	list->count--;
+}
+
+PCS_API void pcs_filist_combin(PcsFileInfoList *list, PcsFileInfoList *src)
+{
+	if (!src->link)
+		return;
+	if (!list->link_tail) {
+		list->link = src->link;
+		list->link_tail = src->link_tail;
+		list->count = src->count;
+		src->count = 0;
+		src->link = src->link_tail = 0;
+	}
+	else {
+		list->link_tail->next = src->link;
+		src->link->prev = list->link_tail;
+		list->link_tail = src->link_tail;
+		list->count += src->count;
+		src->count = 0;
+		src->link = src->link_tail = 0;
 	}
 }
+
+
+PCS_API void pcs_filist_iterater_init(PcsFileInfoList *list, PcsFileInfoListIterater *iterater)
+{
+	memset(iterater, 0, sizeof(PcsFileInfoListIterater));
+	iterater->list = list;
+}
+
+PCS_API PcsBool pcs_filist_iterater_next(PcsFileInfoListIterater *iterater)
+{
+	if (!iterater->list->link)
+		return PcsFalse;
+	if (!iterater->cursor) {
+		iterater->cursor = iterater->list->link;
+		iterater->current = iterater->cursor->info;
+		return PcsTrue;
+	}
+	else if (iterater->cursor->next) {
+		iterater->cursor = iterater->cursor->next;
+		iterater->current = iterater->cursor->info;
+		return PcsTrue;
+	}
+	return PcsFalse;
+}
+

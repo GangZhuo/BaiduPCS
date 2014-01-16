@@ -547,6 +547,12 @@ int u8_printf(const char *fmt, ...)
 #include <stdio.h>
 #include <windows.h>
 
+int u8_is_utf8_sys()
+{
+	UINT codepage = GetConsoleCP();
+	return codepage == 65001;
+}
+
 int u8_mbs_toutf8(char *dest, int sz, const char *src, int srcsz)
 {
 	wchar_t *unicode;
@@ -666,6 +672,12 @@ const char *u8_get_sys_charset()
 	return sys_charset;
 }
 
+int u8_is_utf8_sys()
+{
+	const char *charset = u8_get_sys_charset();
+	return strcmpi(charset, "utf-8") == 0;
+}
+
 void u8_convert_set_charset(const char *charset)
 {
 
@@ -749,7 +761,7 @@ int u8_tombs(char *dest, int sz, const char *src, int srcsz)
 			}
 			srcsz = p - src;
 		}
-		memcpy(dest, src, srcsz + 1);
+		memcpy(dest, src, srcsz);
 		return srcsz;
 	}
 	else {

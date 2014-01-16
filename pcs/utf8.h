@@ -82,3 +82,4 @@ int u8_mbs_toutf8_size(const char *src, int srcsz);
 int u8_tombs(char *dest, int sz, const char *src, int srcsz);
 int u8_tombs_size(const char *src, int srcsz);
 
+int u8_is_utf8_sys();
