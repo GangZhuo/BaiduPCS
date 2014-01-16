@@ -85,6 +85,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="cJSON.c" />
+    <ClCompile Include="dir.c" />
+    <ClCompile Include="hashtable.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="main_args.c" />
     <ClCompile Include="pcs.c" />
@@ -99,6 +101,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cJSON.h" />
+    <ClInclude Include="dir.h" />
+    <ClInclude Include="hashtable.h" />
     <ClInclude Include="main_args.h" />
     <ClInclude Include="pcs.h" />
     <ClInclude Include="pcs_defs.h" />

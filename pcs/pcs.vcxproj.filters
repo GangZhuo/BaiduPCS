@@ -51,6 +51,12 @@
     <ClCompile Include="main_args.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dir.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="hashtable.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pcs_defs.h">
@@ -87,6 +93,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="main_args.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dir.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="hashtable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
