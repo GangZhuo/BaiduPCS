@@ -479,11 +479,11 @@ static PcsPanApiRes *pcs_pan_api_filemanager(Pcs handle, const char *opera, cons
 		return NULL;
 	}
 	error = item->valueint;
-	if (error != 0) {
+	/*if (error != 0) {
 		pcs_set_errmsg(handle, PCS_FAIL);
 		cJSON_Delete(json);
 		return NULL;
-	}
+	}*/
 	list = cJSON_GetObjectItem(json, "info");
 	if (!list) {
 		pcs_set_errmsg(handle, PCS_NO_LIST);
@@ -491,11 +491,11 @@ static PcsPanApiRes *pcs_pan_api_filemanager(Pcs handle, const char *opera, cons
 		return NULL;
 	}
 	cnt = cJSON_GetArraySize(list);
-	if (cnt <= 0) {
+	/*if (cnt < 0) {
 		pcs_set_errmsg(handle, PCS_NO_LIST);
 		cJSON_Delete(json);
 		return NULL;
-	}
+	}*/
 	res = pcs_pan_api_res_create();
 	if (!res) {
 		pcs_set_errmsg(handle, PCS_ALLOC_MEMORY);
@@ -517,7 +517,7 @@ static PcsPanApiRes *pcs_pan_api_filemanager(Pcs handle, const char *opera, cons
 			ri->info.path = pcs_utils_strdup_utf8(val->valuestring);
 		val = cJSON_GetObjectItem(item, "errno");
 		ri->info.error = val->valueint;
-		if (!res) {
+		if (!res->info_list) {
 			res->info_list = tail = ri;
 		}
 		else {
