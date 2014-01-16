@@ -20,7 +20,7 @@
 #  include <termios.h>
 #endif
 
-void get_username_from_std_input(char *username, int size);
+void get_string_from_std_input(char *str, int size);
 void get_password_from_std_input(char *password, int size);
 
 #endif

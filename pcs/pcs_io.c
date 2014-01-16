@@ -6,7 +6,7 @@
 
 #ifdef WIN32
 
-void get_username_from_std_input(char *username, int size)
+void get_string_from_std_input(char *str, int size)
 {
 	char c;
 	int i = 0;
@@ -21,7 +21,7 @@ void get_username_from_std_input(char *username, int size)
 			}
 		}
 		else if (isprint(c)) {
-			username[i] = c;
+			str[i] = c;
 			putchar(c);
 			i++;
 			if (i >= size) {
@@ -29,7 +29,7 @@ void get_username_from_std_input(char *username, int size)
 			}
 		}
 	}
-	username[i >= size ? (size - 1) : i] = '\0';
+	str[i >= size ? (size - 1) : i] = '\0';
 	printf("\n");
 }
 
@@ -59,7 +59,7 @@ void get_password_from_std_input(char *password, int size)
 #else
 #include <unistd.h>
 
-void get_username_from_std_input(char *username, int size)
+void get_username_from_std_input(char *str, int size)
 {
 	struct termios oflags, nflags;
 
@@ -75,10 +75,10 @@ void get_username_from_std_input(char *username, int size)
     }
 
     //printf("user name: ");
-    fgets(username, size, stdin);
-    username[size - 1] = 0;
-    username[strlen(username) - 1] = 0;
-    //printf("you typed '%s'\n", username);
+    fgets(str, size, stdin);
+    str[size - 1] = 0;
+    str[strlen(str) - 1] = 0;
+    //printf("you typed '%s'\n", str);
 
     /* restore terminal */
     if (tcsetattr(fileno(stdin), TCSANOW, &oflags) != 0) {
