@@ -14,7 +14,19 @@
 #  define mkdir _mkdir
 #endif
 
-static PcsBool my_get_verify_code(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
+void cb_pcs_http_response(unsigned char *ptr, size_t size, void *state)
+{
+	printf("\n<<<\n");
+	if (ptr) {
+		//char ch = ptr[size - 1];
+		//ptr[size - 1] = '\0';
+		printf("%s\n", ptr);
+		//ptr[size - 1] = ch;
+	}
+	printf(">>>\n\n");
+}
+
+static PcsBool cb_get_verify_code(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
 {
 	static char filename[1024] = { 0 };
 	FILE *pf;
@@ -42,12 +54,101 @@ static PcsBool my_get_verify_code(unsigned char *ptr, size_t size, char *captcha
 	fclose(pf);
 
 	printf("The captcha image saved at %s\nPlease input the verify code: ", filename);
-	scanf("%4s", captcha);
-	printf("\n");
+	get_string_from_std_input(captcha, captchaSize);
+	//printf("\n");
 	return PcsTrue;
 }
 
-static const char *my_get_cookie_file(const char *username)
+static size_t cb_get_verify_code_byurlc_curl_write(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	char **html = (char **) userdata;
+	char *p;
+	size_t sz, ptrsz;
+
+	ptrsz = size * nmemb;
+	if (ptrsz == 0)
+		return ptrsz;
+
+	if (*html)
+		sz = strlen(*html);
+	else
+		sz = 0;
+	size = sz + ptrsz;
+	p = (char *) pcs_malloc(size + 1);
+	if (!p)
+		return 0;
+	if (*html) {
+		memcpy(p, *html, sz);
+		pcs_free(*html);
+	}
+	memcpy(&p[sz], ptr, ptrsz);
+	p[size] = '\0';
+	*html = p;
+	return ptrsz;
+}
+
+static PcsBool cb_get_verify_code_byurlc(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
+{
+	CURL *curl;
+	CURLcode res;
+	struct curl_httppost *formpost = 0;
+    struct curl_httppost *lastptr  = 0;
+	char *html = NULL;
+
+	curl = curl_easy_init();
+	if (!curl) {
+		puts("Cannot init the libcurl.");
+		return PcsFalse;
+	}
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
+#   define USAGE "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36"
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, USAGE);
+	/* tell libcurl to follow redirection */
+	//res = curl_easy_setopt(pcs->curl, CURLOPT_COOKIEFILE, cookie_folder);
+	//curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "");
+	
+	curl_formadd(&formpost, &lastptr, 
+		CURLFORM_PTRNAME, "photofile", 
+		CURLFORM_BUFFER, "verify_code.gif",
+		CURLFORM_BUFFERPTR, ptr, 
+		CURLFORM_BUFFERLENGTH, (long)size,
+		CURLFORM_END);
+	curl_easy_setopt(curl, CURLOPT_URL, "http://urlc.cn/g/upload.php");
+    curl_easy_setopt(curl, CURLOPT_POST, 1);
+	//curl_easy_setopt(curl, CURLOPT_COOKIE, "");
+	curl_easy_setopt(curl, CURLOPT_HEADER , 1);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &cb_get_verify_code_byurlc_curl_write);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
+	curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost); 
+	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_REFERER , "http://urlc.cn/g/");
+
+	res = curl_easy_perform(curl);
+	if(res != CURLE_OK) {
+		printf("Cannot upload the image to http://urlc.cn/g/\n%s\n", curl_easy_strerror(res));
+		if (html)
+			pcs_free(html);
+		curl_formfree(formpost);
+		curl_easy_cleanup(curl);
+		return PcsFalse;
+	}
+	curl_formfree(formpost);
+	curl_easy_cleanup(curl);
+
+	if (!html) {
+		printf("Cannot get the response from http://urlc.cn/g/\n");
+		return PcsFalse;
+	}
+
+	printf("\n%s\n\n", html);
+	pcs_free(html);
+	printf("You can access the verify code image from the url that can find from above html, please input the text in the image: ");
+	get_string_from_std_input(captcha, captchaSize);
+	return PcsTrue;
+}
+
+static const char *get_default_cookie_file(const char *username)
 {
 	static char filename[1024] = { 0 };
 
@@ -172,11 +273,19 @@ int main(int argc, char *argv[])
 	if (params->cookie)
 		cookie_file = params->cookie;
 	else
-		cookie_file = my_get_cookie_file(params->username);
+		cookie_file = get_default_cookie_file(params->username);
 
 	pcs = pcs_create(cookie_file);
 
-	pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, my_get_verify_code);
+	if (params->use_urlc) {
+		pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code_byurlc);
+	}
+	else {
+		pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code);
+	}
+	if (params->is_verbose) {
+		pcs_setopt(pcs, PCS_OPTION_HTTP_RESPONSE_FUNCTION, cb_pcs_http_response);
+	}
 
 	if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {
 		if (!params->username) {
