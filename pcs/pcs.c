@@ -411,7 +411,7 @@ static char *pcs_build_filelist_3(Pcs handle, PcsSList2 *slist)
 		pcs_set_errmsg(handle, PCS_ALLOC_MEMORY);
 		return NULL;
 	}
-
+	memset(file_list_string, 0, sz);
 	strcpy(file_list_string, "[");
 	p = file_list_string;
 	item = slist;
@@ -431,8 +431,17 @@ static char *pcs_build_filelist_3(Pcs handle, PcsSList2 *slist)
 		p += 35;
 		item = item->next;
 	}
-	file_list_string[sz - 2] = ']';
-	file_list_string[sz - 1] = '\0';
+	p = file_list_string + sz - 1;
+	while (p > file_list_string) {
+		if (*p == ',')
+			break;
+		p--;
+	}
+	if (*p == ',') {
+		*p = ']';
+		p++;
+		*p = '\0';
+	}
 
 	return file_list_string;
 }
