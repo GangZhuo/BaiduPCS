@@ -523,6 +523,25 @@ static void exec_move(Pcs pcs, struct params *params)
 	pcs_pan_api_res_destroy(res);
 }
 
+static void exec_copy(Pcs pcs, struct params *params)
+{
+	PcsPanApiRes *res;
+	PcsSList2 slist;
+	slist.string1 = params->args[0]; /* path */
+	slist.string2 = params->args[1]; /* new_name */
+	slist.next = NULL;
+
+	printf("\nCopy %s to %s\n", slist.string1, slist.string2);
+	res = pcs_copy(pcs, &slist);
+	if (!res) {
+		printf("Copy failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		return;
+	}
+	putchar('\n');
+	print_pcs_pan_api_res(res);
+	pcs_pan_api_res_destroy(res);
+}
+
 static void exec_search(Pcs pcs, struct params *params)
 {
 	PcsFileInfoList *list;
@@ -557,7 +576,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_move(pcs, params);
 		break;
 	case ACTION_COPY:
-		//exec_copy(pcs, params);
+		exec_copy(pcs, params);
 		break;
 	case ACTION_MKDIR:
 		//exec_mkdir(pcs, params);
