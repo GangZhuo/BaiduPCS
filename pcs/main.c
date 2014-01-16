@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
 		}
 	}
 	printf("UID: %s\n", pcs_sysUID(pcs));
-
+	show_quota(pcs);
 
 	//show_quota(pcs);
 	//exec_list(pcs);
