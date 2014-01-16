@@ -179,6 +179,10 @@ int main(int argc, char *argv[])
 	pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, my_get_verify_code);
 
 	if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {
+		if (!params->username) {
+			printf("Your session is time out, please restart with -u option\n");
+			goto main_exit;
+		}
 		pcs_setopt(pcs, PCS_OPTION_USERNAME, params->username);
 		if (!params->password) {
 			char password[50];
@@ -195,9 +199,18 @@ int main(int argc, char *argv[])
 		}
 	}
 	else {
-		printf("You have been logged in.\n");
+		if (params->username && strcmpi(pcs_sysUID(pcs), params->username) != 0) {
+			char flag[8] = {0};
+			printf("You have been logged in with %s, but you specified %s, continue?(yes|no): \n", pcs_sysUID(pcs), params->username);
+			get_string_from_std_input(flag, 4);
+			if (strcmpi(flag, "yes") && strcmpi(flag, "y")) {
+				goto main_exit;
+			}
+		}
+		else {
+			printf("UID: %s\n", pcs_sysUID(pcs));
+		}
 	}
-	printf("UID: %s\n", pcs_sysUID(pcs));
 
 
 	//show_quota(pcs);
