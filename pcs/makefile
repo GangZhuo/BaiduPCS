@@ -2,7 +2,7 @@
 OBJS1 = cJSON.o pcs.o pcs_fileinfo.o pcs_http.o pcs_mem.c pcs_pan_api_resinfo.o pcs_slist.o pcs_utils.o utf8.o
 OBJS2 = main.o pcs_io.o main_args.o
 CCFLAGS = -DHAVE_ASPRINTF -DHAVE_ICONV -DDEBUG -D_DEBUG 
-CC = cc
+CC = cc -g
 #
 
 all: libpcs.a pcs

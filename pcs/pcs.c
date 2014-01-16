@@ -133,91 +133,95 @@ static char *pcs_build_pan_api_url(Pcs handle, const char *action, ...)
 	return url;
 }
 
-static void pcs_parse_fileinfo(cJSON * item, PcsFileInfoList *fi)
+static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 {
 	cJSON *val, *list;
-
+	PcsFileInfo *fi = pcs_fileinfo_create();
+	if (!fi) {
+		return NULL;
+	}
 	val = cJSON_GetObjectItem(item, "fs_id");
 	if ((val = cJSON_GetObjectItem(item, "fs_id")))
-		fi->info.fs_id = (UInt64)val->valuedouble;
+		fi->fs_id = (UInt64)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "path");
 	if (val)
-		fi->info.path = pcs_utils_strdup_utf8(val->valuestring);
+		fi->path = pcs_utils_strdup_utf8(val->valuestring);
 
 	val = cJSON_GetObjectItem(item, "server_filename");
 	if (val)
-		fi->info.server_filename = pcs_utils_strdup_utf8(val->valuestring);
+		fi->server_filename = pcs_utils_strdup_utf8(val->valuestring);
 
 	val = cJSON_GetObjectItem(item, "mtime");
 	if (val)
-		fi->info.server_mtime = (UInt64)val->valuedouble;
+		fi->server_mtime = (UInt64)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "ctime");
 	if (val)
-		fi->info.server_ctime = (UInt64)val->valuedouble;
+		fi->server_ctime = (UInt64)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "server_mtime");
 	if (val)
-		fi->info.server_mtime = (UInt64)val->valuedouble;
+		fi->server_mtime = (UInt64)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "server_ctime");
 	if (val)
-		fi->info.server_ctime = (UInt64)val->valuedouble;
+		fi->server_ctime = (UInt64)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "local_mtime");
 	if (val)
-		fi->info.local_mtime = (UInt64)val->valuedouble;
+		fi->local_mtime = (UInt64)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "local_ctime");
 	if (val)
-		fi->info.local_ctime = (UInt64)val->valuedouble;
+		fi->local_ctime = (UInt64)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "isdir");
 	if (val)
-		fi->info.isdir = val->valueint ? PcsTrue : PcsFalse;
+		fi->isdir = val->valueint ? PcsTrue : PcsFalse;
 
 	val = cJSON_GetObjectItem(item, "category");
 	if (val)
-		fi->info.category = val->valueint;
+		fi->category = val->valueint;
 
 	val = cJSON_GetObjectItem(item, "size");
 	if (val)
-		fi->info.size = (UInt64)val->valuedouble;
+		fi->size = (UInt64)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "dir_empty");
 	if (val)
-		fi->info.dir_empty = val->valueint ? PcsTrue : PcsFalse;
+		fi->dir_empty = val->valueint ? PcsTrue : PcsFalse;
 
 	val = cJSON_GetObjectItem(item, "empty");
 	if (val)
-		fi->info.empty = val->valueint ? PcsTrue : PcsFalse;
+		fi->empty = val->valueint ? PcsTrue : PcsFalse;
 
 	val = cJSON_GetObjectItem(item, "ifhassubdir");
 	if (val)
-		fi->info.ifhassubdir = val->valueint ? PcsTrue : PcsFalse;
+		fi->ifhassubdir = val->valueint ? PcsTrue : PcsFalse;
 
 	val = cJSON_GetObjectItem(item, "md5");
 	if (val)
-		fi->info.md5 = pcs_utils_strdup_utf8(val->valuestring);
+		fi->md5 = pcs_utils_strdup_utf8(val->valuestring);
 
 	val = cJSON_GetObjectItem(item, "dlink");
 	if (val)
-		fi->info.dlink = pcs_utils_strdup_utf8(val->valuestring);
+		fi->dlink = pcs_utils_strdup_utf8(val->valuestring);
 
 	list = cJSON_GetObjectItem(item, "block_list");
 	if (list) {
 		int i, cnt = cJSON_GetArraySize(list);
 		if (cnt > 0) {
-			fi->info.block_list = (char **) pcs_malloc((cnt + 1) + sizeof(char *));
-			if (!fi->info.block_list) return;
-			memset(fi->info.block_list, 0, (cnt + 1) + sizeof(char *));
+			fi->block_list = (char **) pcs_malloc((cnt + 1) + sizeof(char *));
+			if (!fi->block_list) return;
+			memset(fi->block_list, 0, (cnt + 1) + sizeof(char *));
 			for (i = 0; i < cnt; i++) {
 				val = cJSON_GetArrayItem(list, i);
-				fi->info.block_list[i] = pcs_utils_strdup_utf8(val->valuestring);
+				fi->block_list[i] = pcs_utils_strdup_utf8(val->valuestring);
 			}
 		}
 	}
+	return fi;
 }
 
 static PcsFileInfoList *pcs_pan_api_1(Pcs handle, const char *action, ...)
@@ -227,9 +231,9 @@ static PcsFileInfoList *pcs_pan_api_1(Pcs handle, const char *action, ...)
 	cJSON *json, *item, *list;
 	char *url, *html;
 	int error, cnt, i;
-	PcsFileInfoList *filist = NULL,
-		*tail,
-		*fi;
+	PcsFileInfoList *filist = NULL;
+	PcsFileInfoListItem *filist_item;
+	PcsFileInfo *fi;
 
     va_start(args, action);
 	url = pcs_build_pan_api_url_v(handle, action, args);
@@ -246,50 +250,61 @@ static PcsFileInfoList *pcs_pan_api_1(Pcs handle, const char *action, ...)
 	}
 	json = cJSON_Parse(html);
 	if (!json){
+		printf("%s\n", html);
 		pcs_set_errmsg(handle, PCS_WRONG_RESPONSE);
 		return NULL;
 	}
 	item = cJSON_GetObjectItem(json, "errno");
 	if (!item) {
+		//printf("%s\n", html);
 		pcs_set_errmsg(handle, PCS_WRONG_RESPONSE);
 		cJSON_Delete(json);
 		return NULL;
 	}
 	error = item->valueint;
 	if (error != 0) {
+		//printf("%s\n", html);
 		pcs_set_errmsg(handle, PCS_FAIL);
 		cJSON_Delete(json);
 		return NULL;
 	}
 	list = cJSON_GetObjectItem(json, "list");
 	if (!list) {
-		pcs_set_errmsg(handle, PCS_NO_LIST);
+		//pcs_set_errmsg(handle, PCS_NO_LIST);
 		cJSON_Delete(json);
 		return NULL;
 	}
 	cnt = cJSON_GetArraySize(list);
 	if (cnt <= 0) {
-		pcs_set_errmsg(handle, PCS_NO_LIST);
+		//pcs_set_errmsg(handle, PCS_NO_LIST);
+		cJSON_Delete(json);
+		return NULL;
+	}
+	filist = pcs_filist_create();
+	if (!filist) {
+		pcs_set_errmsg(handle, PCS_CREATE_OBJ);
 		cJSON_Delete(json);
 		return NULL;
 	}
 	for (i = 0; i < cnt; i++) {
 		item = cJSON_GetArrayItem(list, i);
-		fi = pcs_filist_create();
-		if (!fi) {
+		filist_item = pcs_filistitem_create();
+		if (!filist_item) {
 			pcs_set_errmsg(handle, PCS_CREATE_OBJ);
 			cJSON_Delete(json);
 			if (filist) pcs_filist_destroy(filist);
 			return NULL;
 		}
-		pcs_parse_fileinfo(item, fi);
-		if (!filist) {
-			filist = tail = fi;
+		fi = pcs_parse_fileinfo(item);
+		if (!fi) {
+			pcs_set_errmsg(handle, PCS_CREATE_OBJ);
+			cJSON_Delete(json);
+			pcs_filistitem_destroy(filist_item);
+			if (filist) pcs_filist_destroy(filist);
+			return NULL;
 		}
-		else {
-			tail->next = fi;
-			tail = fi;
-		}
+		filist_item->info = fi;
+		pcs_filist_add(filist, filist_item);
 	}
 	cJSON_Delete(json);
 	return filist;
@@ -543,7 +558,6 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 		*dir = pcs_utils_basedir(path),
 		*filename = pcs_utils_filename(path);
 	cJSON *json;
-	PcsFileInfoList *filist;
 	PcsFileInfo *meta;
 
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
@@ -572,21 +586,12 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 		return NULL;
 	}
 
-	filist = pcs_filist_create();
-	if (!filist) {
-		pcs_set_errmsg(handle, PCS_CREATE_OBJ);
-		cJSON_Delete(json);
-		return NULL;
-	}
-	pcs_parse_fileinfo(json, filist);
+	meta = pcs_parse_fileinfo(json);
 	cJSON_Delete(json);
-	meta = pcs_fileinfo_clone(&filist->info);
 	if (!meta) {
 		pcs_set_errmsg(handle, PCS_ALLOC_MEMORY);
-		pcs_filist_destroy(filist);
 		return NULL;
 	}
-	pcs_filist_destroy(filist);
 	return meta;
 }
 
@@ -638,7 +643,7 @@ PCS_API const char *pcs_strerror(Pcs handle, PcsRes error)
 	switch (error)
 	{
 	case PCS_NONE:
-		return pcs->errmsg ? pcs->errmsg : "";
+		return pcs->errmsg;
 	case PCS_OK:
 		return "Ok";
 	case PCS_FAIL:
@@ -675,10 +680,8 @@ PCS_API const char *pcs_strerror(Pcs handle, PcsRes error)
 		return "Clone Object Failed";
 	case PCS_WRONG_ARGS:
 		return "Wrong Arguments";
-	default:
-		return "";
 	}
-	return "";
+	return "Unknown Error";
 }
 
 PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value)
@@ -753,6 +756,7 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	PcsSList *slist;
 	int indies[2] = { 1, -1 };
 
+	pcs_clear_error(handle);
 	html = pcs_http_get(pcs->http, URL_DISK_HOME, PcsTrue);
 	if (!html)
 		return PCS_NETWORK_ERROR;
@@ -786,14 +790,11 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	PcsRes res;
 	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt;
 	cJSON *json, *root, *item;
-	//char *escap_username, *escap_password;
-	//char token[PCS_TOKEN_LEN], code_string[PCS_CODE_STRING_LEN], verify_code[PCS_VERIFY_CODE_LEN];
-	//char post_data[PCS_POST_LEN];
-	//const char *p;
 	int error = -1, i;
 	PcsSList *slist;
 	int indies[2] = { 1, -1 };
 
+	pcs_clear_error(handle);
 	html = pcs_http_get(pcs->http, URL_HOME, PcsTrue);
 	if (!html)
 		return PCS_NETWORK_ERROR;
@@ -932,6 +933,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, UInt64 *quota, UInt64 *used)
 	char *url, *html;
 	int error;
 
+	pcs_clear_error(handle);
 	url = pcs_build_pan_api_url(handle, "quota", NULL);
 	if (!url)
 		return PCS_BUILD_URL;
@@ -980,7 +982,10 @@ PCS_API PcsRes pcs_mkdir(Pcs handle, const char *path)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	int error;
-	char *html, *postdata, *url = pcs_build_pan_api_url(handle, "create", "a", "commit", NULL);
+	char *html, *postdata, *url;
+
+	pcs_clear_error(handle);
+	url = pcs_build_pan_api_url(handle, "create", "a", "commit", NULL);
 	if (!url) {
 		return PCS_BUILD_URL;
 	}
@@ -1010,6 +1015,7 @@ PCS_API PcsFileInfoList *pcs_list(Pcs handle, const char *dir, int pageindex, in
 	struct pcs *pcs = (struct pcs *)handle;
 	char *page, *pagenum, *tt;
 	PcsFileInfoList *filist = NULL;
+	pcs_clear_error(handle);
 	page = pcs_utils_sprintf("%d", pageindex);
 	pagenum = pcs_utils_sprintf("%d", pagesize);
 	tt = pcs_utils_sprintf("%d", (int)time(0));
@@ -1031,6 +1037,7 @@ PCS_API PcsFileInfoList *pcs_search(Pcs handle, const char *dir, const char *key
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsFileInfoList *filist = NULL;
+	pcs_clear_error(handle);
 	filist = pcs_pan_api_1(handle, "search", 
 		"dir", dir,
 		"key", key,
@@ -1041,24 +1048,28 @@ PCS_API PcsFileInfoList *pcs_search(Pcs handle, const char *dir, const char *key
 
 PCS_API PcsFileInfo *pcs_meta(Pcs handle, const char *path)
 {
-	PcsFileInfoList *filist, *fi;
+	PcsFileInfoList *filist;
 	PcsFileInfo *meta = NULL;
-	char *dir = pcs_utils_basedir(path),
-		*key = pcs_utils_filename(path);
+	char *dir, *key;
+	PcsFileInfoListIterater iterater;
+	
+	pcs_clear_error(handle);
+	dir = pcs_utils_basedir(path);
+	key = pcs_utils_filename(path);
 	filist = pcs_search(handle, dir, key, PcsFalse);
 	pcs_free(dir);
 	pcs_free(key);
 	if (!filist)
 		return NULL;
-	fi = filist;
-	while(fi) {
-		if (stricmp(path, fi->info.path) == 0) {
+	pcs_filist_iterater_init(filist, &iterater);
+	while(pcs_filist_iterater_next(&iterater)) {
+		if (stricmp(path, iterater.current->path) == 0) {
+			meta = iterater.current;
 			break;
 		}
-		fi = fi->next;
 	}
-	if (fi) {
-		meta = pcs_fileinfo_clone(&fi->info);
+	if (meta) {
+		meta = pcs_fileinfo_clone(meta);
 		if (!meta) {
 			pcs_set_errmsg(handle, PCS_ALLOC_MEMORY);
 		}
@@ -1074,6 +1085,7 @@ PCS_API PcsPanApiRes *pcs_delete(Pcs handle, PcsSList *slist)
 {
 	char *filelist;
 	PcsPanApiRes *res;
+	pcs_clear_error(handle);
 	if (!slist) {
 		pcs_set_errmsg(handle, PCS_WRONG_ARGS);
 		return NULL;
@@ -1091,6 +1103,7 @@ PCS_API PcsPanApiRes *pcs_rename(Pcs handle, PcsSList2 *slist)
 {
 	char *filelist;
 	PcsPanApiRes *res;
+	pcs_clear_error(handle);
 	if (!slist) {
 		pcs_set_errmsg(handle, PCS_WRONG_ARGS);
 		return NULL;
@@ -1108,6 +1121,7 @@ PCS_API PcsPanApiRes *pcs_move(Pcs handle, PcsSList2 *slist)
 {
 	char *filelist;
 	PcsPanApiRes *res;
+	pcs_clear_error(handle);
 	if (!slist) {
 		pcs_set_errmsg(handle, PCS_WRONG_ARGS);
 		return NULL;
@@ -1125,6 +1139,7 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 {
 	char *filelist;
 	PcsPanApiRes *res;
+	pcs_clear_error(handle);
 	if (!slist) {
 		pcs_set_errmsg(handle, PCS_WRONG_ARGS);
 		return NULL;
@@ -1144,6 +1159,7 @@ PCS_API PcsRes pcs_download(Pcs handle, const char *path)
 	PcsRes res;
 	char *url, *html;
 
+	pcs_clear_error(handle);
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
 		"method", "download",
 		"app_id", "250528",
@@ -1164,6 +1180,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path)
 	PcsRes res;
 	char *url, *html;
 
+	pcs_clear_error(handle);
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
 		"method", "download",
 		"app_id", "250528",
@@ -1185,10 +1202,12 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 									   const char *buffer, size_t buffer_size)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	char *filename = pcs_utils_filename(path);
+	char *filename;
 	PcsHttpForm *form = NULL;
 	PcsFileInfo *meta;
 
+	pcs_clear_error(handle);
+	filename = pcs_utils_filename(path);
 	if (pcs_http_form_addbuffer(pcs->http, &form, "file", buffer, (long)buffer_size, filename) != PcsTrue) {
 		pcs_set_errmsg(handle, PCS_BUILD_POST_DATA);
 		pcs_free(filename);
@@ -1204,10 +1223,12 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 									   const char *local_filename)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	char *filename = pcs_utils_filename(path);
+	char *filename;
 	PcsHttpForm *form = NULL;
 	PcsFileInfo *meta;
 
+	pcs_clear_error(handle);
+	filename = pcs_utils_filename(path);
 	if (pcs_http_form_addfile(pcs->http, &form, "file", local_filename, filename) != PcsTrue) {
 		pcs_set_errmsg(handle, PCS_BUILD_POST_DATA);
 		pcs_free(filename);

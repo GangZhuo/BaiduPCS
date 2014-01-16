@@ -12,8 +12,6 @@
 #include "pcs_http.h"
 
 #define USAGE "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36"
-#define EMPTY_ENCODE "\f"
-#define EMPTY_ENCODE_CHAR '\f'
 
 #define PCS_HTTP_RES_TYPE_NORMAL		0
 #define PCS_HTTP_RES_TYPE_VALIDATE_TEXT	2
@@ -57,7 +55,7 @@ inline void pcs_http_reset_response(struct pcs_http *http)
 		pcs_free(http->res_body);
 	if (http->res_header)
 		pcs_free(http->res_header);
-	if (http->res_encode && http->res_encode[0] != EMPTY_ENCODE_CHAR)
+	if (http->res_encode)
 		pcs_free(http->res_encode);
 	http->res_type = PCS_HTTP_RES_TYPE_NORMAL;
 	http->res_code = 0;
@@ -278,28 +276,6 @@ inline PcsBool pcs_http_parse_http_head(struct pcs_http *http, char **ptr, size_
 	return PcsTrue;
 }
 
-inline char *pcs_http_append_string(char *dest, int sz, char *src, int srcsz)
-{
-	char *p;
-	int size;
-
-	if (sz == -1)
-		sz = strlen(dest);
-	if (srcsz == -1)
-		srcsz = strlen(src);
-	size = sz + srcsz;
-	p = (char *) pcs_malloc(size + 1);
-	if (!p)
-		return NULL;
-	if (dest) {
-		memcpy(p, dest, sz);
-		pcs_free(dest);
-	}
-	memcpy(&p[sz], src, srcsz);
-	p[size] = '\0';
-	return p;
-}
-
 inline char *pcs_http_append_bytes(char *dest, int sz, char *src, int srcsz)
 {
 	char *p;
@@ -314,39 +290,6 @@ inline char *pcs_http_append_bytes(char *dest, int sz, char *src, int srcsz)
 	memcpy(&p[sz], src, srcsz);
 	p[sz + srcsz] = '\0';
 	return p;
-}
-
-inline PcsBool pcs_http_parse_http_body_text(struct pcs_http *http, char *ptr, size_t sz)
-{
-	size_t tmpsz;
-	char *p;
-	if (!http->res_encode) {
-		http->res_encode = pcs_http_get_charset_from_body(ptr, sz);
-		if (!http->res_encode) {
-			http->res_encode = EMPTY_ENCODE;
-		}
-	}
-	if (http->res_encode && http->res_encode[0] != EMPTY_ENCODE_CHAR && pcs_strcmpi(http->res_encode, "utf-8") == 0) {
-		tmpsz = u8_tombs_size(ptr, sz);
-		if (tmpsz < 1) {
-			http->strerror = "Cannot decode the response. ";
-			return PcsFalse;
-		}
-		p = (char *)alloca(tmpsz + 1);
-		p[tmpsz] = '\0';
-		sz = u8_tombs(p, tmpsz, ptr, sz);
-		if (sz < 1) {
-			http->strerror = "Cannot decode the response. ";
-			return PcsFalse;
-		}
-		sz = strlen(p);
-	}
-	else {
-		p = ptr;
-	}
-	http->res_body = pcs_http_append_string(http->res_body, http->res_body_size, p, sz);
-	http->res_body_size += sz;
-	return PcsTrue;
 }
 
 size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
@@ -365,8 +308,8 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 	}
 	if (sz > 0) {
 		if (http->res_type == PCS_HTTP_RES_TYPE_NORMAL + 1) {
-			if (!pcs_http_parse_http_body_text(http, ptr, sz))
-				return 0;
+			http->res_body = pcs_http_append_bytes(http->res_body, http->res_body_size, ptr, sz);
+			http->res_body_size += sz;
 		}
 		else if (http->res_type == PCS_HTTP_RES_TYPE_VALIDATE_TEXT + 1) {
 			//验证内容正确性
@@ -378,8 +321,8 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 				}
 				p--;
 			}
-			if (!pcs_http_parse_http_body_text(http, ptr, sz))
-				return 0;
+			http->res_body = pcs_http_append_bytes(http->res_body, http->res_body_size, ptr, sz);
+			http->res_body_size += sz;
 		}
 		else if (http->res_type == PCS_HTTP_RES_TYPE_RAW + 1) {
 			http->res_body = pcs_http_append_bytes(http->res_body, http->res_body_size, ptr, sz);
@@ -399,6 +342,56 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 	return size * nmemb;
 }
 
+inline PcsBool pcs_http_decode_response(struct pcs_http *http)
+{
+	size_t tmpsz;
+	char *p;
+	if (!http->res_body || http->res_body_size <= 0)
+		return PcsTrue;
+	if (!((http->res_type == PCS_HTTP_RES_TYPE_NORMAL + 1)
+		|| (http->res_type == PCS_HTTP_RES_TYPE_VALIDATE_TEXT + 1))) {
+		return PcsTrue;
+	}
+	/*
+	 * 此处默认百度网盘都是使用UTF-8编码
+	 */
+	if (u8_is_utf8_sys())
+		return PcsTrue;
+	tmpsz = u8_tombs_size(http->res_body, http->res_body_size);
+	if (tmpsz < 1)
+		return PcsFalse;
+	p = (char *)pcs_malloc(tmpsz + 1);
+	if (!p)
+		return PcsFalse;
+	p[tmpsz] = '\0';
+	tmpsz = u8_tombs(p, tmpsz, http->res_body, http->res_body_size);
+	if (tmpsz < 1)
+		return PcsFalse;
+	pcs_free(http->res_body);
+	http->res_body = p;
+	http->res_body_size = tmpsz;
+
+	/*if (!http->res_encode)
+		http->res_encode = pcs_http_get_charset_from_body(http->res_body, http->res_body_size);
+	if (http->res_encode && pcs_strcmpi(http->res_encode, "utf-8") == 0) {
+		tmpsz = u8_tombs_size(http->res_body, http->res_body_size);
+		if (tmpsz < 1)
+			return PcsFalse;
+		p = (char *)pcs_malloc(tmpsz + 1);
+		if (!p)
+			return PcsFalse;
+		p[tmpsz] = '\0';
+		tmpsz = u8_tombs(p, tmpsz, http->res_body, http->res_body_size);
+		if (tmpsz < 1)
+			return PcsFalse;
+		pcs_free(http->res_body);
+		http->res_body = p;
+		http->res_body_size = tmpsz;
+	}
+	return PcsTrue;
+	*/
+}
+
 inline char *pcs_http_perform(struct pcs_http *http)
 {
 	CURLcode res;
@@ -412,6 +405,10 @@ inline char *pcs_http_perform(struct pcs_http *http)
 		return NULL;
 	}
 	/*pcs_http_set_cookie(http);*/
+	if (!pcs_http_decode_response(http)) {
+		http->strerror = "Cannot decode the response. ";
+		return NULL;
+	}
 	if (http->response_func)
 		(*http->response_func)((unsigned char *)http->res_body, (size_t)http->res_body_size, http->response_data);
 	return http->res_body;

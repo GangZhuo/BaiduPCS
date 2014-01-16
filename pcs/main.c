@@ -200,7 +200,7 @@ static void print_time(const char *format, UInt64 time)
 		printf(format, tmp);
 	}
 	else {
-		printf("0000-00-00 00:00:00");
+		printf(format, "0000-00-00 00:00:00");
 	}
 }
 
@@ -235,6 +235,205 @@ static void print_fileinfo(PcsFileInfo *f, const char *prex)
 	}
 }
 
+static const char *size_tostr(UInt64 size, int *fix_width, char ch)
+{
+	static char str[128], *p;
+	UInt64 i;
+	int j, cn, mod;
+
+	if (size == 0) {
+		i = 0;
+		if (*fix_width > 0) {
+			for(; i < *fix_width - 1; i++) {
+				str[i] = ch;
+			}
+		} 
+		str[i] = '0';
+		str[i + 1] = '\0';
+		if (*fix_width < 0)
+			*fix_width = 1;
+		return str;
+	}
+
+	i = size;
+	j = 127;
+	str[j] = '\0';
+	cn = 0;
+	while (i != 0) {
+		mod = i % 10;
+		i = i / 10;
+		str[--j] = (char)('0' + mod);
+		cn++;
+	}
+
+	i = 0;
+	if (*fix_width > 0) {
+		for(; i < *fix_width - cn; i++) {
+			str[i] = ch;
+		}
+	} 
+	p = &str[j];
+	while(*p){
+		str[i++] = *p++;
+	}
+	str[i] = '\0';
+	if (*fix_width < 0)
+		*fix_width = i;
+	return str;
+}
+
+static void print_filelist_head(int size_width)
+{
+	int i;
+	putchar('D');
+	putchar(' ');
+	for(i = 0; i < size_width - 4; i++)
+		putchar(' ');
+	printf("Size");
+	putchar(' ');
+	printf("Modify Date Time");
+	putchar(' ');
+	putchar(' ');
+	putchar(' ');
+	putchar(' ');
+	puts("File Name");
+}
+
+static void print_filelist_row(PcsFileInfo *f, int size_width)
+{
+	const char *p;
+
+	if (f->isdir)
+		putchar('d');
+	else
+		putchar('-');
+	putchar(' ');
+
+	p = size_tostr(f->size, &size_width, ' ');
+	while (*p) {
+		putchar(*p++);
+	}
+	putchar(' ');
+	print_time("%s", f->server_mtime);
+	putchar(' ');
+	puts(f->path);
+}
+
+static void print_filelist(PcsFileInfoList *list)
+{
+	char tmp[64] = {0};
+	int cnt_file = 0,
+		cnt_dir = 0,
+		size_width = 1,
+		w;
+	PcsFileInfo *file = NULL;
+	size_t total = 0;
+	PcsFileInfoListIterater iterater;
+
+	pcs_filist_iterater_init(list, &iterater);
+	while(pcs_filist_iterater_next(&iterater)) {
+		file = iterater.current;
+		w = -1;
+		size_tostr(file->size, &w, ' ');
+		if (size_width < w)
+			size_width = w;
+		total += file->size;
+		if (file->isdir)
+			cnt_dir++;
+		else
+			cnt_file++;
+	}
+
+	if (size_width < 4)
+		size_width = 4;
+	putchar('\n');
+	print_filelist_head(size_width);
+	puts("------------------------------------------------------------------------------");
+	pcs_filist_iterater_init(list, &iterater);
+	while(pcs_filist_iterater_next(&iterater)) {
+		file = iterater.current;
+		print_filelist_row(file, size_width);
+	}
+	puts("------------------------------------------------------------------------------");
+	pcs_utils_readable_size(total, tmp, 63, NULL);
+	tmp[63] = '\0';
+	printf("Total: %s, File Count: %d, Directory Count: %d\n", tmp, cnt_file, cnt_dir);
+	putchar('\n');
+}
+
+static PcsFileInfoList *get_file_list(Pcs pcs, const char *dir, const char *sort, PcsBool desc, PcsBool recursion)
+{
+	PcsFileInfoList *reslist = NULL,
+		*list = NULL,
+		*sublist = NULL,
+		*item = NULL;
+	PcsFileInfo *info = NULL;
+	int page_index = 1,
+		page_size = 100;
+	int cnt = 0, cnt_total = 0;
+	while(1) {
+		printf("List %s, Got %d Files           \r", dir, cnt_total);
+		fflush(stdout);
+		list = pcs_list(pcs, dir, 
+			page_index, page_size,
+			sort ? sort : "name", 
+			sort ? desc : PcsFalse);
+		if (!list) {
+			if (pcs_strerror(pcs, PCS_NONE))
+				printf("Cannot list %s: %s\n", dir, pcs_strerror(pcs, PCS_NONE));
+			return NULL;
+		}
+		cnt = list->count;
+		cnt_total += cnt;
+		if (recursion) {
+			PcsFileInfoListItem *listitem;
+			PcsFileInfoListIterater iterater;
+			reslist = pcs_filist_create();
+			if (!reslist) {
+				printf("Cannot create the PcsFileInfoList object for %s.\n", dir);
+				pcs_filist_destroy(list);
+				return NULL;
+			}
+			pcs_filist_iterater_init(list, &iterater);
+			while(pcs_filist_iterater_next(&iterater)) {
+				info = iterater.current;
+				listitem = iterater.cursor;
+				pcs_filist_remove(list, listitem, &iterater);
+				pcs_filist_add(reslist, listitem);
+				if (info->isdir) {
+					sublist = get_file_list(pcs, info->path, sort, desc, recursion);
+					if (sublist) {
+						pcs_filist_combin(reslist, sublist);
+						pcs_filist_destroy(sublist);
+					}
+				}
+				else {
+					/*
+					 * 因为百度网盘返回的都是文件夹在前，文件在后，
+					 * 因此遇到第一个文件，则后边的都是文件。
+					 * 所以可以跳过检查，直接合并
+					*/
+					pcs_filist_combin(reslist, list);
+					break;
+				}
+			}
+			pcs_filist_destroy(list);
+		}
+		else {
+			reslist = list;
+		}
+		if (cnt > 0) {
+			printf("List %s, Got %d Files           \r", dir, cnt_total);
+			fflush(stdout);
+		}
+		if (cnt < page_size) {
+			break;
+		}
+		page_index++;
+	}
+	return reslist;
+}
+
 static void exec_meta(Pcs pcs, struct params *params)
 {
 	char str[32] = {0};
@@ -251,36 +450,35 @@ static void exec_meta(Pcs pcs, struct params *params)
 
 static void exec_list(Pcs pcs, struct params *params)
 {
-	PcsFileInfoList *fi,
-		*list = pcs_list(pcs, "/", 1, 100, "name", PcsFalse);
-	if (!list) {
-		printf("List / failed: %s\n", pcs_strerror(pcs, PCS_NONE));
-		return;
+	PcsFileInfoList *list;
+	printf("\n%sList %s\n", params->is_recursion ? "Recursive " : "", params->args[0]);
+	list = get_file_list(pcs, params->args[0], params->sort, params->is_desc, params->is_recursion);
+	if (list) {
+		printf("Got %d Files\n", list->count);
+		fflush(stdout);
+		print_filelist(list);
+		pcs_filist_destroy(list);
 	}
-
-	fi = list;
-	while(fi) {
-		printf("%s\n", fi->info.path);
-		fi = fi->next;
+	else {
+		printf("Got 0 Files\n");
+		fflush(stdout);
+		print_filelist_head(4);
 	}
-	pcs_filist_destroy(list);
 }
 
-static void exec_search(Pcs pcs)
+static void exec_search(Pcs pcs, struct params *params)
 {
-	PcsFileInfoList *fi,
-		*list = pcs_search(pcs, "/", "temp", PcsTrue);
-	if (!list) {
-		printf("Search \"temp\" failed: %s\n", pcs_strerror(pcs, PCS_NONE));
-		return;
+	PcsFileInfoList *list;
+	printf("\n%sSearch %s in %s\n", params->is_recursion ? "Recursive " : "", params->args[1], params->args[0]);
+	list = pcs_search(pcs, params->args[0], params->args[1], params->is_recursion);
+	putchar('\n');
+	if (list) {
+		print_filelist(list);
+		pcs_filist_destroy(list);
 	}
-
-	fi = list;
-	while(fi) {
-		printf("%s\n", fi->info.path);
-		fi = fi->next;
+	else {
+		print_filelist_head(4);
 	}
-	pcs_filist_destroy(list);
 }
 
 static void exec_cmd(Pcs pcs, struct params *params)
