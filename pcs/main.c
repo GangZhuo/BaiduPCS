@@ -181,20 +181,71 @@ static const char *get_default_cookie_file(const char *username)
 	return filename;
 }
 
-static void exec_meta(Pcs pcs)
+static void print_time(const char *format, UInt64 time)
+{
+	struct tm *tm;
+	time_t t = time;
+	char tmp[64];
+
+	tm = localtime(&t);
+
+	if (tm) {
+		sprintf(tmp, "%d-%02d-%02d %02d:%02d:%02d", 
+			1900 + tm->tm_year, 
+			tm->tm_mon + 1, 
+			tm->tm_mday,
+			tm->tm_hour, 
+			tm->tm_min,
+			tm->tm_sec);
+		printf(format, tmp);
+	}
+	else {
+		printf("0000-00-00 00:00:00");
+	}
+}
+
+static void print_size(const char *format, UInt64 size)
+{
+	char tmp[64];
+	tmp[63] = '\0';
+	pcs_utils_readable_size(size, tmp, 63, NULL);
+	printf(format, tmp);
+}
+
+static void print_fileinfo(PcsFileInfo *f, const char *prex)
+{
+	if(!prex) prex = "";
+	printf("%sCategory:\t%d\n", prex, f->category);
+	printf("%sPath:\t\t%s\n", prex, f->path);
+	printf("%sFilename:\t%s\n", prex, f->server_filename);
+	printf("%s", prex); 
+	print_time("Create time:\t%s\n", f->server_ctime);
+	printf("%s", prex); 
+	print_time("Modify time:\t%s\n", f->server_mtime);
+	printf("%sIs Dir:\t%s\n", prex, f->isdir ? "yes" : "no");
+	if (f->isdir) {
+		printf("%sEmpty Dir:\t%s\n", prex, f->dir_empty ? "yes" : "no");
+		//printf("%sHas Sub Dir:\t%s\n", prex, f->ifhassubdir ? "no" : "yes");
+	}
+	else {
+		printf("%s", prex); 
+		print_size("Size:\t%s\n", f->size);
+		printf("%smd5:\t%s\n", prex, f->md5);
+		printf("%sdlink:\t%s\n", prex, f->dlink);
+	}
+}
+
+static void exec_meta(Pcs pcs, struct params *params)
 {
 	char str[32] = {0};
-	PcsFileInfo *fi = pcs_meta(pcs, "/temp/temp2.txt");
+	PcsFileInfo *fi;
+	printf("\nGet meta %s\n", params->args[0]);
+	fi = pcs_meta(pcs, params->args[0]);
 	if (!fi) {
-		printf("Get meta for \"temp/temp2.txt\" failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Failed: %s\n", pcs_strerror(pcs, PCS_NONE));
 		return;
 	}
-
-	printf("Path: %s%s\n", fi->path, fi->isdir ? "(dir)" : "");
-	printf("Size: ");
-	pcs_utils_readable_size((double)fi->size, str, 30, NULL);
-	printf(str);
-	putchar('\n');
+	print_fileinfo(fi, " ");
 	pcs_fileinfo_destroy(fi);
 }
 
@@ -230,6 +281,54 @@ static void exec_list(Pcs pcs)
 		fi = fi->next;
 	}
 	pcs_filist_destroy(list);
+}
+
+static void exec_cmd(Pcs pcs, struct params *params)
+{
+	switch (params->action)
+	{
+	case ACTION_QUOTA:
+		break;
+	case ACTION_META:
+		exec_meta(pcs, params);
+		break;
+	case ACTION_LIST:
+		//exec_list(pcs, params);
+		break;
+	case ACTION_RENAME:
+		//exec_rename(pcs, params);
+		break;
+	case ACTION_MOVE:
+		//exec_move(pcs, params);
+		break;
+	case ACTION_COPY:
+		//exec_copy(pcs, params);
+		break;
+	case ACTION_MKDIR:
+		//exec_mkdir(pcs, params);
+		break;
+	case ACTION_DELETE:
+		//exec_delete(pcs, params);
+		break;
+	case ACTION_CAT:
+		//exec_cat(pcs, params);
+		break;
+	case ACTION_ECHO:
+		//exec_echo(pcs, params);
+		break;
+	case ACTION_SEARCH:
+		//exec_search(pcs, params);
+		break;
+	case ACTION_DOWNLOAD:
+		//exec_download(pcs, params);
+		break;
+	case ACTION_UPLOAD:
+		//exec_upload(pcs, params);
+		break;
+	default:
+		printf("Unknown command, use `--help` to view help.\n");
+		break;
+	}
 }
 
 static void show_quota(Pcs pcs)
@@ -319,11 +418,7 @@ int main(int argc, char *argv[])
 	}
 	printf("UID: %s\n", pcs_sysUID(pcs));
 	show_quota(pcs);
-
-	//show_quota(pcs);
-	//exec_list(pcs);
-	//exec_search(pcs);
-	exec_meta(pcs);
+	exec_cmd(pcs, params);
 
 main_exit:
 	pcs_destroy(pcs);
