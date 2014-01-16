@@ -377,10 +377,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		if (arg) {
 			params->username = pcs_utils_strdup(arg);
 		}
-		else {
-			print_arg_err("Not specify username\n");
-			return EINVAL;
-		}
+		//else {
+		//	print_arg_err("Not specify username\n");
+		//	return EINVAL;
+		//}
 		break;
 
 	case 'p':
