@@ -555,6 +555,41 @@ static void exec_mkdir(Pcs pcs, struct params *params)
 	printf("Create %s success.\n", params->args[0]);
 }
 
+static void exec_delete(Pcs pcs, struct params *params)
+{
+	PcsPanApiRes *res;
+	PcsSList *slist = NULL;
+	int i;
+
+	printf("\nDelete");
+	for (i = 0; i < params->args_count; i++) {
+		printf(" %s", params->args[i]);
+		if (!slist) {
+			slist = pcs_slist_create_ex(params->args[i], -1);
+			if (!slist) {
+				printf("Cannot create slist\n");
+				return;
+			}
+		}
+		else if (!pcs_slist_add_ex(slist, params->args[i], -1)) {
+			printf("\nCannot create slist\n");
+			pcs_slist_destroy(slist);
+			return;
+		}
+	}
+	putchar('\n');
+
+	res = pcs_delete(pcs, slist);
+	pcs_slist_destroy(slist);
+	if (!res) {
+		printf("Delete failed. %s\n", pcs_strerror(pcs, PCS_NONE));
+		return;
+	}
+	putchar('\n');
+	print_pcs_pan_api_res(res);
+	pcs_pan_api_res_destroy(res);
+}
+
 static void exec_search(Pcs pcs, struct params *params)
 {
 	PcsFileInfoList *list;
@@ -595,7 +630,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_mkdir(pcs, params);
 		break;
 	case ACTION_DELETE:
-		//exec_delete(pcs, params);
+		exec_delete(pcs, params);
 		break;
 	case ACTION_CAT:
 		//exec_cat(pcs, params);

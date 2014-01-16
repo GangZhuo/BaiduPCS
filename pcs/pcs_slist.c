@@ -21,6 +21,7 @@ PCS_API PcsSList *pcs_slist_create_ex(const char *src, int len)
 {
 	PcsSList *res = pcs_slist_create();
 	if (res) {
+		if (len == -1) len = strlen(src);
 		res->string = (char *)pcs_malloc(len + 1);
 		if (res->string) {
 			memcpy(res->string, src, len);
