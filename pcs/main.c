@@ -249,12 +249,12 @@ static void exec_meta(Pcs pcs, struct params *params)
 	pcs_fileinfo_destroy(fi);
 }
 
-static void exec_search(Pcs pcs)
+static void exec_list(Pcs pcs, struct params *params)
 {
 	PcsFileInfoList *fi,
-		*list = pcs_search(pcs, "/", "temp", PcsTrue);
+		*list = pcs_list(pcs, "/", 1, 100, "name", PcsFalse);
 	if (!list) {
-		printf("Search \"temp\" failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("List / failed: %s\n", pcs_strerror(pcs, PCS_NONE));
 		return;
 	}
 
@@ -266,12 +266,12 @@ static void exec_search(Pcs pcs)
 	pcs_filist_destroy(list);
 }
 
-static void exec_list(Pcs pcs)
+static void exec_search(Pcs pcs)
 {
 	PcsFileInfoList *fi,
-		*list = pcs_list(pcs, "/", 1, 100, "name", PcsFalse);
+		*list = pcs_search(pcs, "/", "temp", PcsTrue);
 	if (!list) {
-		printf("List / failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Search \"temp\" failed: %s\n", pcs_strerror(pcs, PCS_NONE));
 		return;
 	}
 
@@ -293,7 +293,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_meta(pcs, params);
 		break;
 	case ACTION_LIST:
-		//exec_list(pcs, params);
+		exec_list(pcs, params);
 		break;
 	case ACTION_RENAME:
 		//exec_rename(pcs, params);
