@@ -12,8 +12,8 @@
 #include "pcs_http.h"
 
 #define USAGE "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36"
-#define EMPTY_ENCODE ""
-#define EMPTY_ENCODE_CHAR '\0'
+#define EMPTY_ENCODE "\f"
+#define EMPTY_ENCODE_CHAR '\f'
 
 #define PCS_HTTP_RES_TYPE_NORMAL		0
 #define PCS_HTTP_RES_TYPE_VALIDATE_TEXT	2
