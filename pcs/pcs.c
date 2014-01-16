@@ -560,7 +560,7 @@ static int pcs_get_errno_from_api_res(Pcs handle, const char *html)
 	return res;
 }
 
-static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwrite, PcsHttpForm *form)
+static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwrite, PcsHttpForm form)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url, *html,
@@ -1200,6 +1200,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path)
 		return NULL;
 	}
 	html = pcs_http_get(pcs->http, url, PcsTrue);
+	pcs_free(url);
 	if (!html) {
 		pcs_set_errmsg(handle, PCS_NETWORK_ERROR);
 		return NULL;
@@ -1212,7 +1213,7 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *filename;
-	PcsHttpForm *form = NULL;
+	PcsHttpForm form = NULL;
 	PcsFileInfo *meta;
 
 	pcs_clear_error(handle);
@@ -1233,7 +1234,7 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *filename;
-	PcsHttpForm *form = NULL;
+	PcsHttpForm form = NULL;
 	PcsFileInfo *meta;
 
 	pcs_clear_error(handle);

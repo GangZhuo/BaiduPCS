@@ -812,7 +812,7 @@ PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool f
 	return http->strerror == NULL ? PcsTrue : PcsFalse;
 }
 
-PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm **post, const char *param_name, 
+PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, 
 									  const char *filename, const char *simulate_filename)
 {
 	struct http_post *formpost = (struct http_post *)(*post);
@@ -823,7 +823,7 @@ PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm **post, const 
 		if (!formpost)
 			return PcsFalse;
 		memset(formpost, 0, sizeof(struct http_post));
-		*post = (void **)formpost;
+		(*post) = (PcsHttpForm)formpost;
 	}
 	escape_param_name = pcs_http_escape(handle, param_name);
 	escape_simulate_filename = pcs_http_escape(handle, simulate_filename);
@@ -839,7 +839,7 @@ PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm **post, const 
 	return res;
 }
 
-PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm **post, const char *param_name,
+PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const char *param_name,
 										const char *buffer, long buffer_size, const char *simulate_filename)
 {
 	struct http_post *formpost = (struct http_post *)(*post);
@@ -850,7 +850,7 @@ PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm **post, cons
 		if (!formpost)
 			return PcsFalse;
 		memset(formpost, 0, sizeof(struct http_post));
-		*post = (void **)formpost;
+		(*post) = (PcsHttpForm)formpost;
 	}
 	escape_param_name = pcs_http_escape(handle, param_name);
 	escape_simulate_filename = pcs_http_escape(handle, simulate_filename);
@@ -866,20 +866,22 @@ PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm **post, cons
 	return res;
 }
 
-PCS_API void pcs_http_form_destroy(PcsHttp handle, PcsHttpForm *post)
+PCS_API void pcs_http_form_destroy(PcsHttp handle, PcsHttpForm post)
 {
 	struct http_post *formpost = (struct http_post *)post;
 	if (formpost) {
 		curl_formfree(formpost->formpost);
+		pcs_free(formpost);
 	}
 }
 
-PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm *data, PcsBool follow_location)
+PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm data, PcsBool follow_location)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
+	struct http_post *formpost = (struct http_post *)data;
 	pcs_http_prepare(http, HTTP_METHOD_POST, url, follow_location, &pcs_http_write, http);
 	if (data)
-		curl_easy_setopt(http->curl, CURLOPT_HTTPPOST, data); 
+		curl_easy_setopt(http->curl, CURLOPT_HTTPPOST, formpost->formpost); 
 	else
 		curl_easy_setopt(http->curl, CURLOPT_POSTFIELDS, "");  
 	return pcs_http_perform(http);
