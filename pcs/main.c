@@ -361,6 +361,26 @@ static void print_filelist(PcsFileInfoList *list)
 	putchar('\n');
 }
 
+static void print_pcs_pan_api_res(PcsPanApiRes *res)
+{
+	int cnt_suc = 0, cnt_fail = 0;
+	PcsPanApiResInfoList *info;
+	
+	info = res->info_list;
+	while(info) {
+		if (info->info.error) {
+			printf("[FAIL] %s\n", info->info.path);
+			cnt_fail++;
+		}
+		else {
+			printf("[SUCC] %s\n", info->info.path);
+			cnt_suc++;
+		}
+		info = info->next;
+	}
+	printf("\n%d Success, %d Failed.\n", cnt_suc, cnt_fail);
+}
+
 static PcsFileInfoList *get_file_list(Pcs pcs, const char *dir, const char *sort, PcsBool desc, PcsBool recursion)
 {
 	PcsFileInfoList *reslist = NULL,
@@ -466,6 +486,24 @@ static void exec_list(Pcs pcs, struct params *params)
 	}
 }
 
+static void exec_rename(Pcs pcs, struct params *params)
+{
+	PcsPanApiRes *res;
+	PcsSList2 slist;
+	slist.string1 = params->args[0]; /* path */
+	slist.string2 = params->args[1]; /* new_name */
+	slist.next = NULL;
+	printf("\nRename %s to %s\n", slist.string1, slist.string1);
+	res = pcs_rename(pcs, &slist);
+	if (!res) {
+		printf("Rename failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		return;
+	}
+	putchar('\n');
+	print_pcs_pan_api_res(res);
+	pcs_pan_api_res_destroy(res);
+}
+
 static void exec_search(Pcs pcs, struct params *params)
 {
 	PcsFileInfoList *list;
@@ -494,7 +532,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_list(pcs, params);
 		break;
 	case ACTION_RENAME:
-		//exec_rename(pcs, params);
+		exec_rename(pcs, params);
 		break;
 	case ACTION_MOVE:
 		//exec_move(pcs, params);
