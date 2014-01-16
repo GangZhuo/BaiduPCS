@@ -201,16 +201,14 @@ int main(int argc, char *argv[])
 	else {
 		if (params->username && strcmpi(pcs_sysUID(pcs), params->username) != 0) {
 			char flag[8] = {0};
-			printf("You have been logged in with %s, but you specified %s, continue?(yes|no): \n", pcs_sysUID(pcs), params->username);
+			printf("You have been logged in with %s, but you specified %s,\ncontinue?(yes|no): \n", pcs_sysUID(pcs), params->username);
 			get_string_from_std_input(flag, 4);
 			if (strcmpi(flag, "yes") && strcmpi(flag, "y")) {
 				goto main_exit;
 			}
 		}
-		else {
-			printf("UID: %s\n", pcs_sysUID(pcs));
-		}
 	}
+	printf("UID: %s\n", pcs_sysUID(pcs));
 
 
 	//show_quota(pcs);
@@ -220,6 +218,7 @@ int main(int argc, char *argv[])
 
 main_exit:
 	pcs_destroy(pcs);
+	main_args_destroy_params(params);
 	pcs_mem_print_leak();
 #if defined(WIN32) && defined(_DEBUG)
 	system("pause");
