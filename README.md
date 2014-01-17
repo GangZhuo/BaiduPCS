@@ -14,3 +14,10 @@ chmod a+x /usr/bin/pcs <br />
 2. 登录后， `pcs list /` 列出网盘根目录 <br />
 3. `pcs --help` 查看帮助 <br />
 <br />
+编译安装： <br />
+1. 安装好 libcurl, libiconv, libpcre 库。安装方法自己GOOGLE <br />
+2. git clone https://github.com/GangZhuo/baidupcs.git <br />
+3. cd baidupcs/pcs <br />
+4. make <br />
+5. cp ./pcs /usr/bin/ <br />
+6. chmod a+x /usr/bin/pcs <br />
