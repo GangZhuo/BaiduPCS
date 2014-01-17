@@ -225,6 +225,7 @@ int hashtable_clear(hashtable *ht)
 {
 	table_clear(ht->table, ht->real_capacity, ht->free_value);
 	ht->count = 0;
+	return 0;
 }
 
 hashtable_iterater *hashtable_iterater_create(hashtable *ht)
