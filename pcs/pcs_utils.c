@@ -147,6 +147,29 @@ PCS_API char *pcs_utils_filename(const char *path)
 	return name;
 }
 
+inline int chcmpi(char a, char b)
+{
+	if((a == b) 
+		|| ((a >= 'A' || a <= 'Z') && b == a + ('a' - 'A'))
+		|| ((a >= 'a' || a <= 'z') && b == a - ('a' - 'A')))
+		return 0;
+	return a - b;
+}
+
+PCS_API int pcs_utils_strcmpi(const char *str1, const char *str2)
+{
+	int r;
+	const char *p1 = str1,
+		*p2 = str2;
+	while((*p1) && (*p2)) {
+		r = chcmpi(*p1, *p2);
+		if (r) return r;
+		p1++;
+		p2++;
+	}
+	return (*p1) - (*p2);
+}
+
 /*
  * 正则匹配
  * input  用于匹配的原始字符串
