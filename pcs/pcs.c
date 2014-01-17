@@ -1248,3 +1248,9 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 	pcs_http_form_destroy(pcs->http, form);
 	return meta;
 }
+
+PCS_API char *pcs_cookie_data(Pcs handle)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	return pcs_http_cookie_data(pcs->http);
+}
