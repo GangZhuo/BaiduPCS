@@ -4,7 +4,8 @@
 #include <stdarg.h>
 #ifdef WIN32
 # include <malloc.h>
-# include <pcre/pcre.h> 
+# include <pcre/pcre.h>
+# define snprintf _snprintf
 #else
 # include <alloca.h>
 # include <pcre.h> 
