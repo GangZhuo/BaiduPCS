@@ -10,6 +10,10 @@
 #include "hashtable.h"
 #include "main_args.h"
 
+#if defined(WIN32)
+# define mkdir _mkdir
+#endif
+
 void cb_pcs_http_response(unsigned char *ptr, size_t size, void *state)
 {
 	printf("\n<<<\n");
@@ -415,7 +419,7 @@ static void print_pcs_pan_api_res(PcsPanApiRes *res)
 	printf("\n%d Success, %d Failed.\n", cnt_suc, cnt_fail);
 }
 
-static char *combin_path(const char *base, const char *filename)
+static char *combin_local_path(const char *base, const char *filename)
 {
 	char *p;
 	size_t basesz, filenamesz, sz;
@@ -435,6 +439,25 @@ static char *combin_path(const char *base, const char *filename)
 	if (base[basesz - 1] != '/' && filename[0] != '/')
 		strcat(p, "/");
 #endif
+	strcat(p, filename);
+	return p;
+}
+
+static char *combin_remote_path(const char *base, const char *filename)
+{
+	char *p;
+	size_t basesz, filenamesz, sz;
+
+	basesz = strlen(base);
+	filenamesz = strlen(filename);
+	sz = basesz + filenamesz + 1;
+	p = (char *)pcs_malloc(sz + 1);
+	if (!p)
+		return NULL;
+	memset(p, 0, sz + 1);
+	strcpy(p, base);
+	if (base[basesz - 1] != '/' && filename[0] != '/')
+		strcat(p, "/");
 	strcat(p, filename);
 	return p;
 }
@@ -846,7 +869,7 @@ static int exec_download_dir(Pcs pcs, const char *remote_path, const char *local
 	pcs_filist_iterater_init(remote_files, &iterater);
 	while(pcs_filist_iterater_next(&iterater)) {
 		file = iterater.current;
-		dest_path = combin_path(local_path, file->server_filename);
+		dest_path = combin_local_path(local_path, file->server_filename);
 		if (!dest_path) {
 			printf("Cannot alloca memory. 0%s, %s\n", local_path, file->server_filename);
 			pcs_filist_destroy(remote_files);
@@ -879,7 +902,7 @@ static int exec_download_dir(Pcs pcs, const char *remote_path, const char *local
 		else {
 			local_file = (my_dirent *)hashtable_get(ht, dest_path);
 			if (local_file) local_file->user_flag = 1;
-			if (force || !local_file || my_dirent_get_mtime(local_file) < file->server_mtime) {
+			if (force || !local_file || my_dirent_get_mtime(local_file) < ((time_t)file->server_mtime)) {
 				ddstat.msg = (char *) pcs_malloc(strlen(dest_path) + 12);
 				if (!ddstat.msg) {
 					printf("Cannot alloca memory. 1%s, %s\n", local_path, file->server_filename);
@@ -927,7 +950,7 @@ static int exec_download_dir(Pcs pcs, const char *remote_path, const char *local
 		pcs_filist_iterater_init(remote_files, &iterater);
 		while(pcs_filist_iterater_next(&iterater)) {
 			file = iterater.current;
-			dest_path = combin_path(local_path, file->server_filename);
+			dest_path = combin_local_path(local_path, file->server_filename);
 			if (!dest_path) {
 				printf("Cannot alloca memory. 2%s, %s\n", local_path, file->server_filename);
 				pcs_filist_destroy(remote_files);
@@ -1017,9 +1040,11 @@ static void exec_upload_file(Pcs pcs, struct params *params)
 		printf("The target %s exist. You can use -f to force overwrite the file.\n", params->args[1]);
 		return;
 	}
+	pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, params->args[0]);
 	pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsTrue);
 	res = pcs_upload(pcs, params->args[1], params->is_force, params->args[0]);
 	pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsFalse);
+	pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
 	if (!res) {
 		printf("Execute upload command failed: %s\n", pcs_strerror(pcs, PCS_NONE));
 		return;
@@ -1032,18 +1057,184 @@ static void exec_upload_file(Pcs pcs, struct params *params)
 	pcs_fileinfo_destroy(res);
 }
 
+static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_path,
+							 int force, int recursion, int synch)
+{
+	int ft = 0, res = 0;
+	char *dest_path = NULL;
+	PcsFileInfo *meta = NULL,
+		*remote_file = NULL;
+	PcsFileInfoList *remote_filelist = NULL;
+	PcsFileInfoListIterater iterater = {0};
+	PcsRes pcsres = PCS_NONE;
+	PcsPanApiRes *pcsapires = NULL;
+	hashtable *ht = NULL;
+	my_dirent *ents = NULL,
+		*ent = NULL;
+
+	printf("\nUpload %s to %s\n", local_path, remote_path);
+	meta = pcs_meta(pcs, remote_path);
+	if (meta) {
+		if (meta->isdir)
+			ft = 2;
+		else
+			ft = 1;
+		pcs_fileinfo_destroy(meta);
+		meta = NULL;
+	}
+	if (ft == 1) {
+		printf("The target %s is not the directory.\n", remote_path);
+		return -1;
+	}
+	else if (ft == 2) {
+	}
+	else {
+		pcsres = pcs_mkdir(pcs, remote_path);
+		if (pcsres != PCS_OK) {
+			printf("Cannot create the remote directory %s.\n", remote_path);
+			return -1;
+		}
+	}
+
+	printf("Get remote file list %s.\n", remote_path);
+	remote_filelist = get_file_list(pcs, remote_path, NULL, PcsFalse, PcsFalse);
+	if (remote_filelist) {
+		ht = hashtable_create(remote_filelist->count, 1, NULL);
+		if (!ht) {
+			printf("Cannot create hashtable.\n");
+			res = -1;
+			goto exit_exec_upload_dir;
+		}
+		pcs_filist_iterater_init(remote_filelist, &iterater);
+		while(pcs_filist_iterater_next(&iterater)) {
+			remote_file = iterater.current;
+			if (hashtable_add(ht, remote_file->path, remote_file)) {
+				printf("Cannot add object to hashtable.\n");
+				res = -1;
+				goto exit_exec_upload_dir;
+			}
+		}
+	}
+
+	ents = list_dir(local_path, 0);
+	if (!ents) {
+		printf("[SKIP] d %s empty directory.\n", local_path);
+		goto exit_exec_upload_dir;
+	}
+	ent = ents;
+	while(ent) {
+		dest_path = combin_remote_path(remote_path, ent->filename);
+		if (!dest_path) {
+			printf("Cannot combin the path.\n");
+			res = -1;
+			goto exit_exec_upload_dir;
+		}
+		if (ent->is_dir) {
+			if (force || recursion) {
+				remote_file = ht ? (PcsFileInfo *)hashtable_get(ht, dest_path) : NULL;
+				if (remote_file) {
+					remote_file->user_flag = 1;
+					printf("[SKIP] d %s\n", ent->path);
+				}
+				else if (recursion) {
+					pcsres = pcs_mkdir(pcs, dest_path);
+					if (pcsres != PCS_OK) {
+						printf("[FAIL] d %s Cannot create the folder: %s %s\n", ent->path, dest_path, pcs_strerror(pcs, PCS_NONE));
+						res = -1;
+						goto exit_exec_upload_dir;
+					}
+					else {
+						printf("[SUCC] d %s => %s\n", ent->path, dest_path);
+					}
+				}
+			}
+		}
+		else {
+			remote_file = ht ? (PcsFileInfo *)hashtable_get(ht, dest_path) : NULL;
+			if (remote_file) remote_file->user_flag = 1;
+			if (force || !remote_file || ((time_t)remote_file->server_mtime) < my_dirent_get_mtime(ent)) {
+				pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, ent->path);
+				pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsTrue);
+				meta = pcs_upload(pcs, dest_path, PcsTrue, ent->path);
+				pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsFalse);
+				pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
+				if (!meta) {
+					printf("[FAIL] - %s %s\n", ent->path, pcs_strerror(pcs, PCS_NONE));
+					res = -1;
+					goto exit_exec_upload_dir;
+				}
+				printf("[SUCC] - %s => %s\n", ent->path, meta->path);
+				pcs_fileinfo_destroy(meta); meta = NULL;
+			}
+			else {
+				printf("[SKIP] - %s\n", ent->path);
+			}
+		}
+		ent = ent->next;
+		pcs_free(dest_path); dest_path = NULL;
+	}
+	if (recursion) {
+		ent = ents;
+		while(ent) {
+			dest_path = combin_remote_path(remote_path, ent->filename);
+			if (!dest_path) {
+				printf("Cannot combin the path.\n");
+				res = -1;
+				goto exit_exec_upload_dir;
+			}
+			if (ent->is_dir) {
+				if (exec_upload_dir(pcs, ent->path, dest_path, force, recursion, synch)) {
+					res = -1;
+					goto exit_exec_upload_dir;
+				}
+			}
+			ent = ent->next;
+			pcs_free(dest_path); dest_path = NULL;
+		}
+	}
+	if (synch && ht) {
+		hashtable_iterater *iterater;
+		PcsSList slist = {0,0};
+
+		iterater = hashtable_iterater_create(ht);
+		hashtable_iterater_reset(iterater);
+		while(hashtable_iterater_next(iterater)) {
+			remote_file = (PcsFileInfo *)hashtable_iterater_current(iterater);
+			if (!remote_file->user_flag) {
+				slist.string = remote_file->path;
+				pcsapires = pcs_delete(pcs, &slist);
+				if (!pcsapires) {
+					printf("[DELETE] [FAIL] %s %s %s\n", remote_file->isdir ? "d" : "-", remote_file->path, pcs_strerror(pcs, PCS_NONE));
+				}
+				else {
+					printf("[DELETE] [SUCC] %s %s \n", remote_file->isdir ? "d" : "-", remote_file->path);
+					pcs_pan_api_res_destroy(pcsapires);
+				}
+			}
+		}
+		hashtable_iterater_destroy(iterater);
+	}
+exit_exec_upload_dir:
+	if (dest_path) pcs_free(dest_path);
+	if (meta) pcs_fileinfo_destroy(meta);
+	if (ht) hashtable_destroy(ht);
+	if (remote_filelist) pcs_filist_destroy(remote_filelist);
+	if (ents) my_dirent_destroy(ents);
+	return res;
+}
+
 static void exec_upload(Pcs pcs, struct params *params)
 {
 	int ft;
 	printf("\nUpload %s to %s\n", params->args[0], params->args[1]);
 	ft = is_dir_or_file(params->args[0]);
 	if (ft == 2) {
-		//if (exec_upload_dir_r(pcs, local_path, params->args[1], params->is_force, params->is_recursion, params->is_synch)) {
-		//	printf("\nFailed.\n");
-		//}
-		//else {
-		//	printf("\nAll Successfully\n");
-		//}
+		if (exec_upload_dir(pcs, params->args[0], params->args[1], params->is_force, params->is_recursion, params->is_synch)) {
+			printf("\nFailed.\n");
+		}
+		else {
+			printf("\nAll Successfully\n");
+		}
 	}
 	else if (ft == 1) {
 		exec_upload_file(pcs, params);
@@ -1120,6 +1311,22 @@ static void show_quota(Pcs pcs)
 	printf("\n");
 }
 
+static void save_cookie_data(Pcs pcs, const char *cookie_file)
+{
+	char *cookie_data;
+	FILE *pf;
+	printf("SAVE COOKIE TO %s\n", cookie_file);
+	pf = fopen(cookie_file, "wb");
+	if (!pf) return;
+	cookie_data = pcs_cookie_data(pcs);
+	if (cookie_data) {
+		fwrite(cookie_data, 1, strlen(cookie_data), pf); 
+		printf("COOKIE DATA: \n%s\n", cookie_data);
+		pcs_free(cookie_data);
+	}
+	fclose(pf);
+}
+
 int main(int argc, char *argv[])
 {
 	PcsRes pcsres;
@@ -1143,6 +1350,8 @@ int main(int argc, char *argv[])
 		cookie_file = params->cookie;
 	else
 		cookie_file = get_default_cookie_file(params->username);
+
+	printf("COOKIE FILE: %s\n", cookie_file);
 
 	pcs = pcs_create(cookie_file);
 
@@ -1195,6 +1404,7 @@ int main(int argc, char *argv[])
 	exec_cmd(pcs, params);
 
 main_exit:
+	//save_cookie_data(pcs, cookie_file);
 	pcs_destroy(pcs);
 	main_args_destroy_params(params);
 	pcs_mem_print_leak();
