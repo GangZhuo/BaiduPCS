@@ -1166,7 +1166,7 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 PCS_API PcsRes pcs_download(Pcs handle, const char *path)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	char *url, *html;
+	char *url;
 
 	pcs_clear_error(handle);
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
