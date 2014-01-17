@@ -173,7 +173,7 @@ void hashtable_destroy(hashtable *ht)
 
 int hashtable_expand(hashtable *ht, int capacity)
 {
-	hashtable_node **table, *node, *p;
+	hashtable_node **table, *node;
 	int real_capacity, i, cnt;
 	real_capacity = (int)(capacity * HASH_EXTEND_MULTIPLIER);
 	table = (hashtable_node **)pcs_malloc(real_capacity * sizeof(hashtable_node *));
