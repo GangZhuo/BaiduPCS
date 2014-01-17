@@ -2,13 +2,13 @@
 OBJS1 = cJSON.o pcs.o pcs_fileinfo.o pcs_http.o pcs_mem.c pcs_pan_api_resinfo.o pcs_slist.o pcs_utils.o utf8.o
 OBJS2 = main.o pcs_io.o main_args.o dir.o hashtable.o
 CCFLAGS = -DHAVE_ASPRINTF -DHAVE_ICONV -DDEBUG -D_DEBUG 
-CC = cc -g
+CC = gcc -g
 #
 
 all: libpcs.a pcs
 
 pcs : $(OBJS2) $(OBJS1)
-	$(CC) -o $@ $(OBJS2) $(OBJS1) $(CCFLAGS) -L./ -largp -lcurl -lssl -lpcre -liconv
+	$(CC) -o $@ $(OBJS2) $(OBJS1) $(CCFLAGS) -L./ -lcurl -lssl -lpcre -liconv
 
 libpcs.a : $(OBJS1)
 	$(AR) crv $@ $^
