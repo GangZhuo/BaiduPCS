@@ -167,11 +167,21 @@ int my_dirent_utime(const char *path, time_t mtime)
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/utime.h>
 #include <alloca.h>
 #include <unistd.h>
 #include <dirent.h>
-
+#ifdef HAVE_UTIME_H
+#    include <utime.h>
+#else
+#  ifdef HAVE_SYS_UTIME_H
+#    include <sys/utime.h>
+#  else
+	  struct utimbuf {
+        time_t actime;
+        time_t modtime;
+	  };
+#  endif
+#endif
 #include "pcs_mem.h"
 #include "dir.h"
 
