@@ -808,7 +808,7 @@ PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm dat
 	return pcs_http_perform(http);
 }
 
-PCS_API char *pcs_http_get_cookie_data(PcsHttp handle)
+PCS_API char *pcs_http_cookie_data(PcsHttp handle)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
 	CURLcode res;
