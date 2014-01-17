@@ -142,7 +142,6 @@ static error_t add_arg(struct params *params, char *arg)
 {
 	char **p;
 	int i;
-	int sz;
 	p = (char **) pcs_malloc((params->args_count + 1) * sizeof(char *));
 	if (!p) {
 		print_arg_err("alloc memory failed\n");
