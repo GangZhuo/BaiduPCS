@@ -70,6 +70,7 @@ typedef enum PcsRes {
  *   captcha 用于接收验证码字符
  *   captchaSize captcha的最大长度
  *   state 使用PCS_OPTION_CAPTCHA_FUNCTION_DATA选项设定的值原样传入
+ * 返回是否成功，返回PcsFalse，将导致登录中断
 */
 typedef PcsBool (*PcsGetCaptchaFunction)(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state);
 
@@ -79,6 +80,7 @@ typedef PcsBool (*PcsGetCaptchaFunction)(unsigned char *ptr, size_t size, char *
  *   size 字节序的大小，以字节为单位
  *   contentlength 本次请求，HTTP头中的Content-Length值
  *   userdata 使用PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA选项设定的值原样传入
+ * 返回写入的字节数，如果返回值和传入的size不一样，将导致下载中断
 */
 typedef size_t (*PcsHttpWriteFunction)(char *ptr, size_t size, size_t contentlength, void *userdata);
 
@@ -101,6 +103,7 @@ typedef void (*PcsHttpResponseFunction)(unsigned char *ptr, size_t size, void *s
  *   ultotal  需要上传多少字节
  *   ulnow    已经上传多少字节
  *   clientp 使用PCS_OPTION_PROGRESS_FUNCTION_DATE选项设定的值原样传入
+ * 返回非零值，将导致中断上传或下载
 */
 typedef int (*PcsHttpProgressCallback)(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow);
 
