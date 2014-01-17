@@ -1186,7 +1186,6 @@ PCS_API PcsRes pcs_download(Pcs handle, const char *path)
 PCS_API const char *pcs_cat(Pcs handle, const char *path)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	PcsRes res;
 	char *url, *html;
 
 	pcs_clear_error(handle);
