@@ -214,7 +214,7 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 		int i, cnt = cJSON_GetArraySize(list);
 		if (cnt > 0) {
 			fi->block_list = (char **) pcs_malloc((cnt + 1) + sizeof(char *));
-			if (!fi->block_list) return;
+			if (!fi->block_list) return fi;
 			memset(fi->block_list, 0, (cnt + 1) + sizeof(char *));
 			for (i = 0; i < cnt; i++) {
 				val = cJSON_GetArrayItem(list, i);
