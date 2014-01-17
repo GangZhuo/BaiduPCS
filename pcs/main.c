@@ -195,25 +195,25 @@ static const char *get_default_cookie_file(const char *username)
 	strcat(filename, "\\.baidupcs");
 	mkdir(filename);
 	strcat(filename, "\\");
-	if (!username || !username[0]) {
+	//if (!username || !username[0]) {
 		strcat(filename, "default.cookie");
-	}
-	else {
-		strcat(filename, username);
-		strcat(filename, ".cookie");
-	}
+	//}
+	//else {
+	//	strcat(filename, username);
+	//	strcat(filename, ".cookie");
+	//}
 #else
 	strcpy(filename, getenv("HOME"));
 	strcat(filename, "/.baidupcs");
 	mkdir(filename);
 	strcat(filename, "/");
-	if (!username || !username[0]) {
+	//if (!username || !username[0]) {
 		strcat(filename, "default.cookie");
-	}
-	else {
-		strcat(filename, username);
-		strcat(filename, ".cookie");
-	}
+	//}
+	//else {
+	//	strcat(filename, username);
+	//	strcat(filename, ".cookie");
+	//}
 #endif
 
 	return filename;
