@@ -808,4 +808,52 @@ PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm dat
 	return pcs_http_perform(http);
 }
 
+PCS_API char *pcs_http_get_cookie_data(PcsHttp handle)
+{
+	struct pcs_http *http = (struct pcs_http *)handle;
+	CURLcode res;
+	struct curl_slist *cookies;
+	struct curl_slist *nc;
+	char *data = NULL,
+		*p;
+	int sz = 0, i = 0;
+
+	res = curl_easy_getinfo(http->curl, CURLINFO_COOKIELIST, &cookies);
+	if (res != CURLE_OK) {
+		return NULL;
+	}
+	nc = cookies;
+	while (nc) {
+		i = strlen(nc->data);
+		if (!data) {
+			data = (char *)pcs_malloc(i + 2);
+			if (!data) {
+				curl_slist_free_all(cookies);
+				return NULL;
+			}
+			memcpy(data, nc->data, i);
+			memcpy(data + i, "\n\0", 2);
+			sz = i + 1;
+		}
+		else {
+			p = (char *)pcs_malloc(sz + i + 2);
+			if (!p) {
+				pcs_free(data);
+				curl_slist_free_all(cookies);
+				return NULL;
+			}
+			memcpy(p, data, sz);
+			memcpy(p + sz, nc->data, i);
+			sz += i;
+			memcpy(p + sz, "\n\0", 2);
+			pcs_free(data);
+			data = p;
+			sz++;
+		}
+		nc = nc->next;
+	}
+	curl_slist_free_all(cookies);
+	return data;
+}
+
 
