@@ -327,7 +327,11 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
  */
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
 									   const char *local_filename);
-
+/*
+ * 获取Cookie 数据。
+ * 成功则返回Cookie数据，失败或没有返回NULL
+ * 使用完后需要使用pcs_free释放
+*/
 PCS_API char *pcs_cookie_data(Pcs handle);
 
 #endif
