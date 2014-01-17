@@ -515,7 +515,7 @@ PCS_API void pcs_http_setopt(PcsHttp handle, PcsHttpOption opt, void *value)
 		http->progress_data = value;
 		break;
 	case PCS_HTTP_OPTION_PROGRESS:
-		http->progress = *((unsigned char *)value);
+		http->progress = (unsigned char)value;
 		break;
 	default:
 		break;
