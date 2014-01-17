@@ -328,5 +328,6 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
 									   const char *local_filename);
 
+PCS_API char *pcs_cookie_data(Pcs handle);
 
 #endif
