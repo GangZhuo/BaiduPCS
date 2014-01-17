@@ -6,6 +6,7 @@
 #include "pcs_utils.h"
 #include "pcs.h"
 #include "dir.h"
+#include "hashtable.h"
 #include "main_args.h"
 
 #ifdef WIN32
@@ -405,6 +406,30 @@ static void print_pcs_pan_api_res(PcsPanApiRes *res)
 	printf("\n%d Success, %d Failed.\n", cnt_suc, cnt_fail);
 }
 
+static char *combin_path(const char *base, const char *filename)
+{
+	char *p;
+	size_t basesz, filenamesz, sz;
+
+	basesz = strlen(base);
+	filenamesz = strlen(filename);
+	sz = basesz + filenamesz + 1;
+	p = (char *)pcs_malloc(sz + 1);
+	if (!p)
+		return NULL;
+	memset(p, 0, sz + 1);
+	strcpy(p, base);
+#if defined(WIN32)
+	if (base[basesz - 1] != '\\' && filename[0] != '\\')
+		strcat(p, "\\");
+#else
+	if (base[basesz - 1] != '/' && filename[0] != '/')
+		strcat(p, "/");
+#endif
+	strcat(p, filename);
+	return p;
+}
+
 static PcsFileInfoList *get_file_list(Pcs pcs, const char *dir, const char *sort, PcsBool desc, PcsBool recursion)
 {
 	PcsFileInfoList *reslist = NULL,
@@ -746,6 +771,198 @@ static void exec_download_file(Pcs pcs, const char *remote_path, const char *loc
 	}
 }
 
+static int exec_download_dir(Pcs pcs, const char *remote_path, const char *local_path,
+							 int force, int recursion, int synch)
+{
+	int ft;
+	hashtable *ht;
+	my_dirent *ents, *ent, *local_file;
+	PcsFileInfoList *remote_files;
+	PcsFileInfoListIterater iterater;
+	PcsFileInfo *file;
+	PcsRes dres;
+	char *dest_path;
+	struct download_state ddstat;
+	FILE *pf;
+
+	printf("\nDownload %s to %s\n", remote_path, local_path);
+	ft = is_dir_or_file(local_path);
+	if (ft == 1) {
+		printf("Invalidate target: %s is not the directory.\n", local_path);
+		return -1;
+	}
+	else if (ft == 2) {
+		//if (!force) {
+		//	printf("execute upload command failed: The target %s exist.\n", remote_path);
+		//	return -1;
+		//}
+	}
+	else {
+		if (mkdir(local_path)) {
+			printf("Cannot create the directory %s.\n", local_path);
+			return -1;
+		}
+	}
+
+	ents = list_dir(local_path, 0);
+
+	ht = hashtable_create(100, 1, NULL);
+	if (!ht) {
+		printf("Cannot create hashtable.\n");
+		my_dirent_destroy(ents);
+		return -1;
+	}
+	ent = ents;
+	while(ent) {
+		if (hashtable_add(ht, ent->path, ent)) {
+			printf("Cannot add item into hashtable.\n");
+			hashtable_destroy(ht);
+			my_dirent_destroy(ents);
+			return -1;
+		}
+		ent = ent->next;
+	}
+
+	remote_files = get_file_list(pcs, remote_path, NULL, PcsFalse, PcsFalse);
+	if (!remote_files) {
+		hashtable_destroy(ht);
+		my_dirent_destroy(ents);
+		if (pcs_strerror(pcs, PCS_NONE)) {
+			printf("Cannot list the remote files.\n");
+			return -1;
+		}
+		return 0;
+	}
+
+	pcs_filist_iterater_init(remote_files, &iterater);
+	while(pcs_filist_iterater_next(&iterater)) {
+		file = iterater.current;
+		dest_path = combin_path(local_path, file->server_filename);
+		if (!dest_path) {
+			printf("Cannot alloca memory. 0%s, %s\n", local_path, file->server_filename);
+			pcs_filist_destroy(remote_files);
+			hashtable_destroy(ht);
+			my_dirent_destroy(ents);
+			return -1;
+		}
+		if (file->isdir) {
+			if (force || recursion) {
+				local_file = (my_dirent *)hashtable_get(ht, dest_path);
+				if (local_file) {
+					local_file->user_flag = 1;
+					printf("[SKIP] d %s\n", file->path);
+				}
+				else if (recursion) {
+					if (mkdir(dest_path)) {
+						printf("[FAIL] d %s Cannot create the folder %s\n", file->path, dest_path);
+						pcs_free(dest_path);
+						pcs_filist_destroy(remote_files);
+						hashtable_destroy(ht);
+						my_dirent_destroy(ents);
+						return -1;
+					}
+					else {
+						printf("[SUCC] d %s => %s\n", file->path, dest_path);
+					}
+				}
+			}
+		}
+		else {
+			local_file = (my_dirent *)hashtable_get(ht, dest_path);
+			if (local_file) local_file->user_flag = 1;
+			if (force || !local_file || my_dirent_get_mtime(local_file) < file->server_mtime) {
+				ddstat.msg = (char *) pcs_malloc(strlen(dest_path) + 12);
+				if (!ddstat.msg) {
+					printf("Cannot alloca memory. 1%s, %s\n", local_path, file->server_filename);
+					pcs_free(dest_path);
+					pcs_filist_destroy(remote_files);
+					hashtable_destroy(ht);
+					my_dirent_destroy(ents);
+					return -1;
+				}
+				sprintf(ddstat.msg, "Download %s ", dest_path);
+				pf = fopen(dest_path, "wb");
+				if (!pf) {
+					printf("Cannot create the local file: %s\n", dest_path);
+					pcs_free(dest_path);
+					pcs_free(ddstat.msg);
+					pcs_filist_destroy(remote_files);
+					hashtable_destroy(ht);
+					my_dirent_destroy(ents);
+					return -1;
+				}
+				ddstat.pf = pf;
+				ddstat.size = 0;
+				pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ddstat);
+				dres = pcs_download(pcs, file->path);
+				pcs_free(ddstat.msg);
+				fclose(ddstat.pf);
+				if (dres != PCS_OK) {
+					printf("[FAIL] - %s => %s\n", file->path, dest_path);
+					pcs_free(dest_path);
+					pcs_filist_destroy(remote_files);
+					hashtable_destroy(ht);
+					my_dirent_destroy(ents);
+					return -1;
+				}
+				my_dirent_utime(dest_path, file->server_mtime);
+				printf("[SUCC] - %s => %s\n", file->path, dest_path);
+			}
+			else {
+				printf("[SKIP] - %s\n", file->path);
+			}
+		}
+		pcs_free(dest_path);
+	}
+	if (recursion) {
+		pcs_filist_iterater_init(remote_files, &iterater);
+		while(pcs_filist_iterater_next(&iterater)) {
+			file = iterater.current;
+			dest_path = combin_path(local_path, file->server_filename);
+			if (!dest_path) {
+				printf("Cannot alloca memory. 2%s, %s\n", local_path, file->server_filename);
+				pcs_filist_destroy(remote_files);
+				hashtable_destroy(ht);
+				my_dirent_destroy(ents);
+				return -1;
+			}
+			if (file->isdir) {
+				if (exec_download_dir(pcs, file->path, dest_path, force, recursion, synch)) {
+					pcs_free(dest_path);
+					pcs_filist_destroy(remote_files);
+					hashtable_destroy(ht);
+					my_dirent_destroy(ents);
+					return -1;
+				}
+			}
+			pcs_free(dest_path);
+		}
+	}
+	if (synch) {
+		hashtable_iterater *iterater;
+
+		iterater = hashtable_iterater_create(ht);
+		hashtable_iterater_reset(iterater);
+		while(hashtable_iterater_next(iterater)) {
+			local_file = (my_dirent *)hashtable_iterater_current(iterater);
+			if (!local_file->user_flag) {
+				if (my_dirent_remove(local_file->path)) {
+					printf("[DELETE] [FAIL] %s %s \n", local_file->is_dir ? "d" : "-", local_file->path);
+				}
+				else {
+					printf("[DELETE] [SUCC] %s %s \n", local_file->is_dir ? "d" : "-", local_file->path);
+				}
+			}
+		}
+		hashtable_iterater_destroy(iterater);
+	}
+
+	pcs_filist_destroy(remote_files);
+	hashtable_destroy(ht);
+	my_dirent_destroy(ents);
+	return 0;
+}
+
 static void exec_download(Pcs pcs, struct params *params)
 {
 	PcsFileInfo *meta;
@@ -758,12 +975,12 @@ static void exec_download(Pcs pcs, struct params *params)
 		return;
 	}
 	if (meta->isdir) {
-		//if (exec_download_dir_r(pcs, params->args[0], local_path, params->is_force, params->is_recursion, params->is_synch)) {
-		//	printf("\nFailed.\n", params->args[0]);
-		//}
-		//else {
-		//	printf("\nAll Successfully\n");
-		//}
+		if (exec_download_dir(pcs, params->args[0], params->args[1], params->is_force, params->is_recursion, params->is_synch)) {
+			printf("\nFailed.\n", params->args[0]);
+		}
+		else {
+			printf("\nAll Successfully\n");
+		}
 	}
 	else {
 		exec_download_file(pcs, params->args[0], params->args[1], meta, params->is_force);
