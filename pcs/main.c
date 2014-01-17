@@ -1185,7 +1185,7 @@ int main(int argc, char *argv[])
 			char flag[8] = {0};
 			printf("You have been logged in with %s, but you specified %s,\ncontinue?(yes|no): \n", pcs_sysUID(pcs), params->username);
 			get_string_from_std_input(flag, 4);
-			if (pcs_utils_strcmpi(flag, "yes") && strcmpi(flag, "y")) {
+			if (pcs_utils_strcmpi(flag, "yes") && pcs_utils_strcmpi(flag, "y")) {
 				goto main_exit;
 			}
 		}
