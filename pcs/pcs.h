@@ -27,7 +27,7 @@ typedef enum PcsOption {
 	PCS_OPTION_PROGRESS_FUNCTION,
 	/* Pcs本身不使用该值，仅原样传递到PcsHttpProgressCallback函数中 */
 	PCS_OPTION_PROGRESS_FUNCTION_DATE,
-	/* 设置是否启用下载或上传进度，值为PcsBool类型指针 */
+	/* 设置是否启用下载或上传进度，值为PcsBool类型 */
 	PCS_OPTION_PROGRESS,
 
 
