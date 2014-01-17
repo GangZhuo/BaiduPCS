@@ -173,6 +173,21 @@ static int cb_download_write(char *ptr, size_t size, size_t contentlength, void 
 	return i;
 }
 
+int cb_upload_progress(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
+{
+	char *path = (char *)clientp;
+	static char tmp[64];
+
+	tmp[63] = '\0';
+	if (path)
+		printf("Upload %s ", path);
+	printf("%s", pcs_utils_readable_size(ulnow, tmp, 63, NULL));
+	printf("/%s      \r", pcs_utils_readable_size(ultotal, tmp, 63, NULL));
+	fflush(stdout);
+
+	return 0;
+}
+
 static const char *get_default_cookie_file(const char *username)
 {
 	static char filename[1024] = { 0 };
@@ -988,6 +1003,62 @@ static void exec_download(Pcs pcs, struct params *params)
 	pcs_fileinfo_destroy(meta);
 }
 
+static void exec_upload_file(Pcs pcs, struct params *params)
+{
+	int ft = 0;
+	PcsFileInfo *res, *meta;
+	
+	meta = pcs_meta(pcs, params->args[1]);
+	if (meta) {
+		if (meta->isdir)
+			ft = 2;
+		else
+			ft = 1;
+		pcs_fileinfo_destroy(meta);
+	}
+	if (ft == 2) {
+		printf("The target %s exist and it is a folder.\n", params->args[1]);
+		return;
+	} else if (ft == 1 && !params->is_force) {
+		printf("The target %s exist. You can use -f to force overwrite the file.\n", params->args[1]);
+		return;
+	}
+	pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsTrue);
+	res = pcs_upload(pcs, params->args[1], params->is_force, params->args[0]);
+	pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsFalse);
+	if (!res) {
+		printf("Execute upload command failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		return;
+	}
+	if (res->path[0]) {
+		printf("Upload %s success, remote location is %s.\n", params->args[0], res->path);
+		return;
+	}
+	//print_meta(res, " ");
+	pcs_fileinfo_destroy(res);
+}
+
+static void exec_upload(Pcs pcs, struct params *params)
+{
+	int ft;
+	printf("\nUpload %s to %s\n", params->args[0], params->args[1]);
+	ft = is_dir_or_file(params->args[0]);
+	if (ft == 2) {
+		//if (exec_upload_dir_r(pcs, local_path, params->args[1], params->is_force, params->is_recursion, params->is_synch)) {
+		//	printf("\nFailed.\n");
+		//}
+		//else {
+		//	printf("\nAll Successfully\n");
+		//}
+	}
+	else if (ft == 1) {
+		exec_upload_file(pcs, params);
+	}
+	else {
+		printf("Cannot access %s\n", params->args[1]);
+	}
+}
+
 static void exec_cmd(Pcs pcs, struct params *params)
 {
 	switch (params->action)
@@ -1028,7 +1099,7 @@ static void exec_cmd(Pcs pcs, struct params *params)
 		exec_download(pcs, params);
 		break;
 	case ACTION_UPLOAD:
-		//exec_upload(pcs, params);
+		exec_upload(pcs, params);
 		break;
 	default:
 		printf("Unknown command, use `--help` to view help.\n");
@@ -1090,6 +1161,10 @@ int main(int argc, char *argv[])
 	if (params->is_verbose) {
 		pcs_setopt(pcs, PCS_OPTION_HTTP_RESPONSE_FUNCTION, cb_pcs_http_response);
 	}
+	pcs_setopts(pcs,
+		PCS_OPTION_PROGRESS_FUNCTION, cb_upload_progress,
+		PCS_OPTION_PROGRESS, PcsFalse,
+		PCS_OPTION_END);
 
 	if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {
 		if (!params->username) {
