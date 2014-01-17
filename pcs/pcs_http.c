@@ -353,6 +353,7 @@ inline PcsBool pcs_http_decode_response(struct pcs_http *http)
 	pcs_free(http->res_body);
 	http->res_body = p;
 	http->res_body_size = tmpsz;
+	return PcsTrue;
 }
 
 inline char *pcs_http_perform(struct pcs_http *http)
