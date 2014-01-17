@@ -34,9 +34,6 @@ typedef unsigned long long int UInt64;
 #    define PCS_EXTERN_C_END
 #    define inline __inline
 #  endif /* ifdef __cplusplus */
-#  define pcs_strcmpi  _strcmpi
-#  define pcs_strncmpi _strnicmp
-#  define pcs_snprintf _snprintf
 #else /* ifdef WIN32 */
 #  ifdef __cplusplus
 #    ifdef PCS_STATIC_LIB
@@ -57,18 +54,12 @@ typedef unsigned long long int UInt64;
 #    define PCS_EXTERN_C_BEGIN
 #    define PCS_EXTERN_C_END
 #  endif /* ifdef __cplusplus */
-#  define pcs_strcmpi  strcmpi
-#  define pcs_strncmpi strncmpi
-#  define pcs_snprintf snprintf
 #endif /* ifdef WIN32 */
 
 #if defined(WIN32)
 #	if !defined(__cplusplus)
 #		define inline __inline
 #	endif
-#	define strcmpi _strcmpi
-#	define strncmpi  _strnicmp
-#	define snprintf _snprintf
 #endif
 
 #ifndef NULL

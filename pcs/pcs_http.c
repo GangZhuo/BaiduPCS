@@ -7,7 +7,6 @@
 
 #include "pcs_mem.h"
 #include "pcs_utils.h"
-/*#include "pcs_cookie.h"*/
 #include "utf8.h"
 #include "pcs_http.h"
 
@@ -40,8 +39,6 @@ struct pcs_http {
 	unsigned char			progress;
 	PcsHttpProgressCallback progress_func;
 	void					*progress_data;
-
-	/*PcsCookie		*cookie;*/
 };
 
 struct http_post {
@@ -78,8 +75,6 @@ enum HttpMethod
 inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod method, const char *url, PcsBool follow_location, 
 							 PcsHttpWriteFunction write_func, void *state)
 {
-	/*char *cookie = pcs_cookie_str(http->cookie);*/
-
 	pcs_http_reset_response(http);
 	curl_easy_setopt(http->curl, CURLOPT_URL, url);
 	switch(method)
@@ -91,17 +86,7 @@ inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod method, cons
 		curl_easy_setopt(http->curl, CURLOPT_POST, 1);
 		break;
 	}
-	/*curl_easy_setopt(http->curl, CURLOPT_COOKIE, cookie);*/
 	curl_easy_setopt(http->curl, CURLOPT_HEADER , 1);
-
-	/*if (http->write_func) {
-		curl_easy_setopt(http->curl, CURLOPT_WRITEFUNCTION, http->write_func);
-		curl_easy_setopt(http->curl, CURLOPT_WRITEDATA, http->write_data);
-	}
-	else {
-		curl_easy_setopt(http->curl, CURLOPT_WRITEFUNCTION, write_func);
-		curl_easy_setopt(http->curl, CURLOPT_WRITEDATA, state);
-	}*/
 	curl_easy_setopt(http->curl, CURLOPT_WRITEFUNCTION, write_func);
 	curl_easy_setopt(http->curl, CURLOPT_WRITEDATA, state);
 
@@ -120,8 +105,6 @@ inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod method, cons
 		curl_easy_setopt(http->curl, CURLOPT_PROGRESSDATA, NULL);
 		curl_easy_setopt(http->curl, CURLOPT_NOPROGRESS, (long)1);
 	}
-	/*if (cookie)
-		pcs_free(cookie);*/
 }
 
 inline void skip_cookie_attr(char **p)
@@ -370,26 +353,6 @@ inline PcsBool pcs_http_decode_response(struct pcs_http *http)
 	pcs_free(http->res_body);
 	http->res_body = p;
 	http->res_body_size = tmpsz;
-
-	/*if (!http->res_encode)
-		http->res_encode = pcs_http_get_charset_from_body(http->res_body, http->res_body_size);
-	if (http->res_encode && pcs_strcmpi(http->res_encode, "utf-8") == 0) {
-		tmpsz = u8_tombs_size(http->res_body, http->res_body_size);
-		if (tmpsz < 1)
-			return PcsFalse;
-		p = (char *)pcs_malloc(tmpsz + 1);
-		if (!p)
-			return PcsFalse;
-		p[tmpsz] = '\0';
-		tmpsz = u8_tombs(p, tmpsz, http->res_body, http->res_body_size);
-		if (tmpsz < 1)
-			return PcsFalse;
-		pcs_free(http->res_body);
-		http->res_body = p;
-		http->res_body_size = tmpsz;
-	}
-	return PcsTrue;
-	*/
 }
 
 inline char *pcs_http_perform(struct pcs_http *http)
@@ -404,7 +367,6 @@ inline char *pcs_http_perform(struct pcs_http *http)
 		if (!http->strerror) http->strerror = curl_easy_strerror(res);
 		return NULL;
 	}
-	/*pcs_http_set_cookie(http);*/
 	if (!pcs_http_decode_response(http)) {
 		http->strerror = "Cannot decode the response. ";
 		return NULL;
@@ -470,8 +432,6 @@ PCS_API void pcs_http_destroy(PcsHttp handle)
 		pcs_free(http->res_body);
 	if (http->res_encode)
 		pcs_free(http->res_encode);
-	/*if (http->cookie)
-		pcs_cookie_destroy(http->cookie);*/
 	pcs_free(http);
 }
 
@@ -698,46 +658,6 @@ PCS_API char *pcs_http_build_post_data(PcsHttp handle, ...)
 	return res;
 }
 
-/*
-inline void pcs_http_set_cookie(struct pcs_http *http)
-{
-	CURLcode res;
-	struct curl_slist *cookies;
-	struct curl_slist *nc;
-	char *p;
-	char *domain,
-		*path,
-		*name,
-		*value;
-	int i;
-
-	res = curl_easy_getinfo(http->curl, CURLINFO_COOKIELIST, &cookies);
-	if (res != CURLE_OK)
-		return;
-	nc = cookies;
-	while (nc) {
-		p = nc->data;
-		domain = read_cookie_attr(&p);
-		skip_cookie_attr(&p);
-		path = read_cookie_attr(&p);
-		skip_cookie_attr(&p);
-		skip_cookie_attr(&p);
-		name = read_cookie_attr(&p);
-		value = read_cookie_attr(&p);
-
-		pcs_cookie_set(http->cookie, name, value, domain, path);
-
-		if (name) pcs_free(name);
-		if (value) pcs_free(value);
-		if (domain) pcs_free(domain);
-		if (path) pcs_free(path);
-
-		nc = nc->next;
-	}
-	curl_slist_free_all(cookies);
-}
-*/
-
 PCS_API char *pcs_http_get_cookie(PcsHttp handle, const char *cookie_name)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
@@ -762,7 +682,7 @@ PCS_API char *pcs_http_get_cookie(PcsHttp handle, const char *cookie_name)
 		name = read_cookie_attr(&p);
 		value = read_cookie_attr(&p);
 
-		if (pcs_strcmpi(cookie_name, name) == 0) {
+		if (pcs_utils_strcmpi(cookie_name, name) == 0) {
 			pcs_free(name);
 			break;
 		}

@@ -3,6 +3,11 @@
 
 #include "pcs_defs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 enum action {
 	ACTION_NONE = 0,
 	ACTION_QUOTA = 1,
@@ -44,6 +49,10 @@ void main_args_destroy_params(struct params *params);
 
 PcsBool main_args_check_params(struct params *params);
 void main_args_parse(int argc, char *argv[], struct params *params);
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif
