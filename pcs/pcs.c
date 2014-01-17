@@ -1073,7 +1073,7 @@ PCS_API PcsFileInfo *pcs_meta(Pcs handle, const char *path)
 		return NULL;
 	pcs_filist_iterater_init(filist, &iterater);
 	while(pcs_filist_iterater_next(&iterater)) {
-		if (stricmp(path, iterater.current->path) == 0) {
+		if (pcs_utils_strcmpi(path, iterater.current->path) == 0) {
 			meta = iterater.current;
 			break;
 		}
