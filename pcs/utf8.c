@@ -24,6 +24,7 @@ typedef uint32_t u_int32_t;
 #include <alloca.h>
 #endif
 
+#include "pcs_utils.h"
 #include "utf8.h"
 
 static const u_int32_t offsetsFromUTF8[6] = {
@@ -675,7 +676,7 @@ const char *u8_get_sys_charset()
 int u8_is_utf8_sys()
 {
 	const char *charset = u8_get_sys_charset();
-	return strcmpi(charset, "utf-8") == 0;
+	return pcs_utils_strcmpi(charset, "utf-8") == 0;
 }
 
 void u8_convert_set_charset(const char *charset)
@@ -712,7 +713,7 @@ int code_convert(const char *from_charset, const char *to_charset,
 int u8_mbs_toutf8(char *dest, int sz, const char *src, int srcsz)
 {
 	const char *charset = u8_get_sys_charset();
-	if (strcmpi(charset, "utf-8") == 0) {
+	if (pcs_utils_strcmpi(charset, "utf-8") == 0) {
 		if (srcsz == -1) {
 			const char *p = src;
 			while(*p) {
@@ -731,7 +732,7 @@ int u8_mbs_toutf8(char *dest, int sz, const char *src, int srcsz)
 int u8_mbs_toutf8_size(const char *src, int srcsz)
 {
 	const char *charset = u8_get_sys_charset();
-	if (strcmpi(charset, "utf-8") == 0) {
+	if (pcs_utils_strcmpi(charset, "utf-8") == 0) {
 		if (srcsz == -1) {
 			const char *p = src;
 			while(*p) {
@@ -753,7 +754,7 @@ int u8_mbs_toutf8_size(const char *src, int srcsz)
 int u8_tombs(char *dest, int sz, const char *src, int srcsz)
 {
 	const char *charset = u8_get_sys_charset();
-	if (strcmpi(charset, "utf-8") == 0) {
+	if (pcs_utils_strcmpi(charset, "utf-8") == 0) {
 		if (srcsz == -1) {
 			const char *p = src;
 			while(*p) {
@@ -772,7 +773,7 @@ int u8_tombs(char *dest, int sz, const char *src, int srcsz)
 int u8_tombs_size(const char *src, int srcsz)
 {
 	const char *charset = u8_get_sys_charset();
-	if (strcmpi(charset, "utf-8") == 0) {
+	if (pcs_utils_strcmpi(charset, "utf-8") == 0) {
 		if (srcsz == -1) {
 			const char *p = src;
 			while(*p) {

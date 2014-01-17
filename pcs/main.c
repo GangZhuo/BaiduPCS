@@ -10,13 +10,6 @@
 #include "hashtable.h"
 #include "main_args.h"
 
-#ifdef WIN32
-#  define strcmpi  _strcmpi
-#  define strncmpi _strnicmp
-#  define snprintf _snprintf
-#  define mkdir _mkdir
-#endif
-
 void cb_pcs_http_response(unsigned char *ptr, size_t size, void *state)
 {
 	printf("\n<<<\n");
@@ -1188,11 +1181,11 @@ int main(int argc, char *argv[])
 		}
 	}
 	else {
-		if (params->username && strcmpi(pcs_sysUID(pcs), params->username) != 0) {
+		if (params->username && pcs_utils_strcmpi(pcs_sysUID(pcs), params->username) != 0) {
 			char flag[8] = {0};
 			printf("You have been logged in with %s, but you specified %s,\ncontinue?(yes|no): \n", pcs_sysUID(pcs), params->username);
 			get_string_from_std_input(flag, 4);
-			if (strcmpi(flag, "yes") && strcmpi(flag, "y")) {
+			if (pcs_utils_strcmpi(flag, "yes") && strcmpi(flag, "y")) {
 				goto main_exit;
 			}
 		}

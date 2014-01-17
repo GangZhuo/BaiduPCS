@@ -5,6 +5,11 @@
 #define HASH_EXTEND_MULTIPLIER ( 1.75F )
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 typedef struct  hashtable_node hashtable_node;
 struct  hashtable_node { 
 	char			*key;
@@ -42,5 +47,9 @@ void hashtable_iterater_destroy(hashtable_iterater *iterater);
 void hashtable_iterater_reset(hashtable_iterater *iterater);
 int hashtable_iterater_next(hashtable_iterater *iterater);
 void *hashtable_iterater_current(hashtable_iterater *iterater);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

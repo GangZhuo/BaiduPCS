@@ -10,17 +10,23 @@
 #  include <malloc.h>
 #  include <conio.h>
 #  include <direct.h>
-#  define strcmpi  _strcmpi
-#  define strncmpi _strnicmp
-#  define snprintf _snprintf
-#  define mkdir _mkdir
 #else
 #  include <alloca.h>
 #  include <inttypes.h>
 #  include <termios.h>
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 void get_string_from_std_input(char *str, int size);
 void get_password_from_std_input(char *password, int size);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
