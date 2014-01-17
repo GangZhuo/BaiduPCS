@@ -20,6 +20,8 @@ typedef struct PcsFileInfo {
 	char		*dlink;
 	char		**block_list; /*  文件所有分片的md5数组json字符串, 只有 pcs_meta() 设置该值 */
 	PcsBool		ifhassubdir; /* 是否含有子目录, 只有 pcs_meta() 设置该值  */
+
+	int			user_flag;
 } PcsFileInfo;
 
 typedef struct PcsFileInfoListItem {
