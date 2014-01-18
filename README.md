@@ -3,6 +3,7 @@ baidupcs
 百度网盘工具，可以在终端中执行。 <br />
 使用c语言实现，直接接口，不是REST API。 <br />
 依赖项：libcurl, libiconv, libpcre <br />
+使用示例移步： https://code.google.com/p/baidu-pcs/ <br />
 <br />
 使用：<br />
 1. 初次使用：·pcs -u<username> quota --urlc·登录网盘 <br />
