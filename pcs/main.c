@@ -462,6 +462,27 @@ static char *combin_remote_path(const char *base, const char *filename)
 	return p;
 }
 
+static int retry_cancel()
+{
+	char tmp[8] = {0};
+	printf("[retry|cancel]?: ");
+	get_string_from_std_input(tmp, 7);
+	if (tmp[0] == 'r' || tmp[0] == 'R') return 'r';
+	else if (tmp[0] == 'c' || tmp[0] == 'C') return 'c';
+	else return 'c';
+}
+
+static int retry_ignore_cancel()
+{
+	char tmp[8] = {0};
+	printf("[retry|ignore|cancel]?: ");
+	get_string_from_std_input(tmp, 7);
+	if (tmp[0] == 'r' || tmp[0] == 'R') return 'r';
+	else if (tmp[0] == 'i' || tmp[0] == 'I') return 'i';
+	else if (tmp[0] == 'c' || tmp[0] == 'C') return 'c';
+	else return 'c';
+}
+
 static PcsFileInfoList *get_file_list(Pcs pcs, const char *dir, const char *sort, PcsBool desc, PcsBool recursion)
 {
 	PcsFileInfoList *reslist = NULL,
@@ -1060,7 +1081,7 @@ static void exec_upload_file(Pcs pcs, struct params *params)
 static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_path,
 							 int force, int recursion, int synch)
 {
-	int ft = 0, res = 0;
+	int ft = 0, res = 0, ric = 0;
 	char *dest_path = NULL;
 	PcsFileInfo *meta = NULL,
 		*remote_file = NULL;
@@ -1073,6 +1094,7 @@ static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_p
 		*ent = NULL;
 
 	printf("\nUpload %s to %s\n", local_path, remote_path);
+exec_upload_dir_label_1:
 	meta = pcs_meta(pcs, remote_path);
 	if (meta) {
 		if (meta->isdir)
@@ -1082,36 +1104,97 @@ static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_p
 		pcs_fileinfo_destroy(meta);
 		meta = NULL;
 	}
+	else if (pcs_strerror(pcs, PCS_NONE)) {
+		printf("Cannot get the meta for %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+		ric = retry_cancel();
+		if (ric == 'r')
+			goto exec_upload_dir_label_1;
+		else
+			return -1;
+	}
 	if (ft == 1) {
-		printf("The target %s is not the directory.\n", remote_path);
+		if (force) {
+			PcsSList slist = { 
+				(char *)remote_path,
+				0
+			};
+			printf("Delete the %s, since the target is not the directory and you specify -f.\n", remote_path);
+exec_upload_dir_label_2:
+			pcsapires = pcs_delete(pcs, &slist);
+			if (!pcsapires) {
+				printf("[DELETE] [FAIL] - %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+				ric = retry_cancel();
+				if (ric == 'r')
+					goto exec_upload_dir_label_2;
+				else
+					return -1;
+			}
+			else {
+				printf("[DELETE] [SUCC] - %s \n", remote_path);
+				pcs_pan_api_res_destroy(pcsapires);
+			}
+exec_upload_dir_label_3:
+			pcsres = pcs_mkdir(pcs, remote_path);
+			if (pcsres != PCS_OK) {
+				printf("[FAIL] Cannot create the directory %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+				ric = retry_cancel();
+				if (ric == 'r')
+					goto exec_upload_dir_label_3;
+				else
+					return -1;
+			}
+			else {
+				printf("[SUCC] Create directory %s\n", remote_path);
+				goto exec_upload_dir_label_5;
+			}
+		}
+		else {
+			printf("The target %s is not the directory. You can use -f to force recreate the directory.\n", remote_path);
+		}
 		return -1;
 	}
 	else if (ft == 2) {
 	}
 	else {
+exec_upload_dir_label_4:
 		pcsres = pcs_mkdir(pcs, remote_path);
 		if (pcsres != PCS_OK) {
-			printf("Cannot create the remote directory %s.\n", remote_path);
-			return -1;
+			printf("[FAIL] Cannot create the directory %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+			ric = retry_cancel();
+			if (ric == 'r')
+				goto exec_upload_dir_label_4;
+			else
+				return -1;
+		}
+		else {
+			printf("[SUCC] Create directory %s\n", remote_path);
+			goto exec_upload_dir_label_5;
 		}
 	}
 
+exec_upload_dir_label_5:
 	printf("Get remote file list %s.\n", remote_path);
 	remote_filelist = get_file_list(pcs, remote_path, NULL, PcsFalse, PcsFalse);
+	if (!remote_filelist && pcs_strerror(pcs, PCS_NONE)) {
+		printf("[FAIL] Cannot list the directory %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+		ric = retry_cancel();
+		if (ric == 'r')
+			goto exec_upload_dir_label_5;
+		else
+			return -1;
+	}
 	if (remote_filelist) {
 		ht = hashtable_create(remote_filelist->count, 1, NULL);
 		if (!ht) {
 			printf("Cannot create hashtable.\n");
-			res = -1;
-			goto exit_exec_upload_dir;
+			goto exec_upload_dir_label_00;
 		}
 		pcs_filist_iterater_init(remote_filelist, &iterater);
 		while(pcs_filist_iterater_next(&iterater)) {
 			remote_file = iterater.current;
 			if (hashtable_add(ht, remote_file->path, remote_file)) {
 				printf("Cannot add object to hashtable.\n");
-				res = -1;
-				goto exit_exec_upload_dir;
+				goto exec_upload_dir_label_00;
 			}
 		}
 	}
@@ -1119,15 +1202,14 @@ static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_p
 	ents = list_dir(local_path, 0);
 	if (!ents) {
 		printf("[SKIP] d %s empty directory.\n", local_path);
-		goto exit_exec_upload_dir;
+		goto exec_upload_dir_label_0;
 	}
 	ent = ents;
 	while(ent) {
 		dest_path = combin_remote_path(remote_path, ent->filename);
 		if (!dest_path) {
 			printf("Cannot combin the path.\n");
-			res = -1;
-			goto exit_exec_upload_dir;
+			goto exec_upload_dir_label_00;
 		}
 		if (ent->is_dir) {
 			if (force || recursion) {
@@ -1137,11 +1219,17 @@ static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_p
 					printf("[SKIP] d %s\n", ent->path);
 				}
 				else if (recursion) {
+exec_upload_dir_label_6:
 					pcsres = pcs_mkdir(pcs, dest_path);
 					if (pcsres != PCS_OK) {
-						printf("[FAIL] d %s Cannot create the folder: %s %s\n", ent->path, dest_path, pcs_strerror(pcs, PCS_NONE));
-						res = -1;
-						goto exit_exec_upload_dir;
+						printf("[FAIL] d %s Cannot create the directory %s: %s\n", ent->path, dest_path, pcs_strerror(pcs, PCS_NONE));
+						ric = retry_cancel();
+						if (ric == 'r') {
+							goto exec_upload_dir_label_6;
+						}
+						else {
+							goto exec_upload_dir_label_00;
+						}
 					}
 					else {
 						printf("[SUCC] d %s => %s\n", ent->path, dest_path);
@@ -1153,15 +1241,21 @@ static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_p
 			remote_file = ht ? (PcsFileInfo *)hashtable_get(ht, dest_path) : NULL;
 			if (remote_file) remote_file->user_flag = 1;
 			if (force || !remote_file || ((time_t)remote_file->server_mtime) < my_dirent_get_mtime(ent)) {
+exec_upload_dir_label_7:
 				pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, ent->path);
 				pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsTrue);
 				meta = pcs_upload(pcs, dest_path, PcsTrue, ent->path);
 				pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsFalse);
 				pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
 				if (!meta) {
-					printf("[FAIL] - %s %s\n", ent->path, pcs_strerror(pcs, PCS_NONE));
-					res = -1;
-					goto exit_exec_upload_dir;
+					printf("[FAIL] - %s Cannot upload the file: %s\n", ent->path, pcs_strerror(pcs, PCS_NONE));
+					ric = retry_cancel();
+					if (ric == 'r') {
+						goto exec_upload_dir_label_7;
+					}
+					else {
+						goto exec_upload_dir_label_00;
+					}
 				}
 				printf("[SUCC] - %s => %s\n", ent->path, meta->path);
 				pcs_fileinfo_destroy(meta); meta = NULL;
@@ -1179,13 +1273,11 @@ static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_p
 			dest_path = combin_remote_path(remote_path, ent->filename);
 			if (!dest_path) {
 				printf("Cannot combin the path.\n");
-				res = -1;
-				goto exit_exec_upload_dir;
+				goto exec_upload_dir_label_00;
 			}
 			if (ent->is_dir) {
 				if (exec_upload_dir(pcs, ent->path, dest_path, force, recursion, synch)) {
-					res = -1;
-					goto exit_exec_upload_dir;
+					goto exec_upload_dir_label_00;
 				}
 			}
 			ent = ent->next;
@@ -1202,9 +1294,20 @@ static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_p
 			remote_file = (PcsFileInfo *)hashtable_iterater_current(iterater);
 			if (!remote_file->user_flag) {
 				slist.string = remote_file->path;
+exec_upload_dir_label_8:
 				pcsapires = pcs_delete(pcs, &slist);
 				if (!pcsapires) {
-					printf("[DELETE] [FAIL] %s %s %s\n", remote_file->isdir ? "d" : "-", remote_file->path, pcs_strerror(pcs, PCS_NONE));
+					printf("[DELETE] [FAIL] %s %s Cannot delete the %s: %s\n",
+						remote_file->isdir ? "d" : "-",
+						remote_file->path, 
+						remote_file->isdir ? "directory" : "fire", pcs_strerror(pcs, PCS_NONE));
+					ric = retry_cancel();
+					if (ric == 'r') {
+						goto exec_upload_dir_label_8;
+					}
+					else {
+						goto exec_upload_dir_label_00;
+					}
 				}
 				else {
 					printf("[DELETE] [SUCC] %s %s \n", remote_file->isdir ? "d" : "-", remote_file->path);
@@ -1214,7 +1317,10 @@ static int exec_upload_dir(Pcs pcs, const char *local_path, const char *remote_p
 		}
 		hashtable_iterater_destroy(iterater);
 	}
-exit_exec_upload_dir:
+	goto exec_upload_dir_label_0;
+exec_upload_dir_label_00:
+	res = -1;
+exec_upload_dir_label_0:
 	if (dest_path) pcs_free(dest_path);
 	if (meta) pcs_fileinfo_destroy(meta);
 	if (ht) hashtable_destroy(ht);
