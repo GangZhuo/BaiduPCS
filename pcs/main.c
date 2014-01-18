@@ -164,7 +164,7 @@ static int cb_download_write(char *ptr, size_t size, size_t contentlength, void 
 	i = fwrite(ptr, 1, size, pf);
 	ds->size += i;
 	if (ds->msg)
-		printf(ds->msg);
+		printf("%s", ds->msg);
 	printf("%s", pcs_utils_readable_size(ds->size, tmp, 63, NULL));
 	printf("/%s      \r", pcs_utils_readable_size(contentlength, tmp, 63, NULL));
 	fflush(stdout);
@@ -1304,10 +1304,10 @@ static void show_quota(Pcs pcs)
 	}
 	printf("Quota: ");
 	pcs_utils_readable_size((double)used, str, 30, NULL);
-	printf(str);
+	printf("%s", str);
 	putchar('/');
 	pcs_utils_readable_size((double)quota, str, 30, NULL);
-	printf(str);
+	printf("%s", str);
 	printf("\n");
 }
 
