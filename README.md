@@ -27,8 +27,10 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
 ### 登录网盘
     执行任意命令，如果未登录会提示登录。登录时，可能需要输入验证码，提供两种方式可以查看验证码：<br />
       * 保存验证码图片到~/.baidupcs/verify_code.gif, 自己scp到本地查看。此为默认方式。
-      * 上传验证码图片到[http://urlc.cn http://urlc.cn]，自己找到并打开返回的网址查看。使用--urlc选项可开启此模式。
-      * 另一种选择是：在本地运行pcs并登录后，然后把本地~/.baidupcs/default.cookie文件复制到服务器~/.baidupcs/default.cookie，服务器中pcs将自动使用该cookie。
+      * 上传验证码图片到[http://urlc.cn http://urlc.cn]，自己找到并打开返回的网址查看。
+        使用--urlc选项可开启此模式。
+      * 另一种选择是：在本地运行pcs并登录后，然后把本地~/.baidupcs/default.cookie文件
+        复制到服务器~/.baidupcs/default.cookie，服务器中pcs将自动使用该cookie。
     pcs -u<username> --urlc quota
 ### 显示网盘配额
     pcs quota
