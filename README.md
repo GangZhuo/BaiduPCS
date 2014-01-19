@@ -1,31 +1,33 @@
 C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是备份vps服务器数据。<br />
 <br />
-### 编译安装：
-# libcurl<br />
+编译安装：
+===================================
+### 安装 libcurl
     apt-get install libcurl4-openssl-dev
-# 安装 libiconv<br />
+### 安装 libiconv
     wget http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.14.tar.gz
     tar zxvf libiconv-1.14.tar.gz
     cd libiconv-1.14
     ./configure --prefix=/usr/local
     make
     make install
-# 安装 libpcre<br />
+### 安装 libpcre
     apt-get install libpcre3 libpcre3-dev
-# 获取源代码<br />
+### 获取源代码
     git clone https://github.com/GangZhuo/baidupcs.git
-# 编译源代码<br />
+### 编译源代码
     cd baidupcs/pcs
     make
-# 安装到 /usr/bin 下 <br />
+### 安装到 /usr/bin 下 
     cp ./pcs /usr/bin/
     chmod a+x /usr/bin/pcs
 
-### 使用方法：
+使用方法：
+===================================
   * 登录网盘：执行任意命令，如果未登录会提示登录。登录时，可能需要输入验证码，提供两种方式可以查看验证码：<br />
-      # 保存验证码图片到~/.baidupcs/verify_code.gif, 自己scp到本地查看。此为默认方式。
-      # 上传验证码图片到[http://urlc.cn http://urlc.cn]，自己找到并打开返回的网址查看。使用--urlc选项可开启此模式。
-      # 另一种选择是：在本地运行pcs并登录后，然后把本地~/.baidupcs/default.cookie文件复制到服务器~/.baidupcs/default.cookie，服务器中pcs将自动使用该cookie。
+      * 保存验证码图片到~/.baidupcs/verify_code.gif, 自己scp到本地查看。此为默认方式。
+      * 上传验证码图片到[http://urlc.cn http://urlc.cn]，自己找到并打开返回的网址查看。使用--urlc选项可开启此模式。
+      * 另一种选择是：在本地运行pcs并登录后，然后把本地~/.baidupcs/default.cookie文件复制到服务器~/.baidupcs/default.cookie，服务器中pcs将自动使用该cookie。
     {{{
     pcs -u<username> --urlc quota
     }}}
