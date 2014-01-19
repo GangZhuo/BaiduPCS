@@ -2,24 +2,24 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
 <br />
 ### 编译安装：
 1. libcurl<br />
-		apt-get install libcurl4-openssl-dev
+    apt-get install libcurl4-openssl-dev
 2. 安装 libiconv<br />
-		wget http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.14.tar.gz
-		tar zxvf libiconv-1.14.tar.gz
-		cd libiconv-1.14
-		./configure --prefix=/usr/local
-		make
-		make install
+    wget http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.14.tar.gz
+    tar zxvf libiconv-1.14.tar.gz
+    cd libiconv-1.14
+    ./configure --prefix=/usr/local
+    make
+    make install
 3. 安装 libpcre<br />
-		apt-get install libpcre3 libpcre3-dev
+    apt-get install libpcre3 libpcre3-dev
 4. 获取源代码<br />
-		git clone https://github.com/GangZhuo/baidupcs.git
+    git clone https://github.com/GangZhuo/baidupcs.git
 5. 编译源代码<br />
-		cd baidupcs/pcs
-		make
+    cd baidupcs/pcs
+    make
 6. 安装到 /usr/bin 下 <br />
-		cp ./pcs /usr/bin/
-		chmod a+x /usr/bin/pcs
+    cp ./pcs /usr/bin/
+    chmod a+x /usr/bin/pcs
 
 ### 使用方法：
   * 登录网盘：执行任意命令，如果未登录会提示登录。登录时，可能需要输入验证码，提供两种方式可以查看验证码：<br />
