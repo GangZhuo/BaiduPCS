@@ -1,0 +1,4 @@
+使用pcs_login登录时，可能需要输入验证码。
+pcs_login中检测到需要输入验证码时， 将会调用 PCS_OPTION_CAPTCHA_FUNCTION 设定的回调函数。
+可以通过 pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code); 方法来设定验证码的输入逻辑。
+
