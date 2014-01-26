@@ -1,0 +1,13 @@
+在linux下编译静态库的方法：
+$>cd baidupcs/pcs
+$>make libpcs.a
+
+使用方法：
+1. 包含pcs_mem.h和pcs.h
+   #include <pcs_mem.h>
+   #include <pcs.h>
+   
+2. 使用 pcs_create() 函数创建一个Pcs对象，使用完成后需使用pcs_destroy()来释放对象。
+   
+   
+   
