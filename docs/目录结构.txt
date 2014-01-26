@@ -1,0 +1,43 @@
+目录结构描述如下：
+
+/
+ |-baidupcs.sln (Microsoft Visual Studio 2012 解决方案，可以直接使用VS2012打开)
+ |-README.md 
+ |-pcs (所有源代码在这个目录中)
+   |-cJSON.c
+   |-cJSON.h (cJSON是一个第三方开源的读取JSON的库)
+   |-dir.c 
+   |-dir.h (本地文件相关函数:包含读取目录、设定最后修改时间等)
+   |-hashtable.c
+   |-hashtable.h (哈希表的C语言实现)
+   |-main.c (包含入口函数、和quota,list,upload,download等子命令的实现)
+   |-main_args.c
+   |-main_args.h (使用argparser读取传入的参数)
+   |-makefile (Makefile for Linux)
+   |-makefile-cygwin (Makefile for cygwin)
+   |-pcs.c
+   |-pcs.h (百度网盘 API)
+   |-pcs.vcxproj (VS2012的项目文件)
+   |-pcs.vcxproj.filters (VS2012项目文件)
+   |-pcs_cookie.c.del (已删除)
+   |-pcs_cookie.h.del (已删除)
+   |-pcs_defs.h (网盘API公用的定义)
+   |-pcs_fileinfo.c
+   |-pcs_fileinfo.h (定义了PcsFileInfo对象，和相关函数)
+   |-pcs_http.c
+   |-pcs_http.h (封装libcurl的方法，提供一些函数用于发送和接收http请求)
+   |-pcs_io.c
+   |-pcs_io.h (实现了和命令行交互的方法)
+   |-pcs_list.c.del (已删除)
+   |-pcs_list.h.del (已删除)
+   |-pcs_mem.c
+   |-pcs_mem.h (pcs_malloc,pcs_free等内存函数，定义_DEBUG宏时，实现内存泄漏检查)
+   |-pcs_pan_api_resinfo.c
+   |-pcs_pan_api_resinfo.h (定义了百度网盘filemanager的返回对象，及其相关函数)
+   |-pcs_slist.c
+   |-pcs_slist.h (定义了字符串链表，和相关函数)
+   |-pcs_utils.c
+   |-pcs_utils.h (定义了一些公用的工具函数)
+   |-utf8.c
+   |-utf8.h (一些和UTF8编码转换相关的函数)
+ |-win32 (项目依赖项的WIN32版本)
