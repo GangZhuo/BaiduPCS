@@ -1356,40 +1356,40 @@ static void exec_cmd(Pcs pcs, struct params *params)
 	{
 	case ACTION_QUOTA:
 		break;
-	case ACTION_META:
+	case ACTION_META: /*获取元数据*/
 		exec_meta(pcs, params);
 		break;
-	case ACTION_LIST:
+	case ACTION_LIST: /* 列出目录 */
 		exec_list(pcs, params);
 		break;
-	case ACTION_RENAME:
+	case ACTION_RENAME: /* 重命名文件或目录 */
 		exec_rename(pcs, params);
 		break;
-	case ACTION_MOVE:
+	case ACTION_MOVE: /* 移动文件或目录 */
 		exec_move(pcs, params);
 		break;
-	case ACTION_COPY:
+	case ACTION_COPY: /* 复制文件或目录 */
 		exec_copy(pcs, params);
 		break;
-	case ACTION_MKDIR:
+	case ACTION_MKDIR: /* 创建目录 */
 		exec_mkdir(pcs, params);
 		break;
-	case ACTION_DELETE:
+	case ACTION_DELETE: /* 删除文件或目录 */
 		exec_delete(pcs, params);
 		break;
-	case ACTION_CAT:
+	case ACTION_CAT: /* 直接显示网盘中文本文件的内容 */
 		exec_cat(pcs, params);
 		break;
-	case ACTION_ECHO:
+	case ACTION_ECHO: /* 直接把文本保存到网盘文件中 */
 		exec_echo(pcs, params);
 		break;
-	case ACTION_SEARCH:
+	case ACTION_SEARCH: /* 搜索网盘文件 */
 		exec_search(pcs, params);
 		break;
-	case ACTION_DOWNLOAD:
+	case ACTION_DOWNLOAD: /* 下载网盘文件或目录 */
 		exec_download(pcs, params);
 		break;
-	case ACTION_UPLOAD:
+	case ACTION_UPLOAD: /* 上传文件或目录到网盘中 */
 		exec_upload(pcs, params);
 		break;
 	default:
