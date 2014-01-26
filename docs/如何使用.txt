@@ -1,0 +1,85 @@
+
+使用步骤大体上如下：
+1. 使用 pcs_create() 创建一个Pcs对象。该函数需要传入cookie文件的路径，
+   Pcs将使用该文件中存储的Cookie。
+   当Pcs对象释放后，将把新的Cookie写入到该文件中。
+2. 使用 pcs_islogin() 函数获取是否已经登录。
+3. 如果已经登录，则可以使用 pcs_sysUID() 函数获取登录用户的UID。
+4. 如果未登录，则需要先设定识别验证码的回调函数，然后使用pcs_login()函数登录。
+   可以使用 pcs_setopt 和 pcs_setopts 来设定获取验证码的回调函数。
+5. 登录成功后，即可使用 pcs_quota, pcs_list, pcs_upload等函数，具体参考 pcs.h 中的定义。
+6. 使用完成后，使用 pcs_destroy 释放pcs对象。
+
+   示例1：
+		PcsBool cb_get_verify_code(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
+		{
+			FILE *pf;
+
+			pf = fopen("~/captcha.git", "wb");
+			if (!pf)
+				return PcsFalse;
+			fwrite(ptr, 1, size, pf);
+			fclose(pf);
+			printf("The captcha image saved at %s\nPlease input the verify code: ", "~/captcha.git");
+			get_string_from_std_input(captcha, captchaSize);
+			return PcsTrue;
+		}
+		
+		void show_quota(Pcs pcs)
+		{
+			PcsRes pcsres;
+			UInt64 quota, used;
+			char str[32] = {0};
+			pcsres = pcs_quota(pcs, &quota, &used);
+			if (pcsres != PCS_OK) {
+				printf("Get quota failed: %s\n", pcs_strerror(pcs, pcsres));
+				return;
+			}
+			printf("Quota: ");
+			pcs_utils_readable_size((double)used, str, 30, NULL);
+			printf("%s", str);
+			putchar('/');
+			pcs_utils_readable_size((double)quota, str, 30, NULL);
+			printf("%s", str);
+			printf("\n");
+		}
+
+		int main()
+		{
+			Pcs pcs;
+			PcsRes pcsres;
+			
+			/* 创建一个Pcs对象 */
+			pcs = pcs_create(cookie_file);
+			if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {
+				pcs_setopts(pcs, 
+					PCS_OPTION_USERNAME, username,
+					PCS_OPTION_PASSWORD, password,
+					PCS_OPTION_END);
+				pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code);
+				/*
+					你也可以把 pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code); 合并到pcs_setopts中去，如：
+					pcs_setopts(pcs, 
+						PCS_OPTION_USERNAME, username,
+						PCS_OPTION_PASSWORD, password,
+						PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code,
+						PCS_OPTION_END);
+				*/
+				
+				if ((pcsres = pcs_login(pcs)) != PCS_OK) {
+					printf("Login Failed: %s\n", pcs_strerror(pcs, pcsres));
+				}
+				else {
+					printf("Login Success, UID: %s\n", pcs_sysUID(pcs));
+					show_quota(pcs);
+				}
+			}
+			else {
+				printf("UID: %s\n", pcs_sysUID(pcs));
+				show_quota(pcs);
+			}
+			pcs_destroy(pcs);
+		}
+		
+		
+你可以参考main.c，来获取更详细的使用示例。
