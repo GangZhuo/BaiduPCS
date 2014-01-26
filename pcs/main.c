@@ -1459,8 +1459,10 @@ int main(int argc, char *argv[])
 
 	printf("COOKIE FILE: %s\n", cookie_file);
 
+	/* 创建一个Pcs对象 */
 	pcs = pcs_create(cookie_file);
 
+	/* 设定如何获取验证码 */
 	if (params->use_urlc) {
 		pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code_byurlc);
 	}
