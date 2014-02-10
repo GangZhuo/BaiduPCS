@@ -287,7 +287,7 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist);
  * 不下载文件，直接获取文本文件的内容
  *   path		待获取的文件或目录，地址需写全，如/temp, /temp/file.txt
  * 成功后返回文本内容
- * 使用完后需调用pcs_free()释放
+ * 使用完后无需调用pcs_free()释放
  * 失败或无内容则返回 NULL。
  */
 PCS_API const char *pcs_cat(Pcs handle, const char *path);
