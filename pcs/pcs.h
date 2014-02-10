@@ -334,4 +334,6 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 */
 PCS_API char *pcs_cookie_data(Pcs handle);
 
+PCS_API const char *pcs_req_rawdata(Pcs handle, int *size, const char **encode);
+
 #endif
