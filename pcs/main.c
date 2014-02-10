@@ -9,6 +9,7 @@
 #include "dir.h"
 #include "hashtable.h"
 #include "main_args.h"
+#include "rc4.h"
 
 #if defined(WIN32)
 # define mkdir _mkdir
@@ -556,6 +557,48 @@ static PcsFileInfoList *get_file_list(Pcs pcs, const char *dir, const char *sort
 	return reslist;
 }
 
+static const char *get_rc4_key(struct params *params)
+{
+	static char rc4_key[50] = {0};
+	if (!params->is_rc4)
+		return NULL;
+	if (params->rc4_key && params->rc4_key[0])
+		return params->rc4_key;
+	if (rc4_key[0])
+		return rc4_key;
+	printf("Please input the rc4 key: ");
+	get_password_from_std_input(rc4_key, 50);
+	putchar('\n');
+	return rc4_key;
+}
+
+static const char *get_rc4_key2(struct params *params)
+{
+	static char rc4_key[50] = {0};
+	char rc4_key2[50] = {0};
+	if (!params->is_rc4)
+		return NULL;
+	if (params->rc4_key && params->rc4_key[0])
+		return params->rc4_key;
+	if (rc4_key[0])
+		return rc4_key;
+	while(1) {
+		printf("Please input the rc4 key: ");
+		get_password_from_std_input(rc4_key, 50);
+		putchar('\n');
+		printf("Please input the rc4 key again: ");
+		get_password_from_std_input(rc4_key2, 50);
+		putchar('\n');
+		if (strcmp(rc4_key, rc4_key2) == 0) {
+			break;
+		}
+		else {
+			printf("The keys that you input are not match. \n");
+		}
+	}
+	return rc4_key;
+}
+
 static void exec_meta(Pcs pcs, struct params *params)
 {
 	char str[32] = {0};
@@ -695,31 +738,56 @@ static void exec_delete(Pcs pcs, struct params *params)
 static void exec_cat(Pcs pcs, struct params *params)
 {
 	const char *res;
+	size_t sz;
 
 	printf("\nCat %s\n", params->args[0]);
-	res = pcs_cat(pcs, params->args[0]);
+	res = pcs_cat(pcs, params->args[0], &sz);
 	if (res == NULL) {
 		printf("Cat failed: %s\n", pcs_strerror(pcs, PCS_NONE));
 		return;
 	}
-	printf(">>>\n%s\n<<<\n", res);
+	if (params->is_rc4) {
+		const char *rc4_key = get_rc4_key(params);
+		char *text;
+		RC4_CTX rc4;
+		secure_rc4_setup(&rc4, rc4_key);
+		text = (char *)pcs_malloc(sz + 1);
+		memset(text, 0, sz + 1);
+		RC4(&rc4, sz, (const unsigned char *)res, (unsigned char *)text);
+		text[sz] = '\0';
+		printf(">>>\n%s\n<<<\n", text);
+		pcs_free(text);
+	}
+	else {
+		printf(">>>\n%s\n<<<\n", res);
+	}
 }
 
 static void exec_echo_apend(Pcs pcs, struct params *params)
 {
-	const char *text;
-	char *p;
-	int i;
-	size_t sz;
+	const char *text = 0;
+	char *text2 = 0, *p = 0;
+	int i = 0;
+	size_t sz, textsz;
 	PcsFileInfo *f;
 
 	printf("\nApend text to %s\n", params->args[0]);
-	text = pcs_cat(pcs, params->args[0]);
+	text = pcs_cat(pcs, params->args[0], &textsz);
 	if (text == NULL) {
 		printf("Apend failed: %s\n", pcs_strerror(pcs, PCS_NONE));
 		return;
 	}
-	i = strlen(text);
+	if (params->is_rc4) {
+		const char *rc4_key = get_rc4_key2(params);
+		RC4_CTX rc4;
+		secure_rc4_setup(&rc4, rc4_key);
+		text2 = (char *)pcs_malloc(textsz + 1);
+		memset(text2, 0, textsz + 1);
+		RC4(&rc4, textsz, (const unsigned char *)text, (unsigned char *)text2);
+		text2[textsz] = '\0';
+		text = text2;
+	}
+	i = textsz;
 	sz = strlen(params->args[1]);
 	p = (char *)pcs_malloc(i + sz + 1);
 	if (!p) {
@@ -730,7 +798,23 @@ static void exec_echo_apend(Pcs pcs, struct params *params)
 	memcpy(&p[i], params->args[1], sz);
 	p[i + sz] = '\0';
 	sz += i;
-	f = pcs_upload_buffer(pcs, params->args[0], PcsTrue, p, sz);
+	if (text2)
+		pcs_free(text2);
+	if (params->is_rc4) {
+		const char *rc4_key = get_rc4_key2(params);
+		RC4_CTX rc4;
+		secure_rc4_setup(&rc4, rc4_key);
+		text2 = (char *)pcs_malloc(sz + 1);
+		memset(text2, 0, sz + 1);
+		RC4(&rc4, sz, (const unsigned char *)p, (unsigned char *)text2);
+		text2[sz] = '\0';
+		f = pcs_upload_buffer(pcs, params->args[0], PcsTrue, text2, sz);
+		pcs_free(text2);
+	}
+	else {
+		text = params->args[1];
+		f = pcs_upload_buffer(pcs, params->args[0], PcsTrue, text, sz);
+	}
 	if (f) {
 		printf("Apend text success\n");
 		printf(">>>\n%s\n<<<\n", p);
@@ -748,9 +832,22 @@ static void exec_echo_override(Pcs pcs, struct params *params)
 	PcsFileInfo *f;
 
 	printf("\nOverwrite text to %s\n", params->args[0]);
-	text = params->args[1];
-	sz = strlen(text);
-	f = pcs_upload_buffer(pcs, params->args[0], PcsTrue, text, sz);
+	sz = strlen(params->args[1]);
+	if (params->is_rc4) {
+		const char *rc4_key = get_rc4_key2(params);
+		RC4_CTX rc4;
+		secure_rc4_setup(&rc4, rc4_key);
+		text = (char *)pcs_malloc(sz + 1);
+		memset(text, 0, sz + 1);
+		RC4(&rc4, sz, (const unsigned char *)params->args[1], (unsigned char *)text);
+		text[sz] = '\0';
+		f = pcs_upload_buffer(pcs, params->args[0], PcsTrue, text, sz);
+		pcs_free(text);
+	}
+	else {
+		text = params->args[1];
+		f = pcs_upload_buffer(pcs, params->args[0], PcsTrue, text, sz);
+	}
 	if (f) {
 		pcs_fileinfo_destroy(f);
 		printf("Overwirte success\n", params->args[0]);
