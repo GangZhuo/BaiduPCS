@@ -334,6 +334,12 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 */
 PCS_API char *pcs_cookie_data(Pcs handle);
 
+/*
+* 获取最后一次请求的原始数据。
+* @size 用于接收原始数据的长度
+* @encode 用于接收原始数据的编码
+* 返回原始数据的指针。
+*/
 PCS_API const char *pcs_req_rawdata(Pcs handle, int *size, const char **encode);
 
 #endif
