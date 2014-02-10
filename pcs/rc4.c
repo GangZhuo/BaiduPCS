@@ -3,7 +3,7 @@
 #include "md5.h"
 #include "rc4.h"
 
-void RC4_set_key(RC4_CTX *c, size_t keybytes, unsigned char *key)
+void RC4_set_key(RC4_CTX *c, size_t keybytes, const unsigned char *key)
 {
 	int i, j;
 	unsigned char keyarr[256], swap;
@@ -28,7 +28,7 @@ void RC4_set_key(RC4_CTX *c, size_t keybytes, unsigned char *key)
  * @in Buffer to encrypt.
  * @out Output buffer.
 */
-void RC4(RC4_CTX *c, size_t n, unsigned char *in, unsigned char *out)
+void RC4(RC4_CTX *c, size_t n, const unsigned char *in, unsigned char *out)
 {
 	unsigned char swap;
 
@@ -43,7 +43,7 @@ void RC4(RC4_CTX *c, size_t n, unsigned char *in, unsigned char *out)
 }
 
 /* Assumes you have not yet initialized the context, but have allocated it. */
-void secure_rc4_setup(RC4_CTX *ctx, char *key)
+void secure_rc4_setup(RC4_CTX *ctx, const char *key)
 {
 	char res[33]; /* 32 is the size in bytes of the resulting MD5 digest. */
    
