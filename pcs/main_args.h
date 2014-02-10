@@ -32,6 +32,7 @@ struct params {
 	char		*password;
 	char		*cookie;
 	char		*sort;
+	char		*rc4_key;
 	PcsBool		is_recursion;
 	PcsBool		is_force;
 	PcsBool		is_desc;
@@ -39,6 +40,7 @@ struct params {
 	PcsBool		use_urlc;
 	PcsBool		is_verbose;
 	PcsBool		is_synch;
+	PcsBool		is_rc4;
 	enum action action;
 	char		**args;
 	int			args_count;
