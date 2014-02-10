@@ -16,7 +16,7 @@ typedef struct {
  * @keybytes Number of bytes to key.
  * @key 
 */
-void RC4_set_key(RC4_CTX *ctx, size_t keybytes, unsigned char *key);
+void RC4_set_key(RC4_CTX *ctx, size_t keybytes, const unsigned char *key);
 
 /*
  * Assumes you have not yet initialized the context, but have allocated it.
@@ -25,14 +25,14 @@ void RC4_set_key(RC4_CTX *ctx, size_t keybytes, unsigned char *key);
  * @in  Buffer to encrypt.
  * @out Output buffer.
 */
-void RC4(RC4_CTX *ctx, size_t n, unsigned char *in, unsigned char *out);
+void RC4(RC4_CTX *ctx, size_t n, const unsigned char *in, unsigned char *out);
 
 /*
  * Assumes you have not yet initialized the context, but have allocated it.
  * @ctx Pointer to an RC4_CTX object.
  * @key key should be end with '\0'
 */
-void secure_rc4_setup(RC4_CTX *ctx, char *key);
+void secure_rc4_setup(RC4_CTX *ctx, const char *key);
 
 #ifdef __cplusplus
 }
