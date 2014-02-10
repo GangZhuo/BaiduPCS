@@ -42,12 +42,31 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
 ### 直接保存文本到网盘中
     pcs echo <path> <text>
     pcs echo /data.txt "The text that saved by pcs."
+
+    注意：
+      * 将使用当前的系统编码来保存内容到/data.txt文件。如果当前系统编码为UTF-8，
+        则在非UTF-8编码的机器上使用cat显示时会出现中文乱码。
+      * 安全起见，请在本地编辑好文件，使用upload上传。
+
 ### 直接显示网盘中文本文件内容
     pcs cat <path>
     pcs cat /data.txt
+
+    注意：
+      * 将使用当前的系统编码来显示/data.txt文件内容。如果data.txt文件是以ASCII编码保存的，
+        而当前系统为UTF8编码，则可能出现中文乱码。此时可使用download下载到本地后使用第三方工具查看其内容。
+
 ### 把文本添加到网盘文件的末尾
     pcs -a echo <path> <text>
     pcs -a echo /data.txt "The text that will append to the end of the file."
+
+    注意：
+      * 将使用当前的系统编码来保存内容到/data.txt文件。如果当前系统编码为UTF-8，
+        则在非UTF-8编码的机器上使用cat显示时会出现中文乱码。
+        此时可使用download下载到本地后再查看其内容。
+      * 如果原始文件的编码和当前系统编码不同，则原始内容会出现中文乱码。
+      * 安全起见，请在本地编辑好文件，使用upload上传。
+
 ### 显示网盘文件或目录的元数据
     pcs meta <path>
     pcs meta /data.txt
