@@ -92,4 +92,6 @@ PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm dat
 
 PCS_API char *pcs_http_cookie_data(PcsHttp handle);
 
+PCS_API const char *pcs_http_rawdata(PcsHttp handle, int *size, const char **encode);
+
 #endif
