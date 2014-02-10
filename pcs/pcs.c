@@ -1183,7 +1183,7 @@ PCS_API PcsRes pcs_download(Pcs handle, const char *path)
 	return PCS_FAIL;
 }
 
-PCS_API const char *pcs_cat(Pcs handle, const char *path)
+PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url, *html;
@@ -1198,7 +1198,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path)
 		pcs_set_errmsg(handle, PCS_BUILD_URL);
 		return NULL;
 	}
-	html = pcs_http_get(pcs->http, url, PcsTrue);
+	html = pcs_http_get_raw(pcs->http, url, PcsTrue, dstsz);
 	pcs_free(url);
 	if (!html) {
 		pcs_set_errmsg(handle, PCS_NETWORK_ERROR);
