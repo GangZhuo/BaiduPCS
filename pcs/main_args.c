@@ -29,6 +29,7 @@ const char *argp_program_version = program_full_name;
 
 #define OPT_SYNCH	1
 #define OPT_COOKIE	2
+#define OPT_RC4		3
 
 struct argp_option options[] = {
 	{ 0,			0,	 0,				0,							"Options:", 0},
@@ -44,10 +45,11 @@ struct argp_option options[] = {
 	{ "synch",		OPT_SYNCH, 0,		OPTION_ARG_OPTIONAL,		"Synch the tree. "
 																	"Delete the files or directories that not exists in the local file system when upload, "
 																	"Delete the files or directories that not exists in the net disk when download.", 0},
-	{ "urlc",		'U', 0,				OPTION_ARG_OPTIONAL,		"Use http://urlc.cn to hold the verify code image. "
+	{ "urlc",		'U', 0,				OPTION_ARG_OPTIONAL,		"Use http://urlc.cn/g/ to hold the verify code image. "
 																	"The default behavior write the image into ~/.baidupcs/ .", 0},
 	{ "verbose",	'v', 0,				OPTION_ARG_OPTIONAL,		"Show the response text.", 0},
-	{ "cookie",		OPT_COOKIE, "<cookiefile>", OPTION_ARG_OPTIONAL,		"Specify the cookie file.", 0},
+	{ "cookie",		OPT_COOKIE, "<cookiefile>", OPTION_ARG_OPTIONAL,"Specify the cookie file.", 0},
+	{ "rc4",		OPT_RC4, "<rc4-key>", OPTION_ARG_OPTIONAL,		"Specify that use rc4 to encode/decode the content.", 0},
 
 	{0, 0, 0, 0, 0, 0}
 };
@@ -82,7 +84,7 @@ static const char doc[] = "\nProvide some commands that can access the baidu net
 	"you should be use `" program_name " -u<username> quota` to login the disk. "
 	"May be need input the verify code when login, there are two ways to view the image. "
 	"One is save the image into ~/.baidupcs/verfy_code.gif, this is default behavior. "
-	"Another is upload image to http://urlc.cn , "
+	"Another is upload image to http://urlc.cn/g/ , "
 	"you can use -U option to use this behavior. "
 	"After upload, you can find the url from the response html, "
 	"and then you can view the image by browser (i.e.g Firefox, Chrome, IE..), "
@@ -308,6 +310,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		if (params->password) pcs_free(params->password);
 		if (params->sort) pcs_free(params->sort);
 		if (params->cookie) pcs_free(params->cookie);
+		if (params->rc4_key) pcs_free(params->rc4_key);
 		if (params->args) {
 			for (i = 0; i < params->args_count; i++) {
 				pcs_free(params->args[i]);
@@ -318,6 +321,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		params->username = NULL;
 		params->password = NULL;
 		params->cookie = NULL;
+		params->rc4_key = NULL;
 		params->sort = NULL;
 		params->is_recursion = PcsFalse;
 		params->is_force = PcsFalse;
@@ -326,6 +330,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		params->is_append = PcsFalse;
 		params->is_verbose = PcsFalse;
 		params->is_synch = PcsFalse;
+		params->is_rc4 = PcsFalse;
 		params->action = ACTION_NONE;
 		params->args = NULL;
 		params->args_count = 0;
@@ -428,6 +433,13 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		}
 		break;
 
+	case OPT_RC4:
+		params->is_rc4 = PcsTrue;
+		if (arg) {
+			params->rc4_key = pcs_utils_strdup(arg);
+		}
+		break;
+
 	case ARGP_KEY_END:
 	case ARGP_KEY_ARGS:
 	case ARGP_KEY_SUCCESS:
@@ -467,6 +479,7 @@ void main_args_destroy_params(struct params *params)
 	if (params->password) pcs_free(params->password);
 	if (params->sort) pcs_free(params->sort);
 	if (params->cookie) pcs_free(params->cookie);
+	if (params->rc4_key) pcs_free(params->rc4_key);
 	if (params->args) {
 		for (i = 0; i < params->args_count; i++) {
 			pcs_free(params->args[i]);

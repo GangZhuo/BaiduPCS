@@ -254,11 +254,12 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist);
 /*
  * 不下载文件，直接获取文本文件的内容
  *   path		待获取的文件或目录，地址需写全，如/temp, /temp/file.txt
+ *   dstsz      获取到的内容的字节长度
  * 成功后返回文本内容
- * 使用完后需调用pcs_free()释放
+ * 使用完后无需调用pcs_free()释放
  * 失败或无内容则返回 NULL。
  */
-PCS_API const char *pcs_cat(Pcs handle, const char *path);
+PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz);
 
 /*
  * 下载文件
@@ -301,5 +302,13 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
  * 使用完后需要使用pcs_free释放
 */
 PCS_API char *pcs_cookie_data(Pcs handle);
+
+/*
+* 获取最后一次请求的原始数据。
+* @size 用于接收原始数据的长度
+* @encode 用于接收原始数据的编码
+* 返回原始数据的指针。
+*/
+PCS_API const char *pcs_req_rawdata(Pcs handle, int *size, const char **encode);
 
 #endif

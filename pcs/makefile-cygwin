@@ -1,6 +1,6 @@
 
 OBJS1 = cJSON.o pcs.o pcs_fileinfo.o pcs_http.o pcs_mem.c pcs_pan_api_resinfo.o pcs_slist.o pcs_utils.o utf8.o
-OBJS2 = main.o pcs_io.o main_args.o dir.o hashtable.o
+OBJS2 = main.o pcs_io.o main_args.o dir.o hashtable.o md5.o rc4.o
 CCFLAGS = -DHAVE_ASPRINTF -DHAVE_ICONV -DDEBUG -D_DEBUG 
 CC = gcc -g
 #
@@ -14,7 +14,7 @@ libpcs.a : $(OBJS1)
 	$(AR) crv $@ $^
 
 main.o: main.c pcs_io.h pcs_mem.h pcs_defs.h pcs_utils.h pcs_slist.h \
- pcs.h pcs_fileinfo.h pcs_pan_api_resinfo.h
+ pcs.h pcs_fileinfo.h pcs_pan_api_resinfo.h md5.h rc4.h
 	$(CC) -o $@ -c main.c $(PCS_CCFLAGS)
 pcs_io.o: pcs_io.c pcs_io.h
 	$(CC) -o $@ -c pcs_io.c $(PCS_CCFLAGS)
@@ -24,6 +24,10 @@ dir.o: dir.c dir.h pcs_mem.h
 	$(CC) -o $@ -c dir.c $(PCS_CCFLAGS)
 hashtable.o: hashtable.c hashtable.h pcs_mem.h
 	$(CC) -o $@ -c hashtable.c $(PCS_CCFLAGS)
+md5.o: md5.c md5.h
+	$(CC) -o $@ -c md5.c $(PCS_CCFLAGS)
+rc4.o: rc4.c rc4.h md5.h pcs_mem.h
+	$(CC) -o $@ -c rc4.c $(PCS_CCFLAGS)
 
 cJSON.o: cJSON.c cJSON.h
 	$(CC) -o $@ -c cJSON.c $(PCS_CCFLAGS)
