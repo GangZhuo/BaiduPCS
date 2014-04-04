@@ -205,7 +205,7 @@ static const char *get_default_cookie_file(const char *username)
 #else
 	strcpy(filename, getenv("HOME"));
 	strcat(filename, "/.baidupcs");
-	mkdir(filename);
+	mkdir(filename, 0777);
 	strcat(filename, "/");
 	//if (!username || !username[0]) {
 		strcat(filename, "default.cookie");
