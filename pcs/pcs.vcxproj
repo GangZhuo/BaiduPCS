@@ -89,6 +89,7 @@
     <ClCompile Include="hashtable.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="main_args.c" />
+    <ClCompile Include="md5.c" />
     <ClCompile Include="pcs.c" />
     <ClCompile Include="pcs_fileinfo.c" />
     <ClCompile Include="pcs_http.c" />
@@ -97,6 +98,7 @@
     <ClCompile Include="pcs_pan_api_resinfo.c" />
     <ClCompile Include="pcs_slist.c" />
     <ClCompile Include="pcs_utils.c" />
+    <ClCompile Include="rc4.c" />
     <ClCompile Include="utf8.c" />
   </ItemGroup>
   <ItemGroup>
@@ -104,6 +106,7 @@
     <ClInclude Include="dir.h" />
     <ClInclude Include="hashtable.h" />
     <ClInclude Include="main_args.h" />
+    <ClInclude Include="md5.h" />
     <ClInclude Include="pcs.h" />
     <ClInclude Include="pcs_defs.h" />
     <ClInclude Include="pcs_fileinfo.h" />
@@ -113,6 +116,7 @@
     <ClInclude Include="pcs_pan_api_resinfo.h" />
     <ClInclude Include="pcs_slist.h" />
     <ClInclude Include="pcs_utils.h" />
+    <ClInclude Include="rc4.h" />
     <ClInclude Include="utf8.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

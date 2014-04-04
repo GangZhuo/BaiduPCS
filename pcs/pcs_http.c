@@ -856,4 +856,11 @@ PCS_API char *pcs_http_cookie_data(PcsHttp handle)
 	return data;
 }
 
+PCS_API const char *pcs_http_rawdata(PcsHttp handle, int *size, const char **encode)
+{
+	struct pcs_http *http = (struct pcs_http *)handle;
+	*size = http->res_body_size;
+	*encode = http->res_encode;
+	return http->res_body;
+}
 
