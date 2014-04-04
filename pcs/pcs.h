@@ -4,6 +4,7 @@
 #include "pcs_defs.h"
 #include "pcs_fileinfo.h"
 #include "pcs_pan_api_resinfo.h"
+#include "pcs_http.h"
 
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
@@ -73,39 +74,6 @@ typedef enum PcsRes {
  * 返回是否成功，返回PcsFalse，将导致登录中断
 */
 typedef PcsBool (*PcsGetCaptchaFunction)(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state);
-
-/*
- * 设定该回调后，Pcs每从网络获取到值，则调用该回调。例如下载时。
- *   ptr  从网络获取到的字节序
- *   size 字节序的大小，以字节为单位
- *   contentlength 本次请求，HTTP头中的Content-Length值
- *   userdata 使用PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA选项设定的值原样传入
- * 返回写入的字节数，如果返回值和传入的size不一样，将导致下载中断
-*/
-typedef size_t (*PcsHttpWriteFunction)(char *ptr, size_t size, size_t contentlength, void *userdata);
-
-/*
- * 设定该回调后，Pcs每从网络获取到值，则调用该回调。
- * 和PcsHttpWriteFunction的区别是，该回调是在获取到全部内容后触发,
- * 而PcsHttpWriteFunction是每获取到一段字节序则触发。
- * 每个HTTP请求，PcsHttpResponseFunction只会触发一次，而PcsHttpWriteFunction可能触发多次
- *   ptr  从网络获取到的字节序
- *   size 字节序的大小，以字节为单位
- *   userdata 使用PCS_OPTION_HTTP_RESPONSE_FUNCTION_DATE选项设定的值原样传入
-*/
-typedef void (*PcsHttpResponseFunction)(unsigned char *ptr, size_t size, void *state);
-
-/*
- * 设定该回调后，Pcs每上传或下载一段字节序到网络中时，则调用该回调。利用该回调可实现上传时的进度条
- * 注意：只有设定PCS_OPTION_PROGRESS的值为PcsTrue后才会启用进度条
- *   dltotal  从网络中需要下载多少字节
- *   dlnow    从网络中已经下载多少字节
- *   ultotal  需要上传多少字节
- *   ulnow    已经上传多少字节
- *   clientp 使用PCS_OPTION_PROGRESS_FUNCTION_DATE选项设定的值原样传入
- * 返回非零值，将导致中断上传或下载
-*/
-typedef int (*PcsHttpProgressCallback)(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow);
 
 typedef void *Pcs;
 
