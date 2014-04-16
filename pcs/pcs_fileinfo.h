@@ -3,6 +3,7 @@
 
 #include "pcs_defs.h"
 
+/* 用于存储网盘中文件的元数据 */
 typedef struct PcsFileInfo {
 	UInt64		fs_id;
 	char		*path;
@@ -24,18 +25,21 @@ typedef struct PcsFileInfo {
 	int			user_flag;
 } PcsFileInfo;
 
+/*网盘中文件元数据链表的单个节点*/
 typedef struct PcsFileInfoListItem {
 	PcsFileInfo					*info;
 	struct PcsFileInfoListItem	*prev;
 	struct PcsFileInfoListItem	*next;
 } PcsFileInfoListItem;
 
+/*以链表形式存储的网盘文件元数据列表*/
 typedef struct PcsFileInfoList {
 	int						count;
 	PcsFileInfoListItem		*link;
 	PcsFileInfoListItem		*link_tail;
 } PcsFileInfoList;
 
+/*网盘文件元数据列表的迭代器*/
 typedef struct PcsFileInfoListIterater {
 	PcsFileInfoList		*list;
 	PcsFileInfoListItem	*cursor;

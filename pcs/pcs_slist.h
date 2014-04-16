@@ -1,6 +1,7 @@
 #ifndef _PCS_SLIST_H
 #define _PCS_SLIST_H
 
+/* 定义了字符串列表。列表以链表形式存储。 */
 typedef struct PcsSList {
 	char			*string;
 	struct PcsSList	*next;
