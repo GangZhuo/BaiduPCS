@@ -19,7 +19,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -88,7 +88,8 @@
     <ClCompile Include="dir.c" />
     <ClCompile Include="hashtable.c" />
     <ClCompile Include="main.c" />
-    <ClCompile Include="main_args.c" />
+    <ClCompile Include="shell.c" />
+    <ClCompile Include="shell_args.c" />
     <ClCompile Include="md5.c" />
     <ClCompile Include="pcs.c" />
     <ClCompile Include="pcs_fileinfo.c" />
@@ -105,7 +106,8 @@
     <ClInclude Include="cJSON.h" />
     <ClInclude Include="dir.h" />
     <ClInclude Include="hashtable.h" />
-    <ClInclude Include="main_args.h" />
+    <ClInclude Include="shell.h" />
+    <ClInclude Include="shell_args.h" />
     <ClInclude Include="md5.h" />
     <ClInclude Include="pcs.h" />
     <ClInclude Include="pcs_defs.h" />

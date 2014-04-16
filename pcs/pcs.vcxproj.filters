@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="pcs_mem.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -48,9 +45,6 @@
     <ClCompile Include="pcs_pan_api_resinfo.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="main_args.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="dir.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -61,6 +55,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="md5.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="shell_args.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="shell.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -98,9 +101,6 @@
     <ClInclude Include="pcs_pan_api_resinfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="main_args.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="dir.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -111,6 +111,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="md5.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shell_args.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shell.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
