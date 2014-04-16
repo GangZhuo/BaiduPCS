@@ -191,7 +191,7 @@ PCS_API int pcs_utils_strcmpi(const char *str1, const char *str2)
 
 PCS_API PcsBool pcs_utils_streq(const char *str1, const char *str2, int len)
 {
-	int r, i = 0;
+	int i = 0;
 	const char *p1 = str1,
 		*p2 = str2;
 	while((*p1) && (*p2) && (len == -1 || i < len)) {
