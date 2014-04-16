@@ -8,7 +8,7 @@ CC = gcc -g
 all: libpcs.a pcs
 
 pcs : $(OBJS2) $(OBJS1)
-	$(CC) -o $@ $(OBJS2) $(OBJS1) $(CCFLAGS) -L./ -largp -lcurl -lssl -lpcre -liconv
+	$(CC) -o $@ $(OBJS2) $(OBJS1) $(CCFLAGS) -L./ -largp -lcurl -lssl -liconv
 
 libpcs.a : $(OBJS1)
 	$(AR) crv $@ $^

@@ -12,6 +12,14 @@
 
 #define USAGE "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36"
 
+#define PCS_SKIP_SPACE(p) while((*p) && (*p == ' ' || *p == '\f' || *p == '\n' || *p == '\r' || *p == '\t' || *p == '\v')) p++
+
+#define PCS_IS_TOKEN_CHAR(ch) (((ch) >= '0' && (ch) <= '9')\
+								   || ((ch) >= 'a' && (ch) <= 'z')\
+								   || ((ch) >= 'A' && (ch) <= 'Z')\
+								   || (ch) == '_'\
+								   || (ch) == '-')
+
 #define PCS_HTTP_RES_TYPE_NORMAL		0
 #define PCS_HTTP_RES_TYPE_VALIDATE_TEXT	2
 #define PCS_HTTP_RES_TYPE_RAW			4
@@ -152,11 +160,29 @@ inline PcsBool pcs_http_is_http_head(struct pcs_http *http, char *ptr, size_t si
 inline int pcs_http_get_content_length_from_header(const char *header, int size)
 {
 	int res = -1;
-	PcsSList *slist;
-	int indies[2] = { 1, -1 };
-	if (pcs_regex(header, size, "Content-Length:\\s*(\\d+)", indies, &slist)) {
-		res = atoi(slist->string);
-		pcs_slist_destroy(slist);
+	char *val = NULL;
+	const char *p = header, *key = "Content-Length",
+		*end = NULL,
+		*tmp;
+	int i = 14;//strlen(key) = 14;
+	while (*p) {
+		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
+			tmp = p + i;
+			PCS_SKIP_SPACE(tmp);
+			if (*tmp != ':') continue; tmp++;
+			PCS_SKIP_SPACE(tmp);
+			end = tmp;
+			while (*end && *end >= '0' && *end <= '9') end++;
+			if (end > tmp) {
+				val = (char *)pcs_malloc(end - tmp + 1);
+				memcpy(val, tmp, end - tmp);
+				val[end - tmp] = '\0';
+				res = atoi(val);
+				pcs_free(val);
+				break;
+			}
+		}
+		p++;
 	}
 	return res;
 }
@@ -164,11 +190,24 @@ inline int pcs_http_get_content_length_from_header(const char *header, int size)
 inline char *pcs_http_get_charset_from_header(const char *header, int size)
 {
 	char *res = NULL;
-	PcsSList *slist;
-	int indies[2] = { 1, -1 };
-	if (pcs_regex(header, size, "charset=([a-zA-Z0-9_-]*)", indies, &slist)) {
-		res = pcs_utils_strdup(slist->string);
-		pcs_slist_destroy(slist);
+	const char *p = header, *key = "charset",
+		*end = NULL,
+		*tmp;
+	int i = 7;//strlen(key) = 7;
+	while (*p) {
+		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
+			tmp = p + i;
+			if (*tmp != '=') continue; tmp++;
+			end = tmp;
+			while (*end && PCS_IS_TOKEN_CHAR(*end)) end++;
+			if (end > tmp) {
+				res = (char *)pcs_malloc(end - tmp + 1);
+				memcpy(res, tmp, end - tmp);
+				res[end - tmp] = '\0';
+				break;
+			}
+		}
+		p++;
 	}
 	return res;
 }
@@ -176,12 +215,30 @@ inline char *pcs_http_get_charset_from_header(const char *header, int size)
 inline char *pcs_http_get_charset_from_body(const char *body, int size)
 {
 	char *res = NULL;
-	PcsSList *slist;
-	int indies[2] = { 1, -1 };
-	if (pcs_regex(body, size, "<meta .*charset=\"?\\s*([a-zA-Z0-9_-]*)\\s*\".*>", indies, &slist)) {
-		res = pcs_utils_strdup(slist->string);
-		pcs_slist_destroy(slist);
+	const char *p = body, *key = "charset",
+		*end = NULL,
+		*tmp;
+	int i = 7;//strlen(key) = 7;
+	while (*p) {
+		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
+			tmp = p + i;
+			PCS_SKIP_SPACE(tmp);
+			if (*tmp != '=') continue; tmp++;
+			PCS_SKIP_SPACE(tmp);
+			if (*tmp == '"') tmp++;
+			PCS_SKIP_SPACE(tmp);
+			end = tmp;
+			while (*end && PCS_IS_TOKEN_CHAR(*end)) end++;
+			if (end > tmp) {
+				res = (char *)pcs_malloc(end - tmp + 1);
+				memcpy(res, tmp, end - tmp);
+				res[end - tmp] = '\0';
+				break;
+			}
+		}
+		p++;
 	}
+
 	return res;
 }
 
@@ -693,6 +750,18 @@ PCS_API char *pcs_http_get_cookie(PcsHttp handle, const char *cookie_name)
 	}
 	curl_slist_free_all(cookies);
 	return value;
+}
+
+PCS_API const char *pcs_http_get_response(PcsHttp handle)
+{
+	struct pcs_http *http = (struct pcs_http *)handle;
+	return http->res_body;
+}
+
+PCS_API int pcs_http_get_response_size(PcsHttp handle)
+{
+	struct pcs_http *http = (struct pcs_http *)handle;
+	return http->res_body_size;
 }
 
 PCS_API char *pcs_http_get(PcsHttp handle, const char *url, PcsBool follow_location)

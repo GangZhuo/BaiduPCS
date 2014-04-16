@@ -10,7 +10,7 @@ CC = gcc
 all: libpcs.a pcs
 
 pcs : $(OBJS2) $(OBJS1)
-	$(CC) -o $@ $(OBJS2) $(OBJS1) $(CCFLAGS) -lm -lcurl -lssl -lpcre -liconv
+	$(CC) -o $@ $(OBJS2) $(OBJS1) $(CCFLAGS) -lm -lcurl -lssl -liconv
 
 libpcs.a : $(OBJS1)
 	$(AR) crv $@ $^

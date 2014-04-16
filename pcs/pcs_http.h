@@ -91,6 +91,15 @@ PCS_API char *pcs_http_build_post_data(PcsHttp handle, ...);
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_get_cookie(PcsHttp handle, const char *cookie_name);
+
+/*
+ * 获取最后一次请求的返回内容
+ */
+PCS_API const char *pcs_http_get_response(PcsHttp handle);
+/*
+ * 获取最后一次请求的返回内容的字节长度
+ */
+PCS_API int pcs_http_get_response_size(PcsHttp handle);
 /*
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
