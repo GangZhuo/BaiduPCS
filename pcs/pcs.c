@@ -15,6 +15,14 @@
 #include "cJSON.h"
 #include "pcs.h"
 
+#define PCS_SKIP_SPACE(p) while((*p) && (*p == ' ' || *p == '\f' || *p == '\n' || *p == '\r' || *p == '\t' || *p == '\v')) p++
+
+#define PCS_IS_TOKEN_CHAR(ch) (((ch) >= '0' && (ch) <= '9')\
+								   || ((ch) >= 'a' && (ch) <= 'z')\
+								   || ((ch) >= 'A' && (ch) <= 'Z')\
+								   || (ch) == '_'\
+								   || (ch) == '-')
+
 #define URL_HOME			"http://www.baidu.com"
 #define URL_DISK_HOME		"http://pan.baidu.com/disk/home"
 #define URL_PASSPORT_API	"https://passport.baidu.com/v2/api/?"
@@ -99,6 +107,84 @@ inline PcsRes pcs_get_captcha(Pcs handle, const char *code_string, char *captcha
 		return PCS_GET_CAPTCHA_FAIL;
 	}
 	return PCS_OK;
+}
+
+static char *pcs_get_value_by_key(const char *html, const char *key)
+{
+	char *val = NULL;
+	const char *p = html,
+		*end = NULL,
+		*tmp;
+	int i = strlen(key);// \f\n\r\t\v
+	while (*p) {
+		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
+			tmp = p + i;
+			PCS_SKIP_SPACE(tmp);
+			if (*tmp != '=') continue; tmp++;
+			PCS_SKIP_SPACE(tmp);
+			if (*tmp != '"') continue; tmp++;
+			end = tmp;
+			while (*end && *end != '"') end++;
+			if (*end == '"') {
+				val = (char *)pcs_malloc(end - tmp + 1);
+				memcpy(val, tmp, end - tmp);
+				val[end - tmp] = '\0';
+				return val;
+			}
+		}
+		p++;
+	}
+	return val;
+}
+
+static char *pcs_get_embed_query_int_value_by_key(const char *html, const char *key)
+{
+	char *val = NULL;
+	const char *p = html,
+		*end = NULL,
+		*tmp;
+	int i = strlen(key);// \f\n\r\t\v
+	while (*p) {
+		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
+			tmp = p + i;
+			if (*tmp != '=') continue; tmp++;
+			end = tmp;
+			while (*end && *end >= '0' && *end <= '9') end++;
+			if (end > tmp) {
+				val = (char *)pcs_malloc(end - tmp + 1);
+				memcpy(val, tmp, end - tmp);
+				val[end - tmp] = '\0';
+				return val;
+			}
+		}
+		p++;
+	}
+	return val;
+}
+
+static char *pcs_get_embed_query_token_by_key(const char *html, const char *key)
+{
+	char *val = NULL;
+	const char *p = html,
+		*end = NULL,
+		*tmp;
+	int i = strlen(key);// \f\n\r\t\v
+	while (*p) {
+		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
+			tmp = p + i;
+			if (*tmp != '=') continue; tmp++;
+			end = tmp;
+			while (*end && PCS_IS_TOKEN_CHAR(*end)) end++;
+			if (end > tmp) {
+				val = (char *)pcs_malloc(end - tmp + 1);
+				memcpy(val, tmp, end - tmp);
+				val[end - tmp] = '\0';
+				return val;
+			}
+		}
+		p++;
+	}
+	return val;
 }
 
 static char *pcs_build_pan_api_url_v(Pcs handle, const char *action, va_list args)
@@ -763,32 +849,21 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	const char *html;
-	PcsSList *slist;
-	int indies[2] = { 1, -1 };
 
 	pcs_clear_error(handle);
 	html = pcs_http_get(pcs->http, URL_DISK_HOME, PcsTrue);
 	if (!html)
 		return PCS_NETWORK_ERROR;
 	
-	if (!pcs_regex(html, -1, "bdstoken=\"([^\"]+)\"", indies, &slist)) {
-		return PCS_NOT_LOGIN;
-	}
 	if (pcs->bdstoken)
 		pcs_free(pcs->bdstoken);
-	pcs->bdstoken = pcs_utils_strdup(slist->string);
-	pcs_slist_destroy(slist);
-	if (strlen(pcs->bdstoken) > 0) {
+	pcs->bdstoken = pcs_get_value_by_key(html, "FileUtils.bdstoken");
+	if (pcs->bdstoken != NULL && strlen(pcs->bdstoken) > 0) {
+		//printf("bdstoken: %s\n", pcs->bdstoken);
 		if (pcs->bduss)
 			pcs_free(pcs->bduss);
 		pcs->bduss = pcs_http_get_cookie(pcs->http, "BDUSS");
-		if (!pcs_regex(html, -1, "FileUtils\\.sysUID=\"([^\"]+)\"", indies, &slist)) {
-			return PCS_NOT_LOGIN;
-		}
-		if (pcs->sysUID)
-			pcs_free(pcs->sysUID);
-		pcs->sysUID = pcs_utils_strdup(slist->string);
-		pcs_slist_destroy(slist);
+		pcs->sysUID = pcs_get_value_by_key(html, "FileUtils.sysUID");
 		return PCS_LOGIN;
 	}
 	return PCS_NOT_LOGIN;
@@ -801,8 +876,6 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt;
 	cJSON *json, *root, *item;
 	int error = -1, i;
-	PcsSList *slist;
-	int indies[2] = { 1, -1 };
 
 	pcs_clear_error(handle);
 	html = pcs_http_get(pcs->http, URL_HOME, PcsTrue);
@@ -896,14 +969,16 @@ try_login:
 		pcs_free(code_string);
 		return PCS_NETWORK_ERROR;
 	}
-
-	if (!pcs_regex(html, strlen(html), "&error=(\\d+)", indies, &slist)) {
-		pcs_free(token);
-		pcs_free(code_string);
-		return PCS_NETWORK_ERROR;
+	else {
+		char *errorStr = pcs_get_embed_query_int_value_by_key(html, "&error");
+		if (!errorStr) {
+			pcs_free(token);
+			pcs_free(code_string);
+			return PCS_NETWORK_ERROR;
+		}
+		error = atoi(errorStr);
+		pcs_free(errorStr);
 	}
-	error = atoi(slist->string);
-	pcs_slist_destroy(slist);
 
 	if (error == 0) {
 		if (pcs_islogin(pcs) == PCS_LOGIN) {
@@ -917,15 +992,15 @@ try_login:
 			return PCS_FAIL;
 		}
 	}
-
-	if (!pcs_regex(html, strlen(html), "&codestring=([a-zA-Z0-9_-]+)", indies, &slist)) {
-		pcs_free(token);
-		pcs_free(code_string);
-		return PCS_FAIL;
+	else {
+		if (code_string) pcs_free(code_string);
+		code_string = pcs_get_embed_query_token_by_key(html, "&codestring");
+		if (!code_string) {
+			pcs_free(token);
+			pcs_free(code_string);
+			return PCS_FAIL;
+		}
 	}
-	if (code_string) pcs_free(code_string);
-	code_string = pcs_utils_strdup(slist->string);
-	pcs_slist_destroy(slist);
 	if (i < 1 && code_string[0]) {
 		i++;
 		goto try_login;

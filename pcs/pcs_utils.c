@@ -4,16 +4,34 @@
 #include <stdarg.h>
 #ifdef WIN32
 # include <malloc.h>
-# include <pcre/pcre.h>
 # define snprintf _snprintf
 #else
 # include <alloca.h>
-# include <pcre.h> 
 #endif
 
 #include "pcs_mem.h"
 #include "utf8.h"
 #include "pcs_utils.h"
+
+PCS_API PcsBool pcs_isLittleEndian()
+{
+	union w {
+		int a;
+		char b;
+	} c;
+	c.a = 1;
+	return (c.b == 1);
+}
+
+PCS_API PcsBool pcs_isBigEndian()
+{
+	union w {
+		int a;
+		char b;
+	} c;
+	c.a = 1;
+	return (c.b == 0);
+}
 
 PCS_API char *pcs_utils_strdup(const char *str)
 {
@@ -171,81 +189,16 @@ PCS_API int pcs_utils_strcmpi(const char *str1, const char *str2)
 	return (*p1) - (*p2);
 }
 
-/*
- * 正则匹配
- * input  用于匹配的原始字符串
- * input_size 原始字符串长度
- * pattern 匹配模式
- * indies  匹配模式中输出到outputs中的索引数组
- * outputs 用于接收匹配结果的字符串数组,匹配完成后，将按照indies数组中指定的索引按顺序填充到outputs中
- * output_count indies 或 outputs 的元素个数
-*/
-PCS_API PcsBool pcs_regex(const char *input, int input_size, const char *pattern, int *indies, PcsSList **pslist)
+PCS_API PcsBool pcs_utils_streq(const char *str1, const char *str2, int len)
 {
-#define REGEX_OVECCOUNT		30 /* should be a multiple of 3 */
-#define REGEX_PATTERN_LEN 1024 
-
-	pcre  *re;
-	const char *error, *substring_start;
-	int  erroffset;
-	int  ovector[REGEX_OVECCOUNT];
-	int  rc, substring_length;
-	int  *indx;
-	PcsSList *slist = NULL, 
-		*pitem = NULL;
-	
-	if (!input || !pattern || !indies || !pslist)
-		return PcsFalse;
-	if (input_size == -1)
-		input_size = strlen(input);
-	re = pcre_compile(pattern,  // pattern, 输入参数，将要被编译的字符串形式的正则表达式
-		0,						// options, 输入参数，用来指定编译时的一些选项
-		&error,					// errptr, 输出参数，用来输出错误信息
-		&erroffset,				// erroffset, 输出参数，pattern中出错位置的偏移量
-		NULL);					// tableptr, 输入参数，用来指定字符表，一般情况用NULL
-	if (re == NULL) {                 //如果编译失败，返回错误信息
-		return PcsFalse;
+	int r, i = 0;
+	const char *p1 = str1,
+		*p2 = str2;
+	while((*p1) && (*p2) && (len == -1 || i < len)) {
+		if ((*p1) != (*p2)) return PcsFalse;
+		p1++;
+		p2++;
 	}
-	rc = pcre_exec(re,				// code, 输入参数，用pcre_compile编译好的正则表达结构的指针
-		NULL,						// extra, 输入参数，用来向pcre_exec传一些额外的数据信息的结构的指针
-		input,				// subject, 输入参数，要被用来匹配的字符串
-		input_size,			// length, 输入参数， 要被用来匹配的字符串的指针
-		0,							// startoffset, 输入参数，用来指定subject从什么位置开始被匹配的偏移量
-		0,							// options, 输入参数， 用来指定匹配过程中的一些选项
-		ovector,					// ovector, 输出参数，用来返回匹配位置偏移量的数组
-		REGEX_OVECCOUNT);					// ovecsize, 输入参数， 用来返回匹配位置偏移量的数组的最大大小
-	// 返回值：匹配成功返回非负数，没有匹配返回负数
-	if (rc < 0) {                     //如果没有匹配，返回错误信息
-		if (rc == PCRE_ERROR_NOMATCH) {
-			pcre_free(re);
-			return PcsFalse;
-		}
-		else {
-			pcre_free(re);
-			return PcsFalse;
-		}
-	}
-
-	indx = indies;
-	while(*indx != -1) {
-		if (rc <= *indx)
-			break;
-		substring_start = input + ovector[2 * *indx];
-		substring_length = ovector[2 * *indx + 1] - ovector[2 * *indx];
-		if (!slist) {
-			slist = pcs_slist_create_ex(substring_start, substring_length);
-			if (!slist)
-				return PcsFalse;
-		}
-		else {
-			if (!pcs_slist_add_ex(slist, substring_start, substring_length)) {
-				pcs_slist_destroy(slist);
-				return PcsFalse;
-			}
-		}
-		indx++;
-	}
-	pcre_free(re);                     // 编译正则表达式re 释放内存
-	*pslist = slist;
 	return PcsTrue;
 }
+

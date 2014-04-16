@@ -20,8 +20,9 @@
 extern "C" {
 #endif
 
-
+/*从标准输入中获取一串字符，字符回显到标准输出*/
 void get_string_from_std_input(char *str, int size);
+/*从标准输入中获取一串字符，但是字符不回显。*/
 void get_password_from_std_input(char *password, int size);
 
 #ifdef __cplusplus
