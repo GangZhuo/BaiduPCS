@@ -48,6 +48,7 @@ typedef struct PcsFileInfoListIterater {
 
 PCS_API PcsFileInfo *pcs_fileinfo_create();
 PCS_API void pcs_fileinfo_destroy(PcsFileInfo *fi);
+/*复制一份PcsFileInfo。注意是深克隆。*/
 PCS_API PcsFileInfo *pcs_fileinfo_clone(PcsFileInfo *fi);
 
 PCS_API PcsFileInfoListItem *pcs_filistitem_create();
