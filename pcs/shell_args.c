@@ -10,7 +10,7 @@
 
 #include "pcs_mem.h"
 #include "pcs_utils.h"
-#include "main_args.h"
+#include "shell_args.h"
 
 #define program_name	"pcs"
 #define program_version "0.0.1"
