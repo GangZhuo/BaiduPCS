@@ -6,6 +6,9 @@
 #include "pcs_defs.h"
 #include "pcs_slist.h"
 
+PCS_API PcsBool pcs_isLittleEndian();
+PCS_API PcsBool pcs_isBigEndian();
+
 PCS_API char *pcs_utils_strdup(const char *str);
 PCS_API char *pcs_utils_strdup_utf8(const char *str);
 PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap);

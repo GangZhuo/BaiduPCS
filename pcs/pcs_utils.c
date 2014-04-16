@@ -15,6 +15,26 @@
 #include "utf8.h"
 #include "pcs_utils.h"
 
+PCS_API PcsBool pcs_isLittleEndian()
+{
+	union w {
+		int a;
+		char b;
+	} c;
+	c.a = 1;
+	return (c.b == 1);
+}
+
+PCS_API PcsBool pcs_isBigEndian()
+{
+	union w {
+		int a;
+		char b;
+	} c;
+	c.a = 1;
+	return (c.b == 0);
+}
+
 PCS_API char *pcs_utils_strdup(const char *str)
 {
 	char *res = 0;
