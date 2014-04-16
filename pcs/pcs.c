@@ -337,7 +337,7 @@ static PcsFileInfoList *pcs_pan_api_1(Pcs handle, const char *action, ...)
 	}
 	json = cJSON_Parse(html);
 	if (!json){
-		printf("%s\n", html);
+		//printf("%s\n", html);
 		pcs_set_errmsg(handle, PCS_WRONG_RESPONSE);
 		return NULL;
 	}
