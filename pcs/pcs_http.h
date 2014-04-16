@@ -43,13 +43,14 @@ typedef int (*PcsHttpProgressCallback)(void *clientp, double dltotal, double dln
 
 typedef enum PcsHttpOption {
 	PCS_HTTP_OPTION_END = 0,
-	/* 值为PcsHttpWriteFunction类型的函数 */
+	/* 值为PcsHttpWriteFunction类型的函数。当调用pcs_http_get_download方法时，此选项传入的函数用于处理服务器返回的数据。 */
 	PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION,
-	/* PcsHttp本身不使用该值，仅原样传递到PcsHttpWriteFunction函数中 */
+	/* PcsHttp本身不使用该值，仅原样传递到PcsHttpWriteFunction函数中。
+	当调用pcs_http_get_download方法时，此选项传入的对象原样传递到PcsHttpWriteFunction指定的函数中。 */
 	PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION_DATE,
-	/* 值为PcsHttpReadFunction类型的函数 */
+	/* 值为PcsHttpReadFunction类型的函数。保留，未使用。 */
 	PCS_HTTP_OPTION_HTTP_READ_FUNCTION,
-	/* PcsHttp本身不使用该值，仅原样传递到PcsHttpReadFunction函数中 */
+	/* PcsHttp本身不使用该值，仅原样传递到PcsHttpReadFunction函数中。保留，未使用。 */
 	PCS_HTTP_OPTION_HTTP_READ_FUNCTION_DATE,
 	/* 值为PcsHttpResponseFunction类型的函数 */
 	PCS_HTTP_OPTION_HTTP_RESPONSE_FUNCTION,
@@ -65,60 +66,156 @@ typedef enum PcsHttpOption {
 
 } PcsHttpOption;
 
+/*
+ * 创建一个PcsHttp对象
+ *   cookie_file   指定保存Cookie的文件，如果文件不存在，将自动创建该文件。
+ *                 当发送一个请求时，将附加该文件中的Cookie。程序退出后，保存最新的Cookie到该文件中。
+ * 成功后，返回创建的对象，失败则返回NULL。使用完成后需调用pcs_http_destroy()来释放资源
+ */
 PCS_API PcsHttp pcs_http_create(const char *cookie_file);
+/*
+ * 释放掉PcsHttp对象
+ */
 PCS_API void pcs_http_destroy(PcsHttp handle);
+/*
+ * 返回最后一次发生的错误描述
+ */
 PCS_API const char *pcs_http_strerror(PcsHttp handle);
+/*
+ * 返回最后一次请求的 HTTP状态码。状态码可参考"http://zh.wikipedia.org/wiki/HTTP%E7%8A%B6%E6%80%81%E7%A0%81"
+ */
 PCS_API int pcs_http_code(PcsHttp handle);
+/*
+ * 设置PcsHttp配置选项，每次只能设置一个。 
+ */
 PCS_API void pcs_http_setopt(PcsHttp handle, PcsHttpOption opt, void *value);
+
+/*
+ * 一次设定多个配置选项，最后一项必须为PCS_HTTP_OPTION_END。
+ * 例： pcs_http_setopts(handle, PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, &cb_write, PCS_HTTP_OPTION_HTTP_READ_FUNCTION_DATE, state, PCS_HTTP_OPTION_END);
+ */
 PCS_API void pcs_http_setopts(PcsHttp handle, ...);
 /*
+ * pcs_http_build_url的参数列表模式
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_build_url_v(PcsHttp handle, const char *url, va_list args);
 /*
+ * 拼接URL。多参必须全部为 Key-Value的键值对，且类型必须const char *类型。最后一项必须为NULL。
+ * 如果值中包含中文或特殊字符，将采用UTF-8来编码。
+ *  url  - 基地址
+ *  例： 
+ *     pcs_http_build_url(pcs->http, "http://baidu.com", "key1", "value1", "key2", "value2", NULL); //结果为：http://baidu.com?key1=value1&key2=value2
+ *     pcs_http_build_url(pcs->http, "http://baidu.com?s=ab", "key1", "value1", "key2", "&ab", NULL); //结果为：http://baidu.com??s=ab&key1=value1&key2=%26ab
+ *     pcs_http_build_url(pcs->http, "http://baidu.com?s=ab&", "key1", "value1", "key2", "&ab", NULL); //结果为：http://baidu.com??s=ab&key1=value1&key2=%26ab
+ * 成功后返回拼接后的地址，失败则返回NULL
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_build_url(PcsHttp handle, const char *url, ...);
 /*
+ * pcs_http_build_post_data的参数列表模式
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_build_post_data_v(PcsHttp handle, va_list args);
 /*
+ * 类似于pcs_http_build_url，只不过该函数拼接的是需要发送到服务的数据。
+ * 多参必须全部为 Key-Value的键值对，且类型必须const char *类型。最后一项必须为NULL。
+ * 如果值中包含中文或特殊字符，将采用UTF-8来编码。
+ *  url  - 基地址
+ *  例： 
+ *     pcs_http_build_post_data(pcs->http, "key1", "value1", "key2", "value2", NULL); //结果为：key1=value1&key2=value2
+ *     pcs_http_build_post_data(pcs->http, "key1", "value1", "key2", "&ab", NULL); //结果为：key1=value1&key2=%26ab
+ * 成功后返回拼接后的字符串，失败则返回NULL
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_build_post_data(PcsHttp handle, ...);
 /*
+ * 根据名字获取Cookie值。
+ * 成功后返回Cookie值，失败或不存在则返回NULL。
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_get_cookie(PcsHttp handle, const char *cookie_name);
+
 /*
+ * 获取最后一次请求时服务器的返回内容
+ * 如果从未从服务器请求数据则返回NULL。不需要调用pcs_free释放内存。
+ */
+PCS_API const char *pcs_http_get_response(PcsHttp handle);
+/*
+ * 获取最后一次请求时服务器返回内容的字节长度
+ * 如果从未从服务器请求数据则返回0。
+ */
+PCS_API int pcs_http_get_response_size(PcsHttp handle);
+/*
+ * 向服务器发送一个GET请求。
+ *   url             服务器地址
+ *   follow_location 假如服务器返回跳转到另一个页面的指令时，是否自动跳转过去，如果跳转的话，则返回跳转后页面的内容
+ * 返回服务器返回的内容。内容自动解码为当前操作系统使用的编码。
+ * 例如：在Windows系统中，如果系统编码为GB2312，则返回内容自动解码为GB2312编码；在Linux系统中，系统编码为UTF-8，则返回内容的编码则为UTF-8
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
 PCS_API char *pcs_http_get(PcsHttp handle, const char *url, PcsBool follow_location);
 /*
+ * 向服务器发送一个GET请求。
+ *   url             服务器地址
+ *   follow_location 假如服务器返回跳转到另一个页面的指令时，是否自动跳转过去，如果跳转的话，则返回跳转后页面的内容
+ * 返回服务器返回的内容。内容不会执行解码操作。该方法一般用于获取图片或用于获取服务中文件的原始内容。
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
 PCS_API char *pcs_http_get_raw(PcsHttp handle, const char *url, PcsBool follow_location, size_t *sz);
 /*
+ * 向服务器发送一个POST请求。
+ *   url             服务器地址
+ *   follow_location 假如服务器返回跳转到另一个页面的指令时，是否自动跳转过去，如果跳转的话，则返回跳转后页面的内容
+ * 返回服务器返回的内容。内容自动解码为当前操作系统使用的编码。
+ * 例如：在Windows系统中，如果系统编码为GB2312，则返回内容自动解码为GB2312编码；在Linux系统中，系统编码为UTF-8，则返回内容的编码则为UTF-8
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
 PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, PcsBool follow_location);
 
+/*
+ * 向服务器发送一个GET请求。当获取到服务器返回数据后，调用PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION传入的函数来写入内容。
+ *   url             服务器地址
+ *   follow_location 假如服务器返回跳转到另一个页面的指令时，是否自动跳转过去，如果跳转的话，则返回跳转后页面的内容
+ * 返回是否下载成功。内容不会执行解码操作。该方法一般用于下载图片或文件。
+ * Not need call pcs_free(void *) to free the return value.
+ * The memory will auto free when call pcs_http_destroy
+*/
 PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location);
 
+/*
+ * 向PcsHttpForm对象中添加一个本地文件。
+ *   post        文件将添加到该PcsHttpForm对象中。
+ *   param_name  发送给服务器的代表该文件内容的参数名字。
+ *   filename    该文件的本地文件名，PcsHttpForm将从该路径读取文件内容
+ *   simulate_filename 发送到服务器的文件名。可以指定不同于filename的名字，服务器收到的本地文件名将是simulate_filename而不是filename
+ * 例： pcs_http_form_addfile(pcs->http, &form, "file", local_filename, "sample.dat"); //参数名是 "file"，文件内容存储在local_filename指定的文件中，服务器接收到的文件名字是"sample.dat"
+ * 添加成功后，返回PcsTrue，否则返回PcsFalse。
+*/
 PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, 
 									  const char *filename, const char *simulate_filename);
-
+/* 同pcs_http_form_addfile，只不过是从内存中读取文件内容。 */
 PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const char *param_name,
 										const char *buffer, long buffer_size, const char *simulate_filename);
-
+/*释放掉PcsHttpForm资源*/
 PCS_API void pcs_http_form_destroy(PcsHttp handle, PcsHttpForm post);
 
+/*
+ * 向服务器发送一个POST请求。该方法可以上传文件到服务器。
+ *   url             服务器地址
+ *   data            发送到服务器的数据。
+ *   follow_location 假如服务器返回跳转到另一个页面的指令时，是否自动跳转过去，如果跳转的话，则返回跳转后页面的内容
+ * 返回服务器返回的内容。内容自动解码为当前操作系统使用的编码。
+ * 例如：在Windows系统中，如果系统编码为GB2312，则返回内容自动解码为GB2312编码；在Linux系统中，系统编码为UTF-8，则返回内容的编码则为UTF-8
+ * Not need call pcs_free(void *) to free the return value.
+ * The memory will auto free when call pcs_http_destroy
+*/
 PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm data, PcsBool follow_location);
 
+/*以字符串形式返回所有Cookie数据。*/
 PCS_API char *pcs_http_cookie_data(PcsHttp handle);
 
 PCS_API const char *pcs_http_rawdata(PcsHttp handle, int *size, const char **encode);

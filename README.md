@@ -13,14 +13,12 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     ./configure --prefix=/usr/local
     make
     make install
-### 3. 安装 libpcre
-    apt-get install libpcre3 libpcre3-dev
-### 4. 获取源代码
+### 3. 获取源代码
     git clone https://github.com/GangZhuo/baidupcs.git
-### 5. 编译源代码
+### 4. 编译源代码
     cd baidupcs/pcs
     make
-### 6. 安装到 /usr/bin 下 
+### 5. 安装到 /usr/bin 下 
     cp ./pcs /usr/bin/
     chmod a+x /usr/bin/pcs
 
