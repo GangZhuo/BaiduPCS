@@ -384,7 +384,7 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 
 inline PcsBool pcs_http_decode_response(struct pcs_http *http)
 {
-	size_t tmpsz;
+	int tmpsz;
 	char *p;
 	if (!http->res_body || http->res_body_size <= 0)
 		return PcsTrue;
