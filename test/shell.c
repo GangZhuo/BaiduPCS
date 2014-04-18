@@ -1167,9 +1167,9 @@ static void exec_upload_file(Pcs pcs, struct params *params)
 	}
 	if (res->path[0]) {
 		printf("Upload %s success, remote location is %s.\n", params->args[0], res->path);
+		pcs_fileinfo_destroy(res);
 		return;
 	}
-	//print_meta(res, " ");
 	pcs_fileinfo_destroy(res);
 }
 
