@@ -19,7 +19,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v110</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -100,7 +100,6 @@
     <ClCompile Include="pcs_slist.c" />
     <ClCompile Include="pcs_utils.c" />
     <ClCompile Include="rc4.c" />
-    <ClCompile Include="utf8.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cJSON.h" />
@@ -119,7 +118,6 @@
     <ClInclude Include="pcs_slist.h" />
     <ClInclude Include="pcs_utils.h" />
     <ClInclude Include="rc4.h" />
-    <ClInclude Include="utf8.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

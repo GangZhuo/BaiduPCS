@@ -13,8 +13,6 @@ PCS_API PcsBool pcs_isBigEndian();
 
 /*原因复制一份字符串。返回值需要调用pcs_free()*/
 PCS_API char *pcs_utils_strdup(const char *str);
-/*同pcs_utils_strdup，只不过会把utf8编码的str解码为当前系统使用的编码后再复制*/
-PCS_API char *pcs_utils_strdup_utf8(const char *str);
 /*pcs_utils_sprintf的矢量模式*/
 PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap);
 /*输出字符串到内存，并返回该内存。*/

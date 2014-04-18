@@ -7,6 +7,14 @@
 extern "C" {
 #endif
 
+#define program_name	"pcs"
+#define program_version "0.0.1"
+#if defined(DEBUG) || defined(_DEBUG)
+#  define program_full_name program_name "(debug) v" program_version
+#else
+#  define program_full_name program_name " v" program_version
+#endif
+
 
 enum action {
 	ACTION_NONE = 0,
