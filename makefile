@@ -4,13 +4,13 @@ ver = debug
 OS_NAME = $(shell uname -o)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
 
-PCS_OBJS     = cJSON.o pcs.o pcs_fileinfo.o pcs_http.o pcs_mem.o pcs_pan_api_resinfo.o pcs_slist.o pcs_utils.o
-SHELL_OBJS   = shell.o pcs_io.o shell_args.o dir.o hashtable.o md5.o rc4.o
+PCS_OBJS     = bin/cJSON.o bin/pcs.o bin/pcs_fileinfo.o bin/pcs_http.o bin/pcs_mem.o bin/pcs_pan_api_resinfo.o bin/pcs_slist.o bin/pcs_utils.o
+SHELL_OBJS   = bin/shell.o bin/pcs_io.o bin/shell_args.o bin/dir.o bin/hashtable.o bin/md5.o bin/rc4.o
 #CCFLAGS      = -DHAVE_ASPRINTF -DHAVE_ICONV
 ifeq ($(LC_OS_NAME), cygwin)
 CYGWIN_CCFLAGS = -largp
 else
-CYGWIN_CCFLAGS = 
+CYGWIN_CCFLAGS = -largp
 endif
 
 ifeq ($(ver), debug)
@@ -20,54 +20,54 @@ else
 CC = gcc
 endif
 
-all: libpcs.a bin/pcs
+all: bin/libpcs.a bin/pcs
 
-bin/pcs : main.o libpcs.a $(SHELL_OBJS)
-	$(CC) -o $@ main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) -L. -lpcs -lm -lcurl -lssl
+bin/pcs : bin/main.o bin/libpcs.a $(SHELL_OBJS)
+	$(CC) -o $@ bin/main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl
 
-main.o: test/main.c test/shell.h
+bin/main.o: test/main.c test/shell.h
 	$(CC) -o $@ -c test/main.c $(PCS_CCFLAGS)
 
-shell.o: test/shell.c \
+bin/shell.o: test/shell.c \
          test/shell.h \
 		 test/shell_args.h \
 		 test/pcs_io.h \
 		 test/md5.h \
 		 test/rc4.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/shell.c
-pcs_io.o: test/pcs_io.c test/pcs_io.h
+bin/pcs_io.o: test/pcs_io.c test/pcs_io.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/pcs_io.c
-shell_args.o: test/shell_args.c test/shell_args.h
+bin/shell_args.o: test/shell_args.c test/shell_args.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/shell_args.c
-dir.o: test/dir.c test/dir.h
+bin/dir.o: test/dir.c test/dir.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS)test/dir.c
-hashtable.o: test/hashtable.c test/hashtable.h
+bin/hashtable.o: test/hashtable.c test/hashtable.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/hashtable.c
-md5.o: test/md5.c test/md5.h
+bin/md5.o: test/md5.c test/md5.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/md5.c
-rc4.o: test/rc4.c test/rc4.h test/md5.h
+bin/rc4.o: test/rc4.c test/rc4.h test/md5.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/rc4.c
 
-libpcs.a : $(PCS_OBJS)
+bin/libpcs.a : $(PCS_OBJS)
 	$(AR) crv $@ $^
 
-cJSON.o: pcs/cJSON.c pcs/cJSON.h
+bin/cJSON.o: pcs/cJSON.c pcs/cJSON.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/cJSON.c
-pcs.o: pcs/pcs.c pcs/pcs_defs.h pcs/pcs_mem.h pcs/pcs_utils.h pcs/pcs_slist.h pcs/pcs_http.h pcs/cJSON.h pcs/pcs.h pcs/pcs_fileinfo.h pcs/pcs_pan_api_resinfo.h
+bin/pcs.o: pcs/pcs.c pcs/pcs_defs.h pcs/pcs_mem.h pcs/pcs_utils.h pcs/pcs_slist.h pcs/pcs_http.h pcs/cJSON.h pcs/pcs.h pcs/pcs_fileinfo.h pcs/pcs_pan_api_resinfo.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs.c
-pcs_fileinfo.o: pcs/pcs_fileinfo.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pcs_slist.h pcs/pcs_fileinfo.h
+bin/pcs_fileinfo.o: pcs/pcs_fileinfo.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pcs_slist.h pcs/pcs_fileinfo.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_fileinfo.c
-pcs_http.o: pcs/pcs_http.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pcs_slist.h pcs/pcs_http.h
+bin/pcs_http.o: pcs/pcs_http.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pcs_slist.h pcs/pcs_http.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_http.c
-pcs_mem.o: pcs/pcs_mem.c pcs/pcs_defs.h
+bin/pcs_mem.o: pcs/pcs_mem.c pcs/pcs_defs.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_mem.c
-pcs_pan_api_resinfo.o: pcs/pcs_pan_api_resinfo.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_pan_api_resinfo.h
+bin/pcs_pan_api_resinfo.o: pcs/pcs_pan_api_resinfo.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_pan_api_resinfo.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_pan_api_resinfo.c
-pcs_slist.o: pcs/pcs_slist.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_slist.h
+bin/pcs_slist.o: pcs/pcs_slist.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_slist.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_slist.c
-pcs_utils.o: pcs/pcs_utils.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pcs_slist.h
+bin/pcs_utils.o: pcs/pcs_utils.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pcs_slist.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_utils.c
 
 .PHONY : clean
 clean :
-	-rm libpcs.a *.o bin/pcs
+	-rm bin/*.o bin/libpcs.a bin/pcs
