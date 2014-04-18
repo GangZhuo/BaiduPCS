@@ -160,7 +160,7 @@ static error_t add_arg(struct params *params, char *arg)
 	return 0;
 }
 
-PcsBool main_args_check_params(struct params *params)
+PcsBool shell_args_check_params(struct params *params)
 {
 	PcsBool res = PcsTrue;
 
@@ -455,13 +455,13 @@ static struct argp argp = {
 	options, parse_opt, args_doc, doc, argp_children, 0, 0
 };
 
-void main_args_parse(int argc, char *argv[], struct params *params)
+void shell_args_parse(int argc, char *argv[], struct params *params)
 {
 	argp_parse (&argp, argc, argv, 0, 0, params);
 }
 
 
-struct params *main_args_create_params()
+struct params *shell_args_create_params()
 {
 	struct params *p = (struct params *)pcs_malloc(sizeof(struct params));
 	if (p)
@@ -469,7 +469,7 @@ struct params *main_args_create_params()
 	return p;
 }
 
-void main_args_destroy_params(struct params *params)
+void shell_args_destroy_params(struct params *params)
 {
 	int i;
 	if (params->username) pcs_free(params->username);
