@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "pcs_mem.h"
+#include "../pcs/pcs_mem.h"
 #include "hashtable.h"
 
 unsigned int calcHash1(const char *key, int ignore_case)

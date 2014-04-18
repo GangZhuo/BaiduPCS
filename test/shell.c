@@ -2,10 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../pcs/pcs.h"
 #include "pcs_io.h"
-#include "pcs_mem.h"
-#include "pcs_utils.h"
-#include "pcs.h"
 #include "dir.h"
 #include "hashtable.h"
 #include "shell_args.h"

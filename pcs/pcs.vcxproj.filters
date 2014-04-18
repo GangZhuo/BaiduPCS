@@ -13,104 +13,110 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\pcs">
+      <UniqueIdentifier>{e155cd81-86dc-4a87-b15f-0c5d9aa4fa70}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\pcs">
+      <UniqueIdentifier>{b4fc2e4d-4d1e-42bd-93f9-96d9578f2a5a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="pcs_mem.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="cJSON.c">
+      <Filter>Source Files\pcs</Filter>
     </ClCompile>
     <ClCompile Include="pcs.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pcs_utils.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pcs_http.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="cJSON.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pcs_io.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pcs_slist.c">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\pcs</Filter>
     </ClCompile>
     <ClCompile Include="pcs_fileinfo.c">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\pcs</Filter>
+    </ClCompile>
+    <ClCompile Include="pcs_http.c">
+      <Filter>Source Files\pcs</Filter>
+    </ClCompile>
+    <ClCompile Include="pcs_mem.c">
+      <Filter>Source Files\pcs</Filter>
     </ClCompile>
     <ClCompile Include="pcs_pan_api_resinfo.c">
+      <Filter>Source Files\pcs</Filter>
+    </ClCompile>
+    <ClCompile Include="pcs_slist.c">
+      <Filter>Source Files\pcs</Filter>
+    </ClCompile>
+    <ClCompile Include="pcs_utils.c">
+      <Filter>Source Files\pcs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\test\dir.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="dir.c">
+    <ClCompile Include="..\test\hashtable.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hashtable.c">
+    <ClCompile Include="..\test\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="rc4.c">
+    <ClCompile Include="..\test\md5.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="md5.c">
+    <ClCompile Include="..\test\pcs_io.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="shell_args.c">
+    <ClCompile Include="..\test\rc4.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="shell.c">
+    <ClCompile Include="..\test\shell.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="main.c">
+    <ClCompile Include="..\test\shell_args.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="pcs_defs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="pcs_mem.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="cJSON.h">
+      <Filter>Header Files\pcs</Filter>
     </ClInclude>
     <ClInclude Include="pcs.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\pcs</Filter>
     </ClInclude>
-    <ClInclude Include="pcs_http.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="pcs_utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="cJSON.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="pcs_io.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="pcs_slist.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="pcs_defs.h">
+      <Filter>Header Files\pcs</Filter>
     </ClInclude>
     <ClInclude Include="pcs_fileinfo.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\pcs</Filter>
+    </ClInclude>
+    <ClInclude Include="pcs_http.h">
+      <Filter>Header Files\pcs</Filter>
+    </ClInclude>
+    <ClInclude Include="pcs_mem.h">
+      <Filter>Header Files\pcs</Filter>
     </ClInclude>
     <ClInclude Include="pcs_pan_api_resinfo.h">
+      <Filter>Header Files\pcs</Filter>
+    </ClInclude>
+    <ClInclude Include="pcs_slist.h">
+      <Filter>Header Files\pcs</Filter>
+    </ClInclude>
+    <ClInclude Include="pcs_utils.h">
+      <Filter>Header Files\pcs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\test\dir.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="dir.h">
+    <ClInclude Include="..\test\hashtable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hashtable.h">
+    <ClInclude Include="..\test\md5.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="rc4.h">
+    <ClInclude Include="..\test\pcs_io.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="md5.h">
+    <ClInclude Include="..\test\rc4.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="shell_args.h">
+    <ClInclude Include="..\test\shell.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="shell.h">
+    <ClInclude Include="..\test\shell_args.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,7 +1,7 @@
 #ifndef _SHELL_ARGS_H
 #define _SHELL_ARGS_H
 
-#include "pcs_defs.h"
+#include "../pcs/pcs_defs.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -2,9 +2,12 @@
 #define _PCS_H
 
 #include "pcs_defs.h"
+#include "pcs_mem.h"
 #include "pcs_fileinfo.h"
 #include "pcs_pan_api_resinfo.h"
 #include "pcs_http.h"
+#include "pcs_slist.h"
+#include "pcs_utils.h"
 
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
