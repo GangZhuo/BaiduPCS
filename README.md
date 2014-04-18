@@ -6,19 +6,12 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
 ===================================
 ### 1. 安装 libcurl
     apt-get install libcurl4-openssl-dev
-### 2. 安装 libiconv
-    wget http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.14.tar.gz
-    tar zxvf libiconv-1.14.tar.gz
-    cd libiconv-1.14
-    ./configure --prefix=/usr/local
-    make
-    make install
-### 3. 获取源代码
+### 2. 获取源代码
     git clone https://github.com/GangZhuo/baidupcs.git
-### 4. 编译源代码
+### 3. 编译源代码
     cd baidupcs/pcs
     make
-### 5. 安装到 /usr/bin 下 
+### 4. 安装到 /usr/bin 下 
     cp ./pcs /usr/bin/
     chmod a+x /usr/bin/pcs
 
