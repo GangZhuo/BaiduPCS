@@ -9,10 +9,11 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
 ### 2. 获取源代码
     git clone https://github.com/GangZhuo/baidupcs.git
 ### 3. 编译源代码
-    cd baidupcs/pcs
-    make
+    cd baidupcs
+    mkdir bin
+    make ver=release
 ### 4. 安装到 /usr/bin 下 
-    cp ./pcs /usr/bin/
+    cp ./bin/pcs /usr/bin/
     chmod a+x /usr/bin/pcs
 
 使用方法：
