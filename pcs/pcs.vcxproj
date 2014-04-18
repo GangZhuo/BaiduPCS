@@ -84,40 +84,40 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\test\dir.c" />
+    <ClCompile Include="..\test\hashtable.c" />
+    <ClCompile Include="..\test\main.c" />
+    <ClCompile Include="..\test\md5.c" />
+    <ClCompile Include="..\test\pcs_io.c" />
+    <ClCompile Include="..\test\rc4.c" />
+    <ClCompile Include="..\test\shell.c" />
+    <ClCompile Include="..\test\shell_args.c" />
     <ClCompile Include="cJSON.c" />
-    <ClCompile Include="dir.c" />
-    <ClCompile Include="hashtable.c" />
-    <ClCompile Include="main.c" />
-    <ClCompile Include="shell.c" />
-    <ClCompile Include="shell_args.c" />
-    <ClCompile Include="md5.c" />
     <ClCompile Include="pcs.c" />
     <ClCompile Include="pcs_fileinfo.c" />
     <ClCompile Include="pcs_http.c" />
-    <ClCompile Include="pcs_io.c" />
     <ClCompile Include="pcs_mem.c" />
     <ClCompile Include="pcs_pan_api_resinfo.c" />
     <ClCompile Include="pcs_slist.c" />
     <ClCompile Include="pcs_utils.c" />
-    <ClCompile Include="rc4.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\test\dir.h" />
+    <ClInclude Include="..\test\hashtable.h" />
+    <ClInclude Include="..\test\md5.h" />
+    <ClInclude Include="..\test\pcs_io.h" />
+    <ClInclude Include="..\test\rc4.h" />
+    <ClInclude Include="..\test\shell.h" />
+    <ClInclude Include="..\test\shell_args.h" />
     <ClInclude Include="cJSON.h" />
-    <ClInclude Include="dir.h" />
-    <ClInclude Include="hashtable.h" />
-    <ClInclude Include="shell.h" />
-    <ClInclude Include="shell_args.h" />
-    <ClInclude Include="md5.h" />
     <ClInclude Include="pcs.h" />
     <ClInclude Include="pcs_defs.h" />
     <ClInclude Include="pcs_fileinfo.h" />
     <ClInclude Include="pcs_http.h" />
-    <ClInclude Include="pcs_io.h" />
     <ClInclude Include="pcs_mem.h" />
     <ClInclude Include="pcs_pan_api_resinfo.h" />
     <ClInclude Include="pcs_slist.h" />
     <ClInclude Include="pcs_utils.h" />
-    <ClInclude Include="rc4.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

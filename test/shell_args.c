@@ -8,8 +8,8 @@
 # include <argp.h>
 #endif
 
-#include "pcs_mem.h"
-#include "pcs_utils.h"
+#include "../pcs/pcs_mem.h"
+#include "../pcs/pcs_utils.h"
 #include "shell_args.h"
 
 #define program_actions "quota|list|rename|delete|download|upload|move|mkdir|echo|cat|search|copy|meta"

@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "pcs_mem.h"
+#include "../pcs/pcs_mem.h"
 #include "md5.h"
 #include "rc4.h"
 
