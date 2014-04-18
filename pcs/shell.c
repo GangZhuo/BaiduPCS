@@ -1536,7 +1536,7 @@ int shell(int argc, char *argv[])
 	const char *cookie_file;
 	Pcs pcs;
 	struct params *params = main_args_create_params();
-
+	printf("%s\n", program_full_name);
 	if (!params) {
 		printf("Create Param Object Failed\n");
 		return 0;

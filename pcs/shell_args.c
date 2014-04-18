@@ -12,9 +12,6 @@
 #include "pcs_utils.h"
 #include "shell_args.h"
 
-#define program_name	"pcs"
-#define program_version "0.0.1"
-#define program_full_name program_name " v" program_version
 #define program_actions "quota|list|rename|delete|download|upload|move|mkdir|echo|cat|search|copy|meta"
 
 #define CONFIG_KEY_LEN		128
@@ -64,7 +61,7 @@ static const char doc[] = "\nProvide some commands that can access the baidu net
 	"  size                    Sort by size\n"
 	"\n"
 
-	"Commands£º\n"
+	"Commands: \n"
 	"  quota                    Show the quota\n"
 	"  meta                     Show the meta data\n"
 	"  list                     List files\n"

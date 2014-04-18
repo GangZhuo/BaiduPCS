@@ -10,7 +10,6 @@
 #endif
 
 #include "pcs_mem.h"
-#include "utf8.h"
 #include "pcs_utils.h"
 
 PCS_API PcsBool pcs_isLittleEndian()
@@ -41,29 +40,6 @@ PCS_API char *pcs_utils_strdup(const char *str)
 		if (!res)
 			return 0;
 		strcpy(res, str);
-	}
-	return res;
-}
-
-PCS_API char *pcs_utils_strdup_utf8(const char *str)
-{
-	char *res = 0;
-	if (str) {
-		char *p;
-		size_t sz = strlen(str),
-			tmpsz = u8_tombs_size(str, sz);
-		if (tmpsz < 1)
-			return 0;
-		p = (char *)alloca(tmpsz + 1);
-		p[tmpsz] = '\0';
-		sz = u8_tombs(p, tmpsz, str, sz);
-		if (tmpsz < 1)
-			return 0;
-		sz = strlen(p);
-		res = (char *)pcs_malloc(sz + 1);
-		if (!res)
-			return 0;
-		strcpy(res, p);
 	}
 	return res;
 }

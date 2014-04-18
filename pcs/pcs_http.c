@@ -7,7 +7,6 @@
 
 #include "pcs_mem.h"
 #include "pcs_utils.h"
-#include "utf8.h"
 #include "pcs_http.h"
 
 #define USAGE "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36"
@@ -212,35 +211,35 @@ inline char *pcs_http_get_charset_from_header(const char *header, int size)
 	return res;
 }
 
-inline char *pcs_http_get_charset_from_body(const char *body, int size)
-{
-	char *res = NULL;
-	const char *p = body, *key = "charset",
-		*end = NULL,
-		*tmp;
-	int i = 7;//strlen(key) = 7;
-	while (*p) {
-		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
-			tmp = p + i;
-			PCS_SKIP_SPACE(tmp);
-			if (*tmp != '=') continue; tmp++;
-			PCS_SKIP_SPACE(tmp);
-			if (*tmp == '"') tmp++;
-			PCS_SKIP_SPACE(tmp);
-			end = tmp;
-			while (*end && PCS_IS_TOKEN_CHAR(*end)) end++;
-			if (end > tmp) {
-				res = (char *)pcs_malloc(end - tmp + 1);
-				memcpy(res, tmp, end - tmp);
-				res[end - tmp] = '\0';
-				break;
-			}
-		}
-		p++;
-	}
-
-	return res;
-}
+//inline char *pcs_http_get_charset_from_body(const char *body, int size)
+//{
+//	char *res = NULL;
+//	const char *p = body, *key = "charset",
+//		*end = NULL,
+//		*tmp;
+//	int i = 7;//strlen(key) = 7;
+//	while (*p) {
+//		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
+//			tmp = p + i;
+//			PCS_SKIP_SPACE(tmp);
+//			if (*tmp != '=') continue; tmp++;
+//			PCS_SKIP_SPACE(tmp);
+//			if (*tmp == '"') tmp++;
+//			PCS_SKIP_SPACE(tmp);
+//			end = tmp;
+//			while (*end && PCS_IS_TOKEN_CHAR(*end)) end++;
+//			if (end > tmp) {
+//				res = (char *)pcs_malloc(end - tmp + 1);
+//				memcpy(res, tmp, end - tmp);
+//				res[end - tmp] = '\0';
+//				break;
+//			}
+//		}
+//		p++;
+//	}
+//
+//	return res;
+//}
 
 inline PcsBool pcs_http_parse_http_head(struct pcs_http *http, char **ptr, size_t *size, PcsBool try_get_encode)
 {
@@ -382,37 +381,6 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 	return size * nmemb;
 }
 
-inline PcsBool pcs_http_decode_response(struct pcs_http *http)
-{
-	int tmpsz;
-	char *p;
-	if (!http->res_body || http->res_body_size <= 0)
-		return PcsTrue;
-	if (!((http->res_type == PCS_HTTP_RES_TYPE_NORMAL + 1)
-		|| (http->res_type == PCS_HTTP_RES_TYPE_VALIDATE_TEXT + 1))) {
-		return PcsTrue;
-	}
-	/*
-	 * 此处默认百度网盘都是使用UTF-8编码
-	 */
-	if (u8_is_utf8_sys())
-		return PcsTrue;
-	tmpsz = u8_tombs_size(http->res_body, http->res_body_size);
-	if (tmpsz < 1)
-		return PcsFalse;
-	p = (char *)pcs_malloc(tmpsz + 1);
-	if (!p)
-		return PcsFalse;
-	p[tmpsz] = '\0';
-	tmpsz = u8_tombs(p, tmpsz, http->res_body, http->res_body_size);
-	if (tmpsz < 1)
-		return PcsFalse;
-	pcs_free(http->res_body);
-	http->res_body = p;
-	http->res_body_size = tmpsz;
-	return PcsTrue;
-}
-
 inline char *pcs_http_perform(struct pcs_http *http)
 {
 	CURLcode res;
@@ -425,31 +393,9 @@ inline char *pcs_http_perform(struct pcs_http *http)
 		if (!http->strerror) http->strerror = curl_easy_strerror(res);
 		return NULL;
 	}
-	if (!pcs_http_decode_response(http)) {
-		http->strerror = "Cannot decode the response. ";
-		return NULL;
-	}
 	if (http->response_func)
 		(*http->response_func)((unsigned char *)http->res_body, (size_t)http->res_body_size, http->response_data);
 	return http->res_body;
-}
-
-inline char *pcs_http_escape(PcsHttp handle, const char *src)
-{
-	struct pcs_http *http = (struct pcs_http *)handle;
-	char *u8val, *escapval, *res;
-	int u8sz;
-
-	u8sz = u8_mbs_toutf8_size(src, -1);
-	u8val = (char *)pcs_malloc(u8sz + 1);
-	if (!u8val)
-		return NULL;
-	u8_mbs_toutf8(u8val, u8sz + 1, src, -1);
-	escapval = curl_easy_escape(http->curl, u8val, 0);
-	pcs_free(u8val);
-	res = pcs_utils_strdup(escapval);
-	curl_free((void *)escapval);
-	return res;
 }
 
 PCS_API PcsHttp pcs_http_create(const char *cookie_file)
@@ -556,8 +502,11 @@ PCS_API void pcs_http_setopts(PcsHttp handle, ...)
 PCS_API char *pcs_http_build_url_v(PcsHttp handle, const char *url, va_list args)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
-	char *name, *val, *u8val, *escapval, *res = NULL, *p;
-	int ressz, u8sz, ampersand = 0;
+	char *name, *val,
+		*escapval, 
+		*res = NULL, *p;
+	int ressz, 
+		ampersand = 0;
 
 	ressz = strlen(url) + 1;
 	res = (char *)pcs_malloc(ressz + 1);
@@ -610,14 +559,7 @@ PCS_API char *pcs_http_build_url_v(PcsHttp handle, const char *url, va_list args
 			strcat(res, name);
 			continue;
 		}
-		u8sz = u8_mbs_toutf8_size(val, -1);
-		u8val = (char *)pcs_malloc(u8sz + 1);
-		if (!u8val) {
-			pcs_free(res);
-			return NULL;
-		}
-		u8_mbs_toutf8(u8val, u8sz + 1, val, -1);
-		escapval = curl_easy_escape(http->curl, u8val, 0);
+		escapval = curl_easy_escape(http->curl, val, 0);
 
 		ressz += strlen(name) + strlen(escapval) + 2;
 		p = (char *)pcs_malloc(ressz + 1);
@@ -640,7 +582,6 @@ PCS_API char *pcs_http_build_url_v(PcsHttp handle, const char *url, va_list args
 		strcat(res, escapval);
 
 		curl_free((void *)escapval);
-		pcs_free(u8val);
 	}
 
 	return res;
@@ -659,20 +600,14 @@ PCS_API char *pcs_http_build_url(PcsHttp handle, const char *url, ...)
 PCS_API char *pcs_http_build_post_data_v(PcsHttp handle, va_list args)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
-	char *name, *val, *u8val, *escapval, *res = NULL, *p;
-	int ressz, u8sz;
+	char *name, *val, 
+		*escapval, *res = NULL, *p;
+	int ressz;
 
 	while((name = va_arg(args, char *)) != NULL) {
 		val = va_arg(args, char *);
 		if (name[0] == '\0') continue;
-		u8sz = u8_mbs_toutf8_size(val, -1);
-		u8val = (char *)pcs_malloc(u8sz + 1);
-		if (!u8val) {
-			if (res) pcs_free(res);
-			return NULL;
-		}
-		u8_mbs_toutf8(u8val, u8sz + 1, val, -1);
-		escapval = curl_easy_escape(http->curl, u8val, 0);
+		escapval = curl_easy_escape(http->curl, val, 0);
 
 		if (!res) {
 			ressz = strlen(name) + strlen(escapval) + 1;
@@ -700,7 +635,6 @@ PCS_API char *pcs_http_build_post_data_v(PcsHttp handle, va_list args)
 			strcat(res, escapval);
 		}
 		curl_free((void *)escapval);
-		pcs_free(u8val);
 	}
 
 	return res;
@@ -805,6 +739,7 @@ PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool f
 PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, 
 									  const char *filename, const char *simulate_filename)
 {
+	struct pcs_http *http = (struct pcs_http *)handle;
 	struct http_post *formpost = (struct http_post *)(*post);
 	char *escape_param_name, *escape_simulate_filename;
 	PcsBool res = PcsTrue;
@@ -815,8 +750,8 @@ PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const c
 		memset(formpost, 0, sizeof(struct http_post));
 		(*post) = (PcsHttpForm)formpost;
 	}
-	escape_param_name = pcs_http_escape(handle, param_name);
-	escape_simulate_filename = pcs_http_escape(handle, simulate_filename);
+	escape_param_name = curl_easy_escape(http->curl, param_name, 0);//pcs_http_escape(handle, param_name);
+	escape_simulate_filename = curl_easy_escape(http->curl, simulate_filename, 0);//pcs_http_escape(handle, simulate_filename);
 	if (curl_formadd(&(formpost->formpost), &(formpost->lastptr), 
 		CURLFORM_COPYNAME, escape_param_name,
 		CURLFORM_FILE, filename,
@@ -824,14 +759,15 @@ PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const c
 		CURLFORM_END)) {
 		res = PcsFalse;
 	}
-	pcs_free(escape_param_name);
-	pcs_free(escape_simulate_filename);
+	curl_free((void *)escape_param_name);//pcs_free(escape_param_name);
+	curl_free((void *)escape_simulate_filename);//pcs_free(escape_simulate_filename);
 	return res;
 }
 
 PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const char *param_name,
 										const char *buffer, long buffer_size, const char *simulate_filename)
 {
+	struct pcs_http *http = (struct pcs_http *)handle;
 	struct http_post *formpost = (struct http_post *)(*post);
 	char *escape_param_name, *escape_simulate_filename;
 	PcsBool res = PcsTrue;
@@ -842,8 +778,8 @@ PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const
 		memset(formpost, 0, sizeof(struct http_post));
 		(*post) = (PcsHttpForm)formpost;
 	}
-	escape_param_name = pcs_http_escape(handle, param_name);
-	escape_simulate_filename = pcs_http_escape(handle, simulate_filename);
+	escape_param_name = curl_easy_escape(http->curl, param_name, 0);//pcs_http_escape(handle, param_name);
+	escape_simulate_filename = curl_easy_escape(http->curl, simulate_filename, 0);//pcs_http_escape(handle, simulate_filename);
 	if (curl_formadd(&(formpost->formpost), &(formpost->lastptr), 
 		CURLFORM_COPYNAME, escape_param_name,
 		CURLFORM_BUFFER, escape_simulate_filename,
@@ -851,8 +787,8 @@ PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const
 		CURLFORM_BUFFERLENGTH, buffer_size,
 		CURLFORM_END))
 		res = PcsFalse;
-	pcs_free(escape_param_name);
-	pcs_free(escape_simulate_filename);
+	curl_free((void *)escape_param_name);//pcs_free(escape_param_name);
+	curl_free((void *)escape_simulate_filename);//pcs_free(escape_simulate_filename);
 	return res;
 }
 

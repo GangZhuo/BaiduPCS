@@ -27,9 +27,6 @@
     <ClCompile Include="pcs_http.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="utf8.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="cJSON.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -81,9 +78,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="pcs_utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="utf8.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="cJSON.h">

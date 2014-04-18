@@ -233,11 +233,11 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 
 	val = cJSON_GetObjectItem(item, "path");
 	if (val)
-		fi->path = pcs_utils_strdup_utf8(val->valuestring);
+		fi->path = pcs_utils_strdup(val->valuestring);
 
 	val = cJSON_GetObjectItem(item, "server_filename");
 	if (val)
-		fi->server_filename = pcs_utils_strdup_utf8(val->valuestring);
+		fi->server_filename = pcs_utils_strdup(val->valuestring);
 
 	val = cJSON_GetObjectItem(item, "mtime");
 	if (val)
@@ -289,11 +289,11 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 
 	val = cJSON_GetObjectItem(item, "md5");
 	if (val)
-		fi->md5 = pcs_utils_strdup_utf8(val->valuestring);
+		fi->md5 = pcs_utils_strdup(val->valuestring);
 
 	val = cJSON_GetObjectItem(item, "dlink");
 	if (val)
-		fi->dlink = pcs_utils_strdup_utf8(val->valuestring);
+		fi->dlink = pcs_utils_strdup(val->valuestring);
 
 	list = cJSON_GetObjectItem(item, "block_list");
 	if (list) {
@@ -304,7 +304,7 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 			memset(fi->block_list, 0, (cnt + 1) + sizeof(char *));
 			for (i = 0; i < cnt; i++) {
 				val = cJSON_GetArrayItem(list, i);
-				fi->block_list[i] = pcs_utils_strdup_utf8(val->valuestring);
+				fi->block_list[i] = pcs_utils_strdup(val->valuestring);
 			}
 		}
 	}
@@ -610,7 +610,7 @@ static PcsPanApiRes *pcs_pan_api_filemanager(Pcs handle, const char *opera, cons
 		}
 		val = cJSON_GetObjectItem(item, "path");
 		if (val)
-			ri->info.path = pcs_utils_strdup_utf8(val->valuestring);
+			ri->info.path = pcs_utils_strdup(val->valuestring);
 		val = cJSON_GetObjectItem(item, "errno");
 		ri->info.error = val->valueint;
 		if (!res->info_list) {
