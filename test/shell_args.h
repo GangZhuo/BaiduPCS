@@ -54,11 +54,11 @@ struct params {
 	int			args_count;
 };
 
-struct params *main_args_create_params();
-void main_args_destroy_params(struct params *params);
+struct params *shell_args_create_params();
+void shell_args_destroy_params(struct params *params);
 
-PcsBool main_args_check_params(struct params *params);
-void main_args_parse(int argc, char *argv[], struct params *params);
+PcsBool shell_args_check_params(struct params *params);
+void shell_args_parse(int argc, char *argv[], struct params *params);
 
 #ifdef __cplusplus
 }

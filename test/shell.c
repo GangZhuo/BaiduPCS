@@ -1533,17 +1533,17 @@ int shell(int argc, char *argv[])
 	PcsRes pcsres;
 	const char *cookie_file;
 	Pcs pcs;
-	struct params *params = main_args_create_params();
+	struct params *params = shell_args_create_params();
 	printf("%s\n", program_full_name);
 	if (!params) {
 		printf("Create Param Object Failed\n");
 		return 0;
 	}
 
-	main_args_parse(argc, argv, params);
+	shell_args_parse(argc, argv, params);
 
 	if (params->is_fail) {
-		main_args_destroy_params(params);
+		shell_args_destroy_params(params);
 		return 0;
 	}
 
@@ -1609,7 +1609,7 @@ int shell(int argc, char *argv[])
 shell_exit:
 	//save_cookie_data(pcs, cookie_file);
 	pcs_destroy(pcs);
-	main_args_destroy_params(params);
+	shell_args_destroy_params(params);
 	pcs_mem_print_leak();
 	return 0;
 }
