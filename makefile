@@ -20,9 +20,9 @@ else
 CC = gcc
 endif
 
-all: libpcs.a pcs
+all: libpcs.a bin/pcs
 
-pcs : main.o libpcs.a $(SHELL_OBJS)
+bin/pcs : main.o libpcs.a $(SHELL_OBJS)
 	$(CC) -o $@ main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) -L. -lpcs -lm -lcurl -lssl
 
 main.o: test/main.c test/shell.h
@@ -70,4 +70,4 @@ pcs_utils.o: pcs/pcs_utils.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pc
 
 .PHONY : clean
 clean :
-	-rm pcs libpcs.a *.o
+	-rm libpcs.a *.o bin/pcs
