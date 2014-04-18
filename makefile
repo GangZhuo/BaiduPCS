@@ -10,7 +10,7 @@ SHELL_OBJS   = shell.o pcs_io.o shell_args.o dir.o hashtable.o md5.o rc4.o
 ifeq ($(LC_OS_NAME), cygwin)
 CYGWIN_CCFLAGS = -largp
 else
-CYGWIN_CCFLAGS = -largp
+CYGWIN_CCFLAGS = 
 endif
 
 ifeq ($(ver), debug)
