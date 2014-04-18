@@ -1,0 +1,9 @@
+﻿/*配置*/
+{
+	"cookie": "~/.baidupcs/default.cookie", /*使用的COOKIE*/
+	"items": [{
+		"local": "",
+		"remote": "",
+		"time": "06:00" 
+	}]
+}
