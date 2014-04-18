@@ -69,6 +69,9 @@
     <ClCompile Include="..\test\shell_args.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\test\utf8.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cJSON.h">
@@ -117,6 +120,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\test\shell_args.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\test\utf8.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

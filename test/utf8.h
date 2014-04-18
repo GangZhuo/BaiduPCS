@@ -1,3 +1,6 @@
+#ifndef _UTF8_H
+#define _UTF8_H
+
 #include <stdarg.h>
 
 #ifdef __cplusplus
@@ -81,15 +84,8 @@ int u8_is_locale_utf8(const char *locale);
 int u8_vprintf(const char *fmt, va_list ap);
 int u8_printf(const char *fmt, ...);
 
-int u8_mbs_toutf8(char *dest, int sz, const char *src, int srcsz);
-int u8_mbs_toutf8_size(const char *src, int srcsz);
-
-int u8_tombs(char *dest, int sz, const char *src, int srcsz);
-int u8_tombs_size(const char *src, int srcsz);
-
-int u8_is_utf8_sys();
-
 #ifdef __cplusplus
 }
 #endif
 
+#endif
