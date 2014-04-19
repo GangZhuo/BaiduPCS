@@ -84,6 +84,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\sqlite\sqlite3.c" />
     <ClCompile Include="..\test\daemon.c" />
     <ClCompile Include="..\test\dir.c" />
     <ClCompile Include="..\test\hashtable.c" />
@@ -105,6 +106,8 @@
     <ClCompile Include="pcs_utils.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\sqlite\sqlite3.h" />
+    <ClInclude Include="..\sqlite\sqlite3ext.h" />
     <ClInclude Include="..\test\daemon.h" />
     <ClInclude Include="..\test\dir.h" />
     <ClInclude Include="..\test\hashtable.h" />

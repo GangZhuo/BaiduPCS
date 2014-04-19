@@ -5,7 +5,7 @@ OS_NAME = $(shell uname -o)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
 
 PCS_OBJS     = bin/cJSON.o bin/pcs.o bin/pcs_fileinfo.o bin/pcs_http.o bin/pcs_mem.o bin/pcs_pan_api_resinfo.o bin/pcs_slist.o bin/pcs_utils.o
-SHELL_OBJS   = bin/shell.o bin/pcs_io.o bin/shell_args.o bin/dir.o bin/hashtable.o bin/md5.o bin/rc4.o bin/daemon.o bin/logger.o
+SHELL_OBJS   = bin/shell.o bin/pcs_io.o bin/shell_args.o bin/dir.o bin/hashtable.o bin/md5.o bin/rc4.o bin/daemon.o bin/logger.o bin/sqlite3.o
 #CCFLAGS      = -DHAVE_ASPRINTF -DHAVE_ICONV
 ifeq ($(LC_OS_NAME), cygwin)
 CYGWIN_CCFLAGS = -largp
@@ -51,6 +51,8 @@ bin/daemon.o: test/daemon.c test/daemon.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/daemon.c
 bin/logger.o: test/logger.c test/logger.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/logger.c
+bin/sqlite3.o: sqlite/sqlite3.c sqlite/sqlite3.h
+	$(CC) -o $@ -c $(PCS_CCFLAGS) sqlite/sqlite3.c
 
 bin/libpcs.a : $(PCS_OBJS)
 	$(AR) crv $@ $^

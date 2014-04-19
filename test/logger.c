@@ -57,7 +57,7 @@ int log_open(const char* filename)
 void log_close()
 {
     if (log_opened) {
-        FM_LOG_NOTICE("log_close");
+        FM_LOG_NOTICE("log_close\n");
         fclose(log_fp);
         free(log_filename);
         log_fp       = NULL;
@@ -95,7 +95,7 @@ void log_writev(int level, const char *file,
     vsnprintf(log_buffer, log_buffer_size, fmt, ap);   
 
     count = snprintf(buffer, log_buffer_size,
-            "--%s--\x7 [%s]\x7 [%s:%d]%s\x7 %s\x7\n", 
+            "--%s-- [%s] [%s:%d]%s %s\n", 
             LOG_LEVEL_NOTE[level], datetime, file, line, log_extra_info, log_buffer);
     if (fwrite(buffer, 1, count, log_fp) < 0) {
         perror("write error");
@@ -106,5 +106,5 @@ void log_writev(int level, const char *file,
 void log_add_info(const char *info)
 {
     int len = strlen(log_extra_info);
-    snprintf(log_extra_info + len, log_buffer_size - len, "\x7 [%s]", info);
+    snprintf(log_extra_info + len, log_buffer_size - len, " [%s]", info);
 }
