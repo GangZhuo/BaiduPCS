@@ -75,6 +75,9 @@
     <ClCompile Include="..\test\daemon.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\test\logger.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cJSON.h">
@@ -131,8 +134,12 @@
     <ClInclude Include="..\test\daemon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\test\logger.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\config.json" />
+    <None Include="..\makefile" />
   </ItemGroup>
 </Project>

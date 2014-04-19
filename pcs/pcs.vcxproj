@@ -87,6 +87,7 @@
     <ClCompile Include="..\test\daemon.c" />
     <ClCompile Include="..\test\dir.c" />
     <ClCompile Include="..\test\hashtable.c" />
+    <ClCompile Include="..\test\logger.c" />
     <ClCompile Include="..\test\main.c" />
     <ClCompile Include="..\test\md5.c" />
     <ClCompile Include="..\test\pcs_io.c" />
@@ -107,6 +108,7 @@
     <ClInclude Include="..\test\daemon.h" />
     <ClInclude Include="..\test\dir.h" />
     <ClInclude Include="..\test\hashtable.h" />
+    <ClInclude Include="..\test\logger.h" />
     <ClInclude Include="..\test\md5.h" />
     <ClInclude Include="..\test\pcs_io.h" />
     <ClInclude Include="..\test\rc4.h" />
@@ -125,6 +127,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\config.json" />
+    <None Include="..\makefile" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

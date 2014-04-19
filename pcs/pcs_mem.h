@@ -9,6 +9,7 @@
 #endif
 #include "pcs_defs.h"
 
+extern void (*_pcs_mem_printf)(const char *format, ...);
 #if defined(DEBUG) || defined(_DEBUG)
 
    PCS_API void *pcs_mem_malloc(size_t size, const char *filename, int line);
