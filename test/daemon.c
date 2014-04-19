@@ -18,7 +18,7 @@
 #include "../pcs/pcs.h"
 #include "logger.h"
 
-#define APP_NAME		"pcs"
+#define APP_NAME		(run_in_daemon ? "pcs daemon" : "pcs normal")
 
 #define METHOD_UPDATE	1
 #define METHOD_BACKUP	2
@@ -123,7 +123,7 @@ typedef struct DbPrepareList {
 } DbPrepareList;
 
 static Config config = { 0 };
-static int run_in_deamon = 0;
+static int run_in_daemon = 0;
 static int log_enabled = 0;
 static int printf_enabled = 0;
 static sqlite3 *db = NULL;
@@ -646,6 +646,20 @@ static int db_add_cache(PcsFileInfo *info, DbPrepare *pre)
 	return 0;
 }
 
+static int quota(UInt64 *usedByteSize, UInt64 *totalByteSize)
+{
+	PcsRes pcsres;
+	UInt64 total, used;
+	pcsres = pcs_quota(pcs, &total, &used);
+	if (pcsres != PCS_OK) {
+		PRINT_WARNING("Get quota failed: %s", pcs_strerror(pcs, pcsres));
+		return -1;
+	}
+	*usedByteSize = used;
+	*totalByteSize = total;
+	return 0;
+}
+
 /* 返回直接或间接文件数量 */
 static int method_update_folder(const char *path, DbPrepare *pre)
 {
@@ -677,10 +691,12 @@ static int method_update_folder(const char *path, DbPrepare *pre)
 		while(pcs_filist_iterater_next(&iterater)) {
 			info = iterater.current;
 			if (db_add_cache(info, pre)) {
+				pcs_filist_destroy(list);
 				return -1;
 			}
 			if (info->isdir) {
 				if ((sub_total = method_update_folder(info->path, pre)) < 0) {
+					pcs_filist_destroy(list);
 					return -1;
 				}
 				else {
@@ -741,9 +757,9 @@ static int run()
 {
 	int i;
 	time_t now;
-	if (run_in_deamon) {
+	if (run_in_daemon) {
 		init_schedule();
-		while(run_in_deamon) {
+		while(run_in_daemon) {
 			time(&now);
 			for(i = 0; i < config.itemCount; i++) {
 				if (now >= config.items[i].next_run_time) {
@@ -767,6 +783,7 @@ static int run()
 static int startup()
 {
 	PcsRes pcsres;
+	UInt64 usedByteSize, totalByteSize;
 
 	/* 创建一个Pcs对象 */
 	pcs = pcs_create(config.cookieFilePath);
@@ -776,7 +793,16 @@ static int startup()
 		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
-
+	if (!quota(&usedByteSize, &totalByteSize)) {
+		char strTotal[32] = {0}, strUsed[32] = {0};
+		pcs_utils_readable_size((double)usedByteSize, strUsed, 30, NULL);
+		pcs_utils_readable_size((double)totalByteSize, strTotal, 30, NULL);
+		PRINT_NOTICE("Quota: %s/%s", strUsed, strTotal);
+		if (totalByteSize - usedByteSize < 10 * 1024 * 1024) {
+			PRINT_FATAL("The remaining space is insufficient 10M");
+			return -1;
+		}
+	}
 	if (config.itemCount == 0) return -1;
 	return run();
 }
@@ -873,11 +899,11 @@ int start_daemon(int argc, char *argv[])
 
 	/*检查传入参数 - 开始*/
 	if (argc == 3 && pcs_utils_streq(argv[1], "daemon", 6) && pcs_utils_streq(argv[2], "--config=", 9)) {
-		run_in_deamon = 1;
+		run_in_daemon = 1;
 		printf_enabled = 0;
 	}
 	else if (argc == 2 && pcs_utils_streq(argv[1], "--config=", 9)) {
-		run_in_deamon = 0;
+		run_in_daemon = 0;
 		log_enabled = 1;
 	}
 	else {
