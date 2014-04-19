@@ -262,24 +262,16 @@ static char *print_object(cJSON *item,int depth,int fmt);
 /* Utility to jump comments */
 static const char *skip_comments(const char *in) 
 {
-	char sp[3] = { 0 };
-	if (!strncmp(in,"/*",2)) {
-		sp[0] = '*'; sp[1] = '/'; sp[2] = '\0';
+	if (!strncmp(in, "/*", 2)) {
 		in += 2;
-	}
-	else if (!strncmp(in,"//",2)) {
-		sp[0] = '\n'; sp[1] = '\0'; sp[2] = '\0';
-		in += 2;
-	}
-	else {
-		return in;
-	}
-
-	while (strncmp(in,sp,2) && *in) in++;
-	if (!strncmp(in,sp,2)) {
-		if (sp[1] == '/')
+		while (*in && strncmp(in, "*/", 2)) in++;
+		if (!strncmp(in, "*/", 2))
 			in += 2;
-		else
+	}
+	else if (!strncmp(in, "//", 2)) {
+		in += 2;
+		while (*in != '\n' && *in) in++;
+		if (*in == '\n')
 			in++;
 	}
 	return in;
