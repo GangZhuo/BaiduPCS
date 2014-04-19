@@ -19,6 +19,12 @@
     <Filter Include="Source Files\pcs">
       <UniqueIdentifier>{b4fc2e4d-4d1e-42bd-93f9-96d9578f2a5a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\sqlite">
+      <UniqueIdentifier>{de331c2d-91f7-4457-8742-604cff7ebb89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sqlite">
+      <UniqueIdentifier>{1ff90ba7-78c1-427e-bc0c-82df228883fc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cJSON.c">
@@ -78,6 +84,9 @@
     <ClCompile Include="..\test\logger.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\sqlite\sqlite3.c">
+      <Filter>Source Files\sqlite</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cJSON.h">
@@ -136,6 +145,12 @@
     </ClInclude>
     <ClInclude Include="..\test\logger.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sqlite\sqlite3.h">
+      <Filter>Header Files\sqlite</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sqlite\sqlite3ext.h">
+      <Filter>Header Files\sqlite</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

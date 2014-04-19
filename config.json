@@ -1,9 +1,13 @@
 ﻿/*配置*/
 {
-	"cookie": "~/.baidupcs/default.cookie", /*使用的COOKIE*/
+	"cookieFilePath": "~/.baidupcs/default.cookie", /*使用的COOKIE*/
+	"cacheFilePath": "", /*缓存文件的路径*/
+	"logFilePath": "", /*日志文件的路径*/
 	"items": [{
 		"localPath": "",
 		"remotePath": "",
-		"method": "update" /*针对该项执行的操作。值为：update - 更新远程文件的元数据到本地；backup - 执行备份；restore - 执行还原操作*/
+		"method": "update", /*针对该项执行的操作。值为：update - 更新远程文件的元数据到本地；backup - 执行备份；restore - 执行还原操作*/
+		"schedule": 21600, /*几点几分开始执行任务，值为一天从零点零分零秒开始到执行时间的秒数。例：6小时 = 6 * 60 * 60 = 21600秒，此处设置值为21600则表示，于凌晨6点开启任务。 */
+		"interval": 86400 /*任务执行完成后，当前执行时间加上interval则为下次执行时间。86400秒 = 24小时，即：当凌晨6点执行完任务后，加上24小时的时间作为任务下次执行时间。*/
 	}]
 }

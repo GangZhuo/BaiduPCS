@@ -351,7 +351,7 @@ static PcsFileInfoList *pcs_pan_api_1(Pcs handle, const char *action, ...)
 	error = item->valueint;
 	if (error != 0) {
 		//printf("%s\n", html);
-		pcs_set_errmsg(handle, PCS_FAIL);
+		//pcs_set_errmsg(handle, PCS_FAIL);
 		cJSON_Delete(json);
 		return NULL;
 	}
@@ -855,14 +855,13 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	if (!html)
 		return PCS_NETWORK_ERROR;
 	
-	if (pcs->bdstoken)
-		pcs_free(pcs->bdstoken);
+	if (pcs->bdstoken) pcs_free(pcs->bdstoken);
 	pcs->bdstoken = pcs_get_value_by_key(html, "FileUtils.bdstoken");
 	if (pcs->bdstoken != NULL && strlen(pcs->bdstoken) > 0) {
 		//printf("bdstoken: %s\n", pcs->bdstoken);
-		if (pcs->bduss)
-			pcs_free(pcs->bduss);
+		if (pcs->bduss) pcs_free(pcs->bduss);
 		pcs->bduss = pcs_http_get_cookie(pcs->http, "BDUSS");
+		if (pcs->sysUID) pcs_free(pcs->sysUID);
 		pcs->sysUID = pcs_get_value_by_key(html, "FileUtils.sysUID");
 		return PCS_LOGIN;
 	}
