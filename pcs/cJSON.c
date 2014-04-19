@@ -259,8 +259,52 @@ static char *print_array(cJSON *item,int depth,int fmt);
 static const char *parse_object(cJSON *item,const char *value);
 static char *print_object(cJSON *item,int depth,int fmt);
 
+/* Utility to jump comments */
+static const char *skip_comments(const char *in) 
+{
+	char sp[3] = { 0 };
+	if (!strncmp(in,"/*",2)) {
+		sp[0] = '*'; sp[1] = '/'; sp[2] = '\0';
+		in += 2;
+	}
+	else if (!strncmp(in,"//",2)) {
+		sp[0] = '\n'; sp[1] = '\0'; sp[2] = '\0';
+		in += 2;
+	}
+	else {
+		return in;
+	}
+
+	while (strncmp(in,sp,2) && *in) in++;
+	if (!strncmp(in,sp,2)) {
+		if (sp[1] == '/')
+			in += 2;
+		else
+			in++;
+	}
+	return in;
+}
+
 /* Utility to jump whitespace and cr/lf */
-static const char *skip(const char *in) {while (in && *in && (unsigned char)*in<=32) in++; return in;}
+static const char *skip_space(const char *in)
+{
+	while (in && *in && (unsigned char)*in<=32)
+		in++;
+	return in;
+}
+
+/* Utility to jump whitespace and cr/lf */
+static const char *skip(const char *in)
+{
+	const char *ptr;
+	while(1) {
+		ptr = in;
+		in = skip_space(in);
+		in = skip_comments(in);
+		if (in == ptr) break;
+	}
+	return in;
+}
 
 /* Parse an object - create a new root, and populate. */
 cJSON *cJSON_ParseWithOpts(const char *value,const char **return_parse_end,int require_null_terminated)
@@ -289,6 +333,7 @@ char *cJSON_PrintUnformatted(cJSON *item)	{return print_value(item,0,0);}
 static const char *parse_value(cJSON *item,const char *value)
 {
 	if (!value)						return 0;	/* Fail on null. */
+	//if (!strncmp(value,"/*",2) || !strncmp(value,"//",2))	{ return parse_value(item, skip(skip_comments(value))); }
 	if (!strncmp(value,"null",4))	{ item->type=cJSON_NULL;  return value+4; }
 	if (!strncmp(value,"false",5))	{ item->type=cJSON_False; return value+5; }
 	if (!strncmp(value,"true",4))	{ item->type=cJSON_True; item->valueint=1;	return value+4; }

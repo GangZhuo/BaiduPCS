@@ -2,8 +2,8 @@
 {
 	"cookie": "~/.baidupcs/default.cookie", /*使用的COOKIE*/
 	"items": [{
-		"local": "",
-		"remote": "",
-		"time": "06:00" 
+		"localPath": "",
+		"remotePath": "",
+		"method": "update" /*针对该项执行的操作。值为：update - 更新远程文件的元数据到本地；backup - 执行备份；restore - 执行还原操作*/
 	}]
 }
