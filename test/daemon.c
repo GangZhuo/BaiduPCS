@@ -7,6 +7,7 @@
 #  include <direct.h>
 #  define mkdir _mkdir
 #  define D_SLEEP(ms) Sleep(ms)
+#  define snprintf _snprintf
 #else
 #  include <unistd.h>
 #  define D_SLEEP(ms) sleep(ms)
@@ -20,6 +21,12 @@
 #include "dir.h"
 
 #define APP_NAME		(run_in_daemon ? "pcs daemon" : "pcs normal")
+
+#ifndef TRUE
+#  define TRUE 1
+#else
+#  define FALSE 0
+#endif
 
 #define METHOD_UPDATE	1
 #define METHOD_BACKUP	2
@@ -78,7 +85,7 @@ typedef struct DbPrepareList {
 	struct DbPrepareList *next;
 } DbPrepareList;
 
-static Config config = { 0 };
+static Config config = {0};
 static int run_in_daemon = 0;
 static int log_enabled = 0;
 static int printf_enabled = 0;
@@ -140,6 +147,34 @@ static void d_mem_printf(const char *fmt, ...)
 	}
 }
 
+static const char *format_time(time_t time)
+{
+	static char strTime[32] = {0};
+	struct tm* ptm;
+	ptm = localtime(&time);  
+	snprintf(strTime, 31, "%04d-%02d-%02d %02d:%02d:%02d", 1900 + ptm->tm_year, ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+	return strTime;
+}
+
+static void freeConfig(int keepConfigFilePath)
+{
+	char *configPath = config.configFilePath;
+	if (!keepConfigFilePath && config.configFilePath) pcs_free(config.configFilePath);
+	if (config.cookieFilePath) pcs_free(config.cookieFilePath);
+	if (config.cacheFilePath) pcs_free(config.cacheFilePath);
+	if (config.logFilePath) pcs_free(config.logFilePath);
+	if (config.items) {
+		int ii;
+		for(ii = 0; ii < config.itemCount; ii++) {
+			if (config.items[ii].localPath) pcs_free(config.items[ii].localPath);
+			if (config.items[ii].remotePath) pcs_free(config.items[ii].remotePath);
+		}
+		pcs_free(config.items);
+	}
+	memset(&config, 0, sizeof(Config));
+	config.configFilePath = configPath;
+}
+
 /*读取文件内容*/
 static int readFileContent(const char *file, char **pBuffer)
 {
@@ -192,26 +227,42 @@ static int readConfigFile()
 	char *content = NULL;
 	cJSON *json = NULL, *items, *item, *value;
 
+	freeConfig(TRUE);
 	size_of_file = readFileContent(config.configFilePath, &content);
-	if (size_of_file == -1) goto error;
+	if (size_of_file == -1)
+		return -1;
 	json = cJSON_Parse(content);
-	pcs_free(content); content = NULL;
-	if (!json) { PRINT_FATAL("Broken JSON string %s", config.configFilePath); goto error; }
+	pcs_free(content);
+	content = NULL;
+	if (!json) { 
+		PRINT_FATAL("Broken JSON string %s", config.configFilePath);
+		return -1;
+	}
 	item = cJSON_GetObjectItem(json, "cookieFilePath");
-	if (!item) { PRINT_FATAL("No \"cookieFilePath\" option (%s)", config.configFilePath); goto error; }
+	if (!item) { 
+		PRINT_FATAL("No \"cookieFilePath\" option (%s)", config.configFilePath);
+		cJSON_Delete(json);
+		return -1;
+	}
 	config.cookieFilePath = pcs_utils_strdup(item->valuestring);
 	item = cJSON_GetObjectItem(json, "cacheFilePath");
-	if (!item) { PRINT_FATAL("No \"cacheFilePath\" option (%s)", config.configFilePath); goto error; }
+	if (!item) {
+		PRINT_FATAL("No \"cacheFilePath\" option (%s)", config.configFilePath);
+		cJSON_Delete(json);
+		return -1;
+	}
 	config.cacheFilePath = pcs_utils_strdup(item->valuestring);
 	item = cJSON_GetObjectItem(json, "logFilePath");
-	//if (!item) { PRINT_FATAL("No \"logFilePath\" option (%s)", config.configFilePath); goto error; }
-	//config.logFilePath = pcs_utils_strdup(item->valuestring);
 	if (item && item->valuestring[0])
 		config.logFilePath = pcs_utils_strdup(item->valuestring);
 	else
 		config.logFilePath = NULL;
 	items = cJSON_GetObjectItem(json, "items");
-	if (!items) { PRINT_FATAL("No \"items\" option (%s)", config.configFilePath); goto error; }
+	if (!items) {
+		PRINT_FATAL("No \"items\" option (%s)", config.configFilePath);
+		cJSON_Delete(json);
+		return -1;
+	}
 	config.itemCount = cJSON_GetArraySize(items);
 	if (config.itemCount > 0) {
 		int i;
@@ -220,34 +271,54 @@ static int readConfigFile()
 		for (i = 0; i < config.itemCount; i++) {
 			item = cJSON_GetArrayItem(items, i);
 			value = cJSON_GetObjectItem(item, "localPath");
-			if (!value) { PRINT_FATAL("No \"localPath\" option in items[%d] (%s)", i, config.configFilePath); goto error; }
+			if (!value) {
+				PRINT_FATAL("No \"localPath\" option in items[%d] (%s)", i, config.configFilePath);
+				cJSON_Delete(json);
+				return -1;
+			}
 			config.items[i].localPath = pcs_utils_strdup(value->valuestring);
 			value = cJSON_GetObjectItem(item, "remotePath");
-			if (!value) { PRINT_FATAL("No \"remotePath\" option in items[%d] (%s)", i, config.configFilePath); goto error; }
+			if (!value) {
+				PRINT_FATAL("No \"remotePath\" option in items[%d] (%s)", i, config.configFilePath);
+				cJSON_Delete(json);
+				return -1;
+			}
 			config.items[i].remotePath = pcs_utils_strdup(value->valuestring);
 			value = cJSON_GetObjectItem(item, "method");
-			if (!value) { PRINT_FATAL("No \"method\" option in items[%d] (%s)", i, config.configFilePath); goto error; }
+			if (!value) {
+				PRINT_FATAL("No \"method\" option in items[%d] (%s)", i, config.configFilePath);
+				cJSON_Delete(json);
+				return -1;
+			}
 			if (strcmp(value->valuestring, "update") == 0)
 				config.items[i].method = METHOD_UPDATE;
 			else if (strcmp(value->valuestring, "backup") == 0)
 				config.items[i].method = METHOD_BACKUP;
 			else if (strcmp(value->valuestring, "restore") == 0)
 				config.items[i].method = METHOD_RESTORE;
-			else { PRINT_FATAL("Wrong \"method\" option in items[%d], the method should be one of [\"update\", \"backup\", \"restore\"] (%s)", i, config.configFilePath); goto error; }
+			else {
+				PRINT_FATAL("Wrong \"method\" option in items[%d], the method should be one of [\"update\", \"backup\", \"restore\"] (%s)", i, config.configFilePath);
+				cJSON_Delete(json);
+				return -1;
+			}
 			value = cJSON_GetObjectItem(item, "schedule");
-			if (!value) { PRINT_FATAL("No \"schedule\" option in items[%d] (%s)", i, config.configFilePath); goto error; }
+			if (!value) {
+				PRINT_FATAL("No \"schedule\" option in items[%d] (%s)", i, config.configFilePath);
+				cJSON_Delete(json);
+				return -1;
+			}
 			config.items[i].schedule = value->valueint;
 			value = cJSON_GetObjectItem(item, "interval");
-			if (!value) { PRINT_FATAL("No \"interval\" option in items[%d] (%s)", i, config.configFilePath); goto error; }
+			if (!value) {
+				PRINT_FATAL("No \"interval\" option in items[%d] (%s)", i, config.configFilePath);
+				cJSON_Delete(json);
+				return -1;
+			}
 			config.items[i].interval = value->valueint;
 		}
 	}
 	cJSON_Delete(json);
 	return 0;
-error:
-	if (content) pcs_free(content);
-	if (json) cJSON_Delete(json);
-	return -1;
 }
 
 static void init_schedule()
@@ -289,18 +360,24 @@ static int db_open()
 	rc = sqlite3_prepare_v2(db, SQL_TABLE_EXISTS, -1, &stmt, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't build the sql %s: %s", SQL_TABLE_EXISTS, sqlite3_errmsg(db));
+		sqlite3_close(db); 
+		db = NULL; 
 		return -1;
 	}
 	rc = sqlite3_bind_text(stmt, 1, TABLE_NAME_CACHE, -1, SQLITE_STATIC);
 	if (rc) {
 		PRINT_FATAL("Can't bind the text into the statement %s: %s", SQL_TABLE_EXISTS, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
+		sqlite3_close(db); 
+		db = NULL; 
 		return -1;
 	}
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
 		PRINT_FATAL("Can't execute the statement %s: %s", SQL_TABLE_EXISTS, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
+		sqlite3_close(db); 
+		db = NULL; 
 		return -1;
 	}
 	if (rc == SQLITE_DONE) {
@@ -308,6 +385,8 @@ static int db_open()
 		if (rc) {
 			PRINT_FATAL("Can't create the table %s: %s", TABLE_NAME_CACHE, sqlite3_errmsg(db));
 			sqlite3_finalize(stmt);
+			sqlite3_close(db); 
+			db = NULL; 
 			return -1;
 		}
 		sqlite3_exec(db, TABLE_CACHE_INDEX_CREATOR, NULL, NULL, NULL);
@@ -318,12 +397,16 @@ static int db_open()
 	if (rc) {
 		PRINT_FATAL("Can't bind the text into the statement %s: %s", SQL_TABLE_EXISTS, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
+		sqlite3_close(db); 
+		db = NULL; 
 		return -1;
 	}
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
 		PRINT_FATAL("Can't execute the statement %s: %s", SQL_TABLE_EXISTS, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
+		sqlite3_close(db); 
+		db = NULL; 
 		return -1;
 	}
 	if (rc == SQLITE_DONE) {
@@ -331,6 +414,8 @@ static int db_open()
 		if (rc) {
 			PRINT_FATAL("Can't create the table %s: %s", TABLE_NAME_ACTION, sqlite3_errmsg(db));
 			sqlite3_finalize(stmt);
+			sqlite3_close(db); 
+			db = NULL; 
 			return -1;
 		}
 		sqlite3_exec(db, TABLE_ACTION_INDEX_CREATOR, NULL, NULL, NULL);
@@ -338,8 +423,14 @@ static int db_open()
 
 	sqlite3_finalize(stmt);
 	return 0;
-error:
-	return -1;
+}
+
+static void db_close()
+{
+	if (db) { 
+		sqlite3_close(db); 
+		db = NULL; 
+	}
 }
 
 static int db_vprepare(DbPrepare *pre, va_list ap)
@@ -351,7 +442,13 @@ static int db_vprepare(DbPrepare *pre, va_list ap)
 	while((sql = va_arg(ap, const char *)) != NULL) {
 		if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL)) {
 			PRINT_FATAL("Can't build the sql %s: %s", sql, sqlite3_errmsg(db));
-			goto error;
+			while(root){
+				node = root;
+				root = root->next;
+				if (node->stmt) sqlite3_finalize(node->stmt);
+				pcs_free(node);
+			}
+			return -1;
 		}
 		node = (DbPrepareList *)pcs_malloc(sizeof(DbPrepareList));
 		node->stmt = stmt;
@@ -377,13 +474,6 @@ static int db_vprepare(DbPrepare *pre, va_list ap)
 			pcs_free(node);
 		}
 		return 0;
-	}
-error:
-	while(root){
-		node = root;
-		root = root->next;
-		if (node->stmt) sqlite3_finalize(node->stmt);
-		pcs_free(node);
 	}
 	return -1;
 }
@@ -411,7 +501,8 @@ static void db_prepare_destroy(DbPrepare *pre)
 	}
 }
 
-static int db_set_action(const char *action, int status)
+/*isStart - 标识是否更新start_time和capp两个字段*/
+static int db_set_action(const char *action, int status, int isStart)
 {
 	int rc;
 	sqlite3_stmt *stmt = NULL;
@@ -456,9 +547,9 @@ static int db_set_action(const char *action, int status)
 		sqlite3_finalize(stmt);
 	}
 	else {
-		rc = sqlite3_prepare_v2(db, SQL_ACTION_UPDATE, -1, &stmt, NULL);
+		rc = sqlite3_prepare_v2(db, isStart ? SQL_ACTION_UPDATE_START : SQL_ACTION_UPDATE_END, -1, &stmt, NULL);
 		if (rc) {
-			PRINT_FATAL("Can't build the sql %s: %s", SQL_ACTION_UPDATE, sqlite3_errmsg(db));
+			PRINT_FATAL("Can't build the sql %s: %s", isStart ? SQL_ACTION_UPDATE_START : SQL_ACTION_UPDATE_END, sqlite3_errmsg(db));
 			return -1;
 		}
 		time(&now);
@@ -468,7 +559,7 @@ static int db_set_action(const char *action, int status)
 		sqlite3_bind_text(stmt, 4, APP_NAME, -1, SQLITE_STATIC);
 		rc = sqlite3_step(stmt);
 		if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
-			PRINT_FATAL("Can't execute the statement %s: %s", SQL_ACTION_UPDATE, sqlite3_errmsg(db));
+			PRINT_FATAL("Can't execute the statement %s: %s", isStart ? SQL_ACTION_UPDATE_START : SQL_ACTION_UPDATE_END, sqlite3_errmsg(db));
 			sqlite3_finalize(stmt);
 			return -1;
 		}
@@ -522,8 +613,10 @@ static int db_get_action(ActionInfo *dst, const char *action)
 	if (rc != SQLITE_ROW) {
 		PRINT_FATAL("Can't execute the statement %s: %s", SQL_ACTION_SELECT, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
-		return -1;
+		freeActionInfo(dst);
+		return 0;
 	}
+	freeActionInfo(dst);
 	dst->rowid = sqlite3_column_int(stmt, 0);
 	dst->action = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 1));
 	dst->status = sqlite3_column_int(stmt, 2);
@@ -749,57 +842,106 @@ static int method_update_folder(const char *path, DbPrepare *pre, int *pFileCoun
 
 static int method_update(const char *remotePath)
 {
-	DbPrepare pre = { 0 };
+	DbPrepare pre = {0};
 	int fileCount = 0, directFileCount = 0;
 	char *action = NULL;
 	PcsFileInfo *meta = NULL;
+	ActionInfo actionInfo = {0};
+
 	PRINT_NOTICE("Update meta data - Start");
 	if (pcs_islogin(pcs) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
-		goto error2;
+		PRINT_NOTICE("Update meta data - End");
+		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
 	PRINT_NOTICE("Server Path: %s", remotePath);
-	//创建插入缓存的SQL过程
-	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) goto error2;
-	//设置ACTION为RUNNING状态
 	action = (char *)pcs_malloc(strlen(remotePath) + 16);
 	strcpy(action, "UPDATE: "); strcat(action, remotePath);
-	if (db_set_action(action, ACTION_STATUS_RUNNING)) goto error;
-	//清除本地缓存
-	if (db_remove_cache(remotePath)) goto error;
-	//获取远程目录的元数据
+	//获取当前的ACTION
+	if (db_get_action(&actionInfo, action)) {
+		pcs_free(action);
+		PRINT_NOTICE("Update meta data - End");
+		return -1;
+	}
+	//检查ACTION状态
+	if (actionInfo.status == ACTION_STATUS_RUNNING) {
+		PRINT_FATAL("There have another update thread running, which is start by %s at %s", actionInfo.create_app, format_time(actionInfo.start_time));
+		pcs_free(action);
+		freeActionInfo(&actionInfo);
+		PRINT_NOTICE("Update meta data - End");
+		return -1;
+	}
+	freeActionInfo(&actionInfo);
+	//设置ACTION为RUNNING状态
+	if (db_set_action(action, ACTION_STATUS_RUNNING, 1)) {
+		pcs_free(action);
+		PRINT_NOTICE("Update meta data - End");
+		return -1;
+	}
+	//删除当前目录的本地缓存
+	if (db_remove_cache(remotePath)) {
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		PRINT_NOTICE("Update meta data - End");
+		return -1;
+	}
+	//获取当前目录的元数据
 	meta = pcs_meta(pcs, remotePath);
 	if (!meta) {
 		PRINT_NOTICE("The remote path not exist: %s", remotePath);
-		goto succ;
+		db_set_action(action, ACTION_STATUS_FINISHED, 0);
+		pcs_free(action);
+		PRINT_NOTICE("Update meta data - End");
+		return 0;
 	}
-	if (db_add_cache(meta, &pre)) goto error;
+	//准备插入数据到缓存表格中的SQL过程
+	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) {
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		pcs_fileinfo_destroy(meta);
+		PRINT_NOTICE("Update meta data - End");
+		return -1;
+	}
+	//缓存当前目录的元数据
+	if (db_add_cache(meta, &pre)) {
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		pcs_fileinfo_destroy(meta);
+		db_prepare_destroy(&pre);
+		PRINT_NOTICE("Update meta data - End");
+		return -1;
+	}
 	if (meta->isdir) {
-		//清除本地缓存
-		if (db_clear_cache(remotePath)) goto error;
-		//递归更新远程目录
-		if (method_update_folder(remotePath, &pre, &fileCount, &directFileCount)) goto error;
+		//删除子目录的本地缓存
+		if (db_clear_cache(remotePath)) {
+			db_set_action(action, ACTION_STATUS_ERROR, 0);
+			pcs_free(action);
+			pcs_fileinfo_destroy(meta);
+			db_prepare_destroy(&pre);
+			PRINT_NOTICE("Update meta data - End");
+			return -1;
+		}
+		//递归更新子目录
+		if (method_update_folder(remotePath, &pre, &fileCount, &directFileCount)) {
+			db_set_action(action, ACTION_STATUS_ERROR, 0);
+			pcs_free(action);
+			pcs_fileinfo_destroy(meta);
+			db_prepare_destroy(&pre);
+			PRINT_NOTICE("Update meta data - End");
+			return -1;
+		}
 		PRINT_NOTICE("%d direct, %d direct and indirect", directFileCount, fileCount);
 	}
 	else {
 		PRINT_NOTICE("The remote path is file: %s", remotePath);
 	}
-succ:
-	if (meta) pcs_fileinfo_destroy(meta);
-	db_set_action(action, ACTION_STATUS_FINISHED);
+	db_set_action(action, ACTION_STATUS_FINISHED, 0);
+	pcs_free(action);
+	pcs_fileinfo_destroy(meta);
 	db_prepare_destroy(&pre);
-	if (action) { pcs_free(action); action = NULL; }
 	PRINT_NOTICE("Update meta data - End");
 	return 0;
-error:
-	if (meta) pcs_fileinfo_destroy(meta);
-	db_set_action(action, ACTION_STATUS_ERROR);
-	db_prepare_destroy(&pre);
-	if (action) { pcs_free(action); action = NULL; }
-error2:
-	PRINT_NOTICE("Update meta data - End");
-	return -1;
 }
 
 static int method_backup_folder(const char *localPath, const char *remotePath)
@@ -811,29 +953,83 @@ static int method_backup(int itemIndex)
 {
 	BackupItem *item = &config.items[itemIndex];
 	ActionInfo ai = {0};
-	DbPrepare pre = { 0 };
-	char *action = NULL;
+	DbPrepare pre = {0};
+	char *action, *updateAction = NULL;
 	PRINT_NOTICE("Backup - Start");
 	if (pcs_islogin(pcs) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
-		goto error;
+		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
 	PRINT_NOTICE("Local Path: %s", item->localPath);
 	PRINT_NOTICE("Server Path: %s", item->remotePath);
-	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) goto error;
-	action = (char *)pcs_malloc(strlen(item->remotePath) + 16);
-	strcpy(action, "UPDATE: ");
-	strcat(action, item->remotePath);
-	db_get_action(&ai, item->remotePath);
+
+	action = (char *)pcs_malloc(strlen(item->localPath) + strlen(item->remotePath) + 16);
+	strcpy(action, "BACKUP: "); strcat(action, item->localPath);
+	strcat(action, " -> "); strcat(action, item->remotePath);
+	//获取当前的ACTION
+	if (db_get_action(&ai, action)) {
+		pcs_free(action);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
+	//检查ACTION状态
+	if (ai.status == ACTION_STATUS_RUNNING) {
+		PRINT_FATAL("There have another backup thread running, which is start by %s at %s", ai.create_app, format_time(ai.start_time));
+		pcs_free(action);
+		freeActionInfo(&ai);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
+	freeActionInfo(&ai);
+	//设置ACTION为RUNNING状态
+	if (db_set_action(action, ACTION_STATUS_RUNNING, 1)) {
+		pcs_free(action);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
+
+	//检查本地缓存是否更新 - 开始。如果未更新则更新本地缓存
+	updateAction = (char *)pcs_malloc(strlen(item->remotePath) + 16);
+	strcpy(updateAction, "UPDATE: ");
+	strcat(updateAction, item->remotePath);
+	if (db_get_action(&ai, updateAction)) {
+		pcs_free(updateAction);
+		pcs_free(action);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
+	if (ai.status == ACTION_STATUS_RUNNING) {
+		PRINT_FATAL("There have another update thread running, which is start by %s at %s", ai.create_app, format_time(ai.start_time));
+		pcs_free(updateAction);
+		pcs_free(action);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
 	if (!ai.rowid || ai.status != ACTION_STATUS_FINISHED) {
 		PRINT_NOTICE("Update local cache for %s", item->remotePath);
 		if (method_update(item->remotePath)) {
 			PRINT_NOTICE("Can't update local cache for %s", item->remotePath);
-			goto error;
+			pcs_free(updateAction);
+			pcs_free(action);
+			freeActionInfo(&ai);
+			PRINT_NOTICE("Backup - End");
+			return -1;
 		}
 	}
-	if (db_set_cache_flag(item->remotePath, 0)) { PRINT_NOTICE("Can't reset local cache flags for %s", item->remotePath); goto error; }
+	pcs_free(updateAction);
+	freeActionInfo(&ai);
+	//检查本地缓存是否更新 - 结束
+
+
+
+	if (db_set_cache_flag(item->remotePath, 0)) {
+		PRINT_NOTICE("Can't reset local cache flags for %s", item->remotePath);
+		goto error;
+	}
+	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) {
+		return -1;
+	}
 	//if (method_update_folder(remotePath, &pre, &fileCount, &directFileCount)) { db_set_action(action, ACTION_STATUS_ERROR); goto error; }
 	db_prepare_destroy(&pre);
 	if (action) { pcs_free(action); action = NULL; }
@@ -899,6 +1095,8 @@ static int startup()
 
 	if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
+		pcs_destroy(pcs);
+		pcs = NULL;
 		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
@@ -909,16 +1107,29 @@ static int startup()
 		PRINT_NOTICE("Quota: %s/%s", strUsed, strTotal);
 		if (totalByteSize - usedByteSize < 10 * 1024 * 1024) {
 			PRINT_FATAL("The remaining space is insufficient 10M");
+			pcs_destroy(pcs);
+			pcs = NULL;
 			return -1;
 		}
 	}
-	if (config.itemCount == 0) return -1;
-	return run();
+	if (config.itemCount == 0) {
+		pcs_destroy(pcs);
+		pcs = NULL;
+		return -1;
+	}
+	if (run()) {
+		pcs_destroy(pcs);
+		pcs = NULL;
+		return -1;
+	}
+	pcs_destroy(pcs);
+	pcs = NULL;
+	return 0;
 }
 
 int run_daemon(int argc, char *argv[])
 {
-	int res, len;
+	int rc, len;
 	char *p, *src, *dst;
 
 	/*解析参数 - 开始*/
@@ -930,11 +1141,9 @@ int run_daemon(int argc, char *argv[])
 	}
 	else {
 		PRINT_FATAL("Wrong arguments!\n    Usage: pcs --config=<config file>\n    Sample: pcs --config=/etc/pcs/default.json");
-		goto exit;
+		return -1;
 	}
 	/*解析参数 - 结束*/
-
-	PRINT_NOTICE("Application start up");
 
 	/*获取配置文件路径 - 开始*/
 	p += 9;
@@ -953,7 +1162,8 @@ int run_daemon(int argc, char *argv[])
 			}
 			else {
 				PRINT_FATAL("Wrong path of the config file.");
-				goto exit;
+				pcs_free(config.configFilePath);
+				return -1;
 			}
 		}
 		dst++;
@@ -962,7 +1172,8 @@ int run_daemon(int argc, char *argv[])
 
 	if (readConfigFile()) {
 		PRINT_FATAL("Read config file error. %s", config.configFilePath);
-		goto exit;
+		freeConfig(FALSE);
+		return -1;
 	}
 	if (config.logFilePath && config.logFilePath[0] && strcmp(config.logFilePath, log_file_path())) {
 		PRINT_NOTICE("Log file changed to %s", config.logFilePath);
@@ -971,33 +1182,24 @@ int run_daemon(int argc, char *argv[])
 		PRINT_NOTICE("The original log file is %s", log_file_path());
 	}
 
-	if (db_open()) goto exit;
-
-	startup();
-
-exit:
-	if (config.configFilePath) pcs_free(config.configFilePath);
-	if (config.cookieFilePath) pcs_free(config.cookieFilePath);
-	if (config.cacheFilePath) pcs_free(config.cacheFilePath);
-	if (config.logFilePath) pcs_free(config.logFilePath);
-	if (config.items) {
-		int ii;
-		for(ii = 0; ii < config.itemCount; ii++) {
-			if (config.items[ii].localPath) pcs_free(config.items[ii].localPath);
-			if (config.items[ii].remotePath) pcs_free(config.items[ii].remotePath);
-		}
-		pcs_free(config.items);
+	if (db_open()) {
+		freeConfig(FALSE);
+		return -1;
 	}
-	memset(&config, 0, sizeof(Config));
-	if (db) { sqlite3_close(db); db = NULL; }
-	if (pcs) { pcs_destroy(pcs); pcs = NULL; }
-	PRINT_NOTICE("Application end up");
-	pcs_mem_print_leak();
+
+	if (startup()) {
+		freeConfig(FALSE);
+		db_close();
+		return -1;
+	}
+	freeConfig(FALSE);
+	db_close();
 	return 0;
 }
 
 int start_daemon(int argc, char *argv[])
 {
+	int rc;
 	_pcs_mem_printf = &d_mem_printf;
 
 	log_close();
@@ -1021,5 +1223,11 @@ int start_daemon(int argc, char *argv[])
 	}
 	/*检查传入参数 - 结束*/
 
-	return run_daemon(argc, argv);
+	PRINT_NOTICE("Application start up");
+	PRINT_NOTICE("Log Enabled: %s", log_enabled ? "true" : "false");
+	PRINT_NOTICE("printf: %s", printf_enabled ? "true" : "false");
+	rc = run_daemon(argc, argv);
+	pcs_mem_print_leak();
+	PRINT_NOTICE("Application end up");
+	return rc;
 }

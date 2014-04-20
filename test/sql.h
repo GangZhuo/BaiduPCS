@@ -40,7 +40,8 @@
 #define SQL_ACTION_EXISTS		"SELECT status FROM pcs_action WHERE action=?1"
 #define SQL_ACTION_SELECT		"SELECT ROWID, action,status,start_time,end_time,capp,mapp FROM pcs_action WHERE action=?1"
 #define SQL_ACTION_INSERT		"INSERT INTO pcs_action (action,status,start_time,end_time,capp,mapp) VALUES (?1,?2,?3,?4,?5,?5)"
-#define SQL_ACTION_UPDATE		"UPDATE pcs_action SET status=?2,end_time=?3,mapp=?4 WHERE action=?1"
+#define SQL_ACTION_UPDATE_START	"UPDATE pcs_action SET status=?2,start_time=?3,end_time=?3,capp=?4,mapp=?4 WHERE action=?1"
+#define SQL_ACTION_UPDATE_END	"UPDATE pcs_action SET status=?2,end_time=?3,mapp=?4 WHERE action=?1"
 #define SQL_ACTION_DELETE		"DELETE FROM pcs_action WHERE action=?1"
 
 //#define SQL_CACHE_SELECT		"SELECT ROWID, server_fs_id, server_path, server_filename, server_ctime, server_mtime, "\
