@@ -47,7 +47,7 @@ bin/md5.o: test/md5.c test/md5.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/md5.c
 bin/rc4.o: test/rc4.c test/rc4.h test/md5.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/rc4.c
-bin/daemon.o: test/daemon.c test/daemon.h
+bin/daemon.o: test/daemon.c test/daemon.h test/sql.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/daemon.c
 bin/logger.o: test/logger.c test/logger.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/logger.c

@@ -117,6 +117,7 @@
     <ClInclude Include="..\test\rc4.h" />
     <ClInclude Include="..\test\shell.h" />
     <ClInclude Include="..\test\shell_args.h" />
+    <ClInclude Include="..\test\sql.h" />
     <ClInclude Include="..\test\utf8.h" />
     <ClInclude Include="cJSON.h" />
     <ClInclude Include="pcs.h" />

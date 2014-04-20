@@ -17,16 +17,13 @@
 #include "../pcs/cJSON.h"
 #include "../pcs/pcs.h"
 #include "logger.h"
+#include "dir.h"
 
 #define APP_NAME		(run_in_daemon ? "pcs daemon" : "pcs normal")
 
 #define METHOD_UPDATE	1
 #define METHOD_BACKUP	2
 #define METHOD_RESTORE	3
-
-#define ACTION_UPDATE	"update"
-#define ACTION_BACKUP	"backup"
-#define ACTION_RESTORE	"restore"
 
 #define ACTION_STATUS_RUNNING	1
 #define ACTION_STATUS_FINISHED	2
@@ -39,58 +36,17 @@
 #define PRINT_TRACE(...)	{ if (log_enabled) { log_write(LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__);   } if (printf_enabled) { printf("[TRACE]   ");    printf(__VA_ARGS__); printf("\n"); } }
 #define PRINT_DEBUG(...)	{ if (log_enabled) { log_write(LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__);   } if (printf_enabled) { printf("[DEBUG]   ");    printf(__VA_ARGS__); printf("\n"); } }
 
-#define TABLE_NAME_CACHE		"pcs_cache"
-#define TABLE_NAME_ACTION		"pcs_action"
-#define TABLE_CACHE_CREATOR		"CREATE TABLE [pcs_cache] (" \
-								"  [server_fs_id]			INTEGER," \
-								"  [server_path]			NTEXT," \
-								"  [server_filename]		NTEXT," \
-								"  [server_ctime]			INTEGER," \
-								"  [server_mtime]			INTEGER," \
-								"  [server_size]			INTEGER," \
-								"  [server_category]		INTEGER," \
-								"  [server_isdir]			INTEGER," \
-								"  [server_dir_empty]		INTEGER," \
-								"  [server_empty]			INTEGER," \
-								"  [server_md5]				NTEXT," \
-								"  [server_dlink]			NTEXT," \
-								"  [server_if_has_sub_dir]	INTEGER," \
-								"  [ctime]					INTEGER," \
-								"  [mtime]					INTEGER," \
-								"  [capp]					NVARCHAR," \
-								"  [mapp]					NVARCHAR)"
-#define TABLE_CACHE_INDEX_CREATOR "CREATE INDEX [ix_pcs_cache_path] ON [pcs_cache] ([server_path])"
+#include "sql.h"
 
-#define TABLE_NAME_OP			"pcs_op"
-#define TABLE_ACTION_CREATOR	"CREATE TABLE [pcs_action] (" \
-								"  [action]					NVARCHAR, " \
-								"  [status]					INTEGER, " \
-								"  [start_time]				INTEGER, " \
-								"  [end_time]				INTEGER, " \
-								"  [capp]					NVARCHAR, " \
-								"  [mapp]					NVARCHAR)"
-#define TABLE_ACTION_INDEX_CREATOR "CREATE INDEX [ix_pcs_action_action] ON [pcs_action] ([action])"
-
-#define SQL_TABLE_EXISTS		"SELECT name FROM sqlite_master WHERE type = 'table' AND name=?"
-
-#define SQL_ACTION_EXISTS		"SELECT status FROM pcs_action WHERE action=?1"
-#define SQL_ACTION_SELECT		"SELECT status FROM pcs_action WHERE action=?1"
-#define SQL_ACTION_INSERT		"INSERT INTO pcs_action (action,status,start_time,end_time,capp,mapp) VALUES (?1,?2,?3,?4,?5,?5)"
-#define SQL_ACTION_UPDATE		"UPDATE pcs_action SET status=?2,end_time=?3,mapp=?4 WHERE action=?1"
-#define SQL_ACTION_DELETE		"DELETE FROM pcs_action WHERE action=?1"
-
-#define SQL_CACHE_EXISTS		"SELECT server_path FROM pcs_cache WHERE server_path=?1"
-#define SQL_CACHE_INSERT		"INSERT INTO pcs_cache (server_fs_id, server_path, server_filename, server_ctime, server_mtime, " \
-								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\
-								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp) " \
-								"VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14, ?15, ?15)"
-#define SQL_CACHE_UPDATE		"UPDATE pcs_cache SET server_fs_id=?1, server_filename=?3, server_ctime=?4, server_mtime=?5, " \
-								"server_size=?6, server_category=?7, server_isdir=?8, server_dir_empty=?9, server_empty=?10, "\
-								"server_md5=?11, server_dlink=?12, server_if_has_sub_dir=?13, mtime=?14, mapp=?15 " \
-								"WHERE server_path=?2"
-#define SQL_CACHE_DELETE		"DELETE FROM pcs_cache WHERE server_path=?1"
-#define SQL_CACHE_CLEAR			"DELETE FROM pcs_cache WHERE server_path LIKE ?1"
-#define SQL_CACHE_CLEAR_ALL		"DELETE FROM pcs_cache"
+typedef struct ActionInfo {
+	int		rowid;
+	char	*action;
+	int		status;
+	time_t	start_time;
+	time_t	end_time;
+	char	*create_app;
+	char	*modify_app;
+} ActionInfo;
 
 typedef struct BackupItem {
 	char	*localPath;
@@ -308,6 +264,17 @@ static void init_schedule()
 	for(i = 0; i < config.itemCount; i++) {
 		config.items[i].next_run_time = config.items[i].schedule + now;
 	}
+}
+
+static void freeActionInfo(ActionInfo *info)
+{
+	info->rowid = 0;
+	if (info->action) { pcs_free(info->action); info->action = NULL; }
+	info->status = 0;
+	info->start_time = 0;
+	info->end_time = 0;
+	if (info->create_app) { pcs_free(info->create_app); info->create_app = NULL; }
+	if (info->modify_app) { pcs_free(info->modify_app); info->modify_app = NULL; }
 }
 
 static int db_open()
@@ -535,9 +502,8 @@ static int db_remove_action(const char *action)
 	return 0;
 }
 
-static int db_get_action_status(const char *action)
+static int db_get_action(ActionInfo *dst, const char *action)
 {
-	int status;
 	int rc;
 	sqlite3_stmt *stmt = NULL;
 	time_t now;
@@ -558,9 +524,15 @@ static int db_get_action_status(const char *action)
 		sqlite3_finalize(stmt);
 		return -1;
 	}
-	status = sqlite3_column_int(stmt, 0);
+	dst->rowid = sqlite3_column_int(stmt, 0);
+	dst->action = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 1));
+	dst->status = sqlite3_column_int(stmt, 2);
+	dst->start_time = sqlite3_column_int64(stmt, 3);
+	dst->end_time = sqlite3_column_int64(stmt, 4);
+	dst->create_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 5));
+	dst->modify_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 6));
 	sqlite3_finalize(stmt);
-	return status;
+	return 0;
 }
 
 static int db_clear_cache(const char *path)
@@ -604,14 +576,75 @@ static int db_clear_cache(const char *path)
 	return 0;
 }
 
-static int db_clear_all_cache()
+static int db_remove_cache(const char *path)
 {
-	if (sqlite3_exec(db, SQL_CACHE_CLEAR_ALL, NULL, NULL, NULL)) {
-		PRINT_FATAL("Can't clear all cache %s: %s", SQL_CACHE_CLEAR_ALL, sqlite3_errmsg(db));
+	int rc;
+	sqlite3_stmt *stmt = NULL;
+	rc = sqlite3_prepare_v2(db, SQL_CACHE_DELETE, -1, &stmt, NULL);
+	if (rc) {
+		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_DELETE, sqlite3_errmsg(db));
 		return -1;
 	}
+	rc = sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
+	if (rc) {
+		PRINT_FATAL("Can't bind the text into the statement %s: %s", SQL_CACHE_DELETE, sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return -1;
+	}
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+		PRINT_FATAL("Can't execute the statement %s: %s", SQL_CACHE_DELETE, sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return -1;
+	}
+	sqlite3_finalize(stmt);
 	return 0;
 }
+
+static int db_set_cache_flag(const char *path, int flag)
+{
+	int rc;
+	sqlite3_stmt *stmt = NULL;
+	int sz;
+	char *val;
+	rc = sqlite3_prepare_v2(db, SQL_CACHE_SET_FLAG, -1, &stmt, NULL);
+	if (rc) {
+		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
+		return -1;
+	}
+	sz = strlen(path);
+	val = (char *)pcs_malloc(sz + 3);
+	memcpy(val, path, sz + 1);
+	if (val[sz - 1] != '/') {
+		val[sz] = '/'; val[sz + 1] = '%'; val[sz + 2] = '\0';
+		sz += 2;
+	}
+	else {
+		val[sz] = '%'; val[sz + 1] = '\0';
+		sz++;
+	}
+	rc = sqlite3_bind_text(stmt, 1, val, sz, SQLITE_STATIC);
+	rc = sqlite3_bind_int(stmt, 2, flag);
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+		PRINT_FATAL("Can't execute the statement %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		pcs_free(val);
+		return -1;
+	}
+	sqlite3_finalize(stmt);
+	pcs_free(val);
+	return 0;
+}
+
+//static int db_clear_all_cache()
+//{
+//	if (sqlite3_exec(db, SQL_CACHE_CLEAR_ALL, NULL, NULL, NULL)) {
+//		PRINT_FATAL("Can't clear all cache %s: %s", SQL_CACHE_CLEAR_ALL, sqlite3_errmsg(db));
+//		return -1;
+//	}
+//	return 0;
+//}
 
 static int db_add_cache(PcsFileInfo *info, DbPrepare *pre)
 {
@@ -619,7 +652,7 @@ static int db_add_cache(PcsFileInfo *info, DbPrepare *pre)
 	int rc;
 	sqlite3_stmt *stmt;
 	time(&now);
-	stmt = pre->stmts[1];
+	stmt = pre->stmts[0];
 	sqlite3_bind_int64(stmt,  1, info->fs_id);
 	sqlite3_bind_text(stmt,  2, info->path, -1, SQLITE_STATIC);
 	sqlite3_bind_text(stmt,  3, info->server_filename, -1, SQLITE_STATIC);
@@ -635,6 +668,7 @@ static int db_add_cache(PcsFileInfo *info, DbPrepare *pre)
 	sqlite3_bind_int(stmt, 13, info->ifhassubdir);
 	sqlite3_bind_int64(stmt, 14, now);
 	sqlite3_bind_text(stmt, 15, APP_NAME, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 16, 0);
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
@@ -661,17 +695,14 @@ static int quota(UInt64 *usedByteSize, UInt64 *totalByteSize)
 }
 
 /* 返回直接或间接文件数量 */
-static int method_update_folder(const char *path, DbPrepare *pre)
+static int method_update_folder(const char *path, DbPrepare *pre, int *pFileCount, int *pDirectFileCount)
 {
 	PcsFileInfoList *list = NULL;
 	PcsFileInfoListIterater iterater;
 	PcsFileInfo *info = NULL;
 	int page_index = 1,
 		page_size = 100;
-	int cnt = 0, /*当前页文件数量*/
-		cnt_total = 0, /*直接间接文件数量*/
-		direct = 0, /*直接文件数量*/
-		sub_total;
+	int cnt = 0;
 	while(1) {
 		list = pcs_list(pcs, path, page_index, page_size, "name", PcsFalse);
 		if (!list) {
@@ -684,8 +715,14 @@ static int method_update_folder(const char *path, DbPrepare *pre)
 			}
 		}
 		cnt = list->count;
-		cnt_total += cnt;
-		direct += cnt;
+		if (pFileCount) {
+			*pFileCount += cnt;
+			if (printf_enabled) {
+				printf("File Count: %d                 \r", *pFileCount);
+				fflush(stdout);
+			}
+		}
+		if (pDirectFileCount) *pDirectFileCount += cnt;
 
 		pcs_filist_iterater_init(list, &iterater);
 		while(pcs_filist_iterater_next(&iterater)) {
@@ -695,12 +732,9 @@ static int method_update_folder(const char *path, DbPrepare *pre)
 				return -1;
 			}
 			if (info->isdir) {
-				if ((sub_total = method_update_folder(info->path, pre)) < 0) {
+				if (method_update_folder(info->path, pre, pFileCount, NULL)) {
 					pcs_filist_destroy(list);
 					return -1;
-				}
-				else {
-					cnt_total += sub_total;
 				}
 			}
 		}
@@ -710,32 +744,107 @@ static int method_update_folder(const char *path, DbPrepare *pre)
 		}
 		page_index++;
 	}
-	PRINT_NOTICE("The server directory(%s) have %d direct files(or directories), have %d direct and indirect files(or directories)", path, direct, cnt_total);
-	return cnt_total;
+	return 0;
 }
 
-static int method_update(int itemIndex)
+static int method_update(const char *remotePath)
+{
+	DbPrepare pre = { 0 };
+	int fileCount = 0, directFileCount = 0;
+	char *action = NULL;
+	PcsFileInfo *meta = NULL;
+	PRINT_NOTICE("Update meta data - Start");
+	if (pcs_islogin(pcs) != PCS_LOGIN) {
+		PRINT_FATAL("Not login or session time out");
+		goto error2;
+	}
+	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
+	PRINT_NOTICE("Server Path: %s", remotePath);
+	//创建插入缓存的SQL过程
+	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) goto error2;
+	//设置ACTION为RUNNING状态
+	action = (char *)pcs_malloc(strlen(remotePath) + 16);
+	strcpy(action, "UPDATE: "); strcat(action, remotePath);
+	if (db_set_action(action, ACTION_STATUS_RUNNING)) goto error;
+	//清除本地缓存
+	if (db_remove_cache(remotePath)) goto error;
+	//获取远程目录的元数据
+	meta = pcs_meta(pcs, remotePath);
+	if (!meta) {
+		PRINT_NOTICE("The remote path not exist: %s", remotePath);
+		goto succ;
+	}
+	if (db_add_cache(meta, &pre)) goto error;
+	if (meta->isdir) {
+		//清除本地缓存
+		if (db_clear_cache(remotePath)) goto error;
+		//递归更新远程目录
+		if (method_update_folder(remotePath, &pre, &fileCount, &directFileCount)) goto error;
+		PRINT_NOTICE("%d direct, %d direct and indirect", directFileCount, fileCount);
+	}
+	else {
+		PRINT_NOTICE("The remote path is file: %s", remotePath);
+	}
+succ:
+	if (meta) pcs_fileinfo_destroy(meta);
+	db_set_action(action, ACTION_STATUS_FINISHED);
+	db_prepare_destroy(&pre);
+	if (action) { pcs_free(action); action = NULL; }
+	PRINT_NOTICE("Update meta data - End");
+	return 0;
+error:
+	if (meta) pcs_fileinfo_destroy(meta);
+	db_set_action(action, ACTION_STATUS_ERROR);
+	db_prepare_destroy(&pre);
+	if (action) { pcs_free(action); action = NULL; }
+error2:
+	PRINT_NOTICE("Update meta data - End");
+	return -1;
+}
+
+static int method_backup_folder(const char *localPath, const char *remotePath)
+{
+	return 0;
+}
+
+static int method_backup(int itemIndex)
 {
 	BackupItem *item = &config.items[itemIndex];
+	ActionInfo ai = {0};
 	DbPrepare pre = { 0 };
-	PRINT_NOTICE("Update meta data - Start");
-	PRINT_NOTICE("Server Path: %s", item->remotePath);
+	char *action = NULL;
+	PRINT_NOTICE("Backup - Start");
 	if (pcs_islogin(pcs) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
 		goto error;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
-	if (db_prepare(&pre, SQL_CACHE_EXISTS, SQL_CACHE_INSERT, SQL_CACHE_UPDATE, SQL_CACHE_DELETE, NULL)) goto error;
-	if (db_set_action(ACTION_UPDATE, ACTION_STATUS_RUNNING)) goto error;
-	if (db_clear_cache(item->remotePath)) goto error;
-	if (method_update_folder(item->remotePath, &pre) < 0) { db_set_action(ACTION_UPDATE, ACTION_STATUS_ERROR); goto error; }
-	db_set_action(ACTION_UPDATE, ACTION_STATUS_FINISHED);
+	PRINT_NOTICE("Local Path: %s", item->localPath);
+	PRINT_NOTICE("Server Path: %s", item->remotePath);
+	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) goto error;
+	action = (char *)pcs_malloc(strlen(item->remotePath) + 16);
+	strcpy(action, "UPDATE: ");
+	strcat(action, item->remotePath);
+	db_get_action(&ai, item->remotePath);
+	if (!ai.rowid || ai.status != ACTION_STATUS_FINISHED) {
+		PRINT_NOTICE("Update local cache for %s", item->remotePath);
+		if (method_update(item->remotePath)) {
+			PRINT_NOTICE("Can't update local cache for %s", item->remotePath);
+			goto error;
+		}
+	}
+	if (db_set_cache_flag(item->remotePath, 0)) { PRINT_NOTICE("Can't reset local cache flags for %s", item->remotePath); goto error; }
+	//if (method_update_folder(remotePath, &pre, &fileCount, &directFileCount)) { db_set_action(action, ACTION_STATUS_ERROR); goto error; }
 	db_prepare_destroy(&pre);
-	PRINT_NOTICE("Update meta data - End");
+	if (action) { pcs_free(action); action = NULL; }
+	freeActionInfo(&ai);
+	PRINT_NOTICE("Backup - End");
 	return 0;
 error:
 	db_prepare_destroy(&pre);
-	PRINT_NOTICE("Update meta data - End");
+	if (action) { pcs_free(action); action = NULL; }
+	freeActionInfo(&ai);
+	PRINT_NOTICE("Backup - End");
 	return -1;
 }
 
@@ -744,9 +853,9 @@ static int task(int itemIndex)
 	switch (config.items[itemIndex].method)
 	{
 	case METHOD_UPDATE:
-		return method_update(itemIndex);
+		return method_update(config.items[itemIndex].remotePath);
 	case METHOD_BACKUP:
-		break;
+		return method_backup(itemIndex);
 	case METHOD_RESTORE:
 		break;
 	}
