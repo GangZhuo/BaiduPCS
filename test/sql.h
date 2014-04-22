@@ -44,19 +44,19 @@
 #define SQL_ACTION_UPDATE_END	"UPDATE pcs_action SET status=?2,end_time=?3,mapp=?4 WHERE action=?1"
 #define SQL_ACTION_DELETE		"DELETE FROM pcs_action WHERE action=?1"
 
-//#define SQL_CACHE_SELECT		"SELECT ROWID, server_fs_id, server_path, server_filename, server_ctime, server_mtime, "\
-//								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\
-//								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp "\
-//								"FROM pcs_cache "\
-//								"WHERE server_path=?1"
+#define SQL_CACHE_SELECT		"SELECT ROWID, server_fs_id, server_path, server_filename, server_ctime, server_mtime, "\
+								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\
+								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp, flag "\
+								"FROM pcs_cache "\
+								"WHERE server_path=?1"
 #define SQL_CACHE_INSERT		"INSERT INTO pcs_cache (server_fs_id, server_path, server_filename, server_ctime, server_mtime, " \
 								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\
 								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp, flag) " \
 								"VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14, ?15, ?15, ?16)"
-//#define SQL_CACHE_UPDATE		"UPDATE pcs_cache SET server_fs_id=?1, server_filename=?3, server_ctime=?4, server_mtime=?5, " \
-//								"server_size=?6, server_category=?7, server_isdir=?8, server_dir_empty=?9, server_empty=?10, "\
-//								"server_md5=?11, server_dlink=?12, server_if_has_sub_dir=?13, mtime=?14, mapp=?15 " \
-//								"WHERE server_path=?2"
+#define SQL_CACHE_UPDATE		"UPDATE pcs_cache SET server_fs_id=?1, server_path=?2, server_filename=?3, server_ctime=?4, server_mtime=?5, " \
+								"server_size=?6, server_category=?7, server_isdir=?8, server_dir_empty=?9, server_empty=?10, "\
+								"server_md5=?11, server_dlink=?12, server_if_has_sub_dir=?13, mtime=?14, mapp=?15, flag=?16 " \
+								"WHERE server_path=?2"
 #define SQL_CACHE_DELETE		"DELETE FROM pcs_cache WHERE server_path=?1"
 #define SQL_CACHE_CLEAR			"DELETE FROM pcs_cache WHERE server_path LIKE ?1"
 #define SQL_CACHE_SET_FLAG_SUB	"UPDATE pcs_cache SET flag = ?2 WHERE server_path LIKE ?1"
