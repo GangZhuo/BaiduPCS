@@ -10,6 +10,42 @@
 
 #include "dir.h"
 
+my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime);
+
+time_t FileTimeToTime_t(FILETIME ft, time_t *t)  
+{  
+	ULONGLONG  ll;
+	ULARGE_INTEGER ui;
+	time_t rc;
+	ui.LowPart =  ft.dwLowDateTime;
+	ui.HighPart =  ft.dwHighDateTime;
+	ll = (((ULONGLONG)ft.dwHighDateTime) << 32) + ft.dwLowDateTime;
+	rc = ((ULONGLONG)(ui.QuadPart - 116444736000000000) / 10000000);
+	if (t) *t = rc;
+	return rc;
+}
+
+int get_file_ent(my_dirent **pEnt, const char *path)
+{
+	WIN32_FIND_DATA fd;
+	HANDLE hFind = FindFirstFile(path, &fd);
+	FindClose(hFind);
+	//不存在同名的文件或文件夹
+	if (hFind == INVALID_HANDLE_VALUE) {
+		return 0;
+	}
+	else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+		//判断是否为目录
+		*pEnt = create_dirent(path, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL));
+		return 2;
+	}
+	else {
+		//判断为文件
+		*pEnt = create_dirent(path, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL));
+		return 1;
+	}
+}
+
 int is_dir_or_file(const char *path)
 {
 	WIN32_FIND_DATA fd;
@@ -48,15 +84,28 @@ my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir,
 	ent = (my_dirent *)pcs_malloc(sizeof(my_dirent));
 	if (!ent)
 		return NULL;
-	ent->path = (char *)pcs_malloc(strlen(basepath) + strlen(filename) + 2);
+	ent->path = (char *)pcs_malloc(strlen(basepath) + (filename ? strlen(filename) : 0) + 2);
 	if (!ent->path) {
 		pcs_free(ent);
 		return NULL;
 	}
 	strcpy(ent->path, basepath);
-	strcat(ent->path, "\\");
-	strcat(ent->path, filename);
-	ent->filename = ent->path + strlen(basepath) + 1;
+	if (filename) {
+		strcat(ent->path, "\\");
+		strcat(ent->path, filename);
+		ent->filename = ent->path + strlen(basepath) + 1;
+	}
+	else {
+		char *p = ent->path + strlen(basepath);
+		while (p >= ent->path) {
+			if (*p == '\\' || *p == '/') {
+				p++;
+				break;
+			}
+			p--;
+		}
+		ent->filename = p;
+	}
 	ent->is_dir = is_dir;
 	ent->mtime = mtime;
 	ent->user_flag = 0;
@@ -185,6 +234,25 @@ int my_dirent_utime(const char *path, time_t mtime)
 #include "../pcs/pcs_mem.h"
 #include "dir.h"
 
+my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime);
+
+int get_file_ent(my_dirent **pEnt, const char *path)
+{
+	struct stat st;
+	stat(path, &st);
+	if (S_ISDIR(st.st_mode)) {
+		//为目录
+		*pEnt = create_dirent(path, NULL, 1, st.st_mtime);
+		return 2;
+	}
+	else if (S_ISREG(st.st_mode)) {
+		//为文件
+		*pEnt = create_dirent(path, NULL, 0, st.st_mtime);
+		return 1;
+	}
+	return 0;
+}
+
 int is_dir_or_file(const char *path)
 {
 	struct stat st;
@@ -215,15 +283,28 @@ my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir,
 	ent = (my_dirent *)pcs_malloc(sizeof(my_dirent));
 	if (!ent)
 		return NULL;
-	ent->path = (char *)pcs_malloc(strlen(basepath) + strlen(filename) + 2);
+	ent->path = (char *)pcs_malloc(strlen(basepath) + (filename ? strlen(filename) : 0) + 2);
 	if (!ent->path) {
 		pcs_free(ent);
 		return NULL;
 	}
 	strcpy(ent->path, basepath);
-	strcat(ent->path, "/");
-	strcat(ent->path, filename);
-	ent->filename = ent->path + strlen(basepath) + 1;
+	if (filename) {
+		strcat(ent->path, "/");
+		strcat(ent->path, filename);
+		ent->filename = ent->path + strlen(basepath) + 1;
+	}
+	else {
+		char *p = ent->path + strlen(basepath);
+		while (p >= ent->path) {
+			if (*p == '/' || *p == '\\') {
+				p++;
+				break;
+			}
+			p--;
+		}
+		ent->filename = p;
+	}
 	ent->is_dir = is_dir;
 	ent->mtime = mtime;
 	ent->user_flag = 0;
