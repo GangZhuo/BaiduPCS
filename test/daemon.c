@@ -37,6 +37,8 @@
 #define ACTION_STATUS_FINISHED	2
 #define ACTION_STATUS_ERROR		3
 
+#define FLAG_SUCC				1
+
 #define PRINT_FATAL(...)	{ if (log_enabled) { log_write(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__);   } if (printf_enabled) { printf("[FATAL]   ");    printf(__VA_ARGS__); printf("\n"); } }
 #define PRINT_WARNING(...)  { if (log_enabled) { log_write(LOG_WARNING, __FILE__, __LINE__, __VA_ARGS__); } if (printf_enabled) { printf("[WARNING] ");    printf(__VA_ARGS__); printf("\n"); } }
 #define PRINT_MONITOR(...)  { if (log_enabled) { log_write(LOG_MONITOR, __FILE__, __LINE__, __VA_ARGS__); } if (printf_enabled) { printf("[MONITOR] ");    printf(__VA_ARGS__); printf("\n"); } }
@@ -349,6 +351,23 @@ static void freeActionInfo(ActionInfo *info)
 	if (info->modify_app) { pcs_free(info->modify_app); info->modify_app = NULL; }
 }
 
+static void freeCacheInfo(PcsFileInfo *info)
+{
+	if (info->path) pcs_free(info->path);
+	if (info->server_filename) pcs_free(info->server_filename);
+	if (info->md5) pcs_free(info->md5);
+	if (info->dlink) pcs_free(info->dlink);
+	if (info->block_list) {
+		char **p = info->block_list;
+		while(*p) {
+			pcs_free(*p);
+			p++;
+		}
+		pcs_free(info->block_list);
+	}
+	memset(info, 0, sizeof(PcsFileInfo));
+}
+
 static int db_open()
 {
 	int rc;
@@ -611,13 +630,18 @@ static int db_get_action(ActionInfo *dst, const char *action)
 		return -1;
 	}
 	rc = sqlite3_step(stmt);
-	if (rc != SQLITE_ROW) {
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
 		PRINT_FATAL("Can't execute the statement %s: %s", SQL_ACTION_SELECT, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
 		freeActionInfo(dst);
 		return 0;
 	}
 	freeActionInfo(dst);
+	if (rc == SQLITE_DONE) {
+		PRINT_NOTICE("The action [%s] not exist", action);
+		sqlite3_finalize(stmt);
+		return 0;
+	}
 	dst->rowid = sqlite3_column_int(stmt, 0);
 	dst->action = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 1));
 	dst->status = sqlite3_column_int(stmt, 2);
@@ -799,13 +823,112 @@ static int db_add_cache(PcsFileInfo *info, DbPrepare *pre)
 	sqlite3_bind_int(stmt, 13, info->ifhassubdir);
 	sqlite3_bind_int64(stmt, 14, now);
 	sqlite3_bind_text(stmt, 15, APP_NAME, -1, SQLITE_STATIC);
-	sqlite3_bind_int(stmt, 16, 0);
+	sqlite3_bind_int(stmt, 16, info->user_flag);
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
 		PRINT_FATAL("Can't insert into the cache: %s", sqlite3_errmsg(db));
 		sqlite3_reset(stmt);
 		return -1;
+	}
+	sqlite3_reset(stmt);
+	return 0;
+}
+
+static int db_update_cache(PcsFileInfo *info, DbPrepare *pre)
+{
+	time_t now;
+	int rc;
+	sqlite3_stmt *stmt;
+	time(&now);
+	stmt = pre->stmts[3];
+	sqlite3_bind_int64(stmt,  1, info->fs_id);
+	sqlite3_bind_text(stmt,  2, info->path, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt,  3, info->server_filename, -1, SQLITE_STATIC);
+	sqlite3_bind_int64(stmt,  4, info->server_ctime);
+	sqlite3_bind_int64(stmt,  5, info->server_mtime);
+	sqlite3_bind_int64(stmt,  6, info->size);
+	sqlite3_bind_int(stmt,  7, info->category);
+	sqlite3_bind_int(stmt,  8, info->isdir);
+	sqlite3_bind_int(stmt,  9, info->dir_empty);
+	sqlite3_bind_int(stmt, 10, info->empty);
+	sqlite3_bind_text(stmt, 11, info->md5, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 12, info->dlink, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 13, info->ifhassubdir);
+	sqlite3_bind_int64(stmt, 14, now);
+	sqlite3_bind_text(stmt, 15, APP_NAME, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 16, info->user_flag);
+
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+		PRINT_FATAL("Can't update the cache: %s", sqlite3_errmsg(db));
+		sqlite3_reset(stmt);
+		return -1;
+	}
+	sqlite3_reset(stmt);
+	return 0;
+}
+
+static int db_get_cache(PcsFileInfo *dst, DbPrepare *pre, const char *path)
+{
+	int rc;
+	sqlite3_stmt *stmt = NULL;
+	time_t now;
+	freeCacheInfo(dst);
+	stmt = pre->stmts[1];
+	rc = sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
+	if (rc) {
+		PRINT_FATAL("Can't bind the text into the statement: %s", sqlite3_errmsg(db));
+		sqlite3_reset(stmt);
+		return -1;
+	}
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+		PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+		sqlite3_reset(stmt);
+		return 0;
+	}
+	if (rc == SQLITE_DONE) {
+		PRINT_NOTICE("The local cache not exist: %s", path);
+		sqlite3_reset(stmt);
+		return 0;
+	}
+	dst->fs_id = (UInt64)sqlite3_column_int64(stmt, 0);
+	dst->path = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 1));
+	dst->server_filename = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 2));
+	dst->server_ctime = (UInt64)sqlite3_column_int64(stmt, 3);
+	dst->server_mtime = (UInt64)sqlite3_column_int64(stmt, 4);
+	dst->local_ctime = (UInt64)sqlite3_column_int64(stmt, 3);
+	dst->local_mtime = (UInt64)sqlite3_column_int64(stmt, 4);
+	dst->size = (UInt64)sqlite3_column_int64(stmt, 5);
+	dst->category = sqlite3_column_int(stmt, 6);
+	dst->isdir = (PcsBool)sqlite3_column_int(stmt, 7);
+	dst->dir_empty = (PcsBool)sqlite3_column_int(stmt, 8);
+	dst->empty = (PcsBool)sqlite3_column_int(stmt, 9);
+	dst->md5 = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 10));
+	dst->dlink = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 11));
+	dst->ifhassubdir = (PcsBool)sqlite3_column_int(stmt, 12);
+	sqlite3_reset(stmt);
+	return 0;
+}
+
+static int db_remove_cache_by_pre(DbPrepare *pre, const char *path)
+{
+	int rc;
+	sqlite3_stmt *stmt = NULL;
+	time_t now;
+	stmt = pre->stmts[2];
+	rc = sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
+	if (rc) {
+		PRINT_FATAL("Can't bind the text into the statement: %s", sqlite3_errmsg(db));
+		sqlite3_reset(stmt);
+		return -1;
+	}
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+		PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+		sqlite3_reset(stmt);
+		return 0;
 	}
 	sqlite3_reset(stmt);
 	return 0;
@@ -928,10 +1051,10 @@ static int method_update(const char *remotePath)
 	meta = pcs_meta(pcs, remotePath);
 	if (!meta) {
 		PRINT_NOTICE("The remote path not exist: %s", remotePath);
-		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		db_set_action(action, ACTION_STATUS_FINISHED, 0);
 		pcs_free(action);
 		PRINT_NOTICE("Update meta data - End");
-		return -1;
+		return 0;
 	}
 	//准备插入数据到缓存表格中的SQL过程
 	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) {
@@ -984,10 +1107,116 @@ static int method_update(const char *remotePath)
 
 static char *get_remote_path(const char *localPath, const char *localBasePath, const char *remoteBasePath)
 {
+	char *rc;
+	int len;
 
+	len = strlen(localPath) - strlen(localBasePath) + strlen(remoteBasePath) + 2;
+	rc = (char *)pcs_malloc(len);
+	strcpy(rc, remoteBasePath);
+	strcat(rc, localPath + strlen(localBasePath));
+#ifdef WIN32
+	{
+		char *p = rc;
+		while (*p) {
+			if (*p == '\\') *p = '/';
+			p++;
+		}
+	}
+#endif
+	return rc;
 }
 
-static int method_backup_folder(const char *localPath, const char *remotePath)
+struct ProgressState {
+	const char *localPath;
+	const char *remotePath;
+};
+
+static int method_backup_progress(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
+{
+	struct ProgressState *state = (struct ProgressState *)clientp;
+	static char tmp[64];
+	tmp[63] = '\0';
+	if (state) {
+		printf("Backup %s -> %s    [", state->localPath, state->remotePath);
+	}
+	printf("%s", pcs_utils_readable_size(ulnow, tmp, 63, NULL));
+	printf("/%s]       \r", pcs_utils_readable_size(ultotal, tmp, 63, NULL));
+	fflush(stdout);
+	return 0;
+}
+
+
+static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre)
+{
+	PcsFileInfo dst = {0};
+
+	if (db_get_cache(&dst, pre, remotePath)) {
+		return -1;
+	}
+	if (dst.isdir) {
+		PcsPanApiRes *res;
+		PcsFileInfo *rc;
+		PcsSList slist = { (char *)remotePath, NULL };
+		struct ProgressState state = { localFile->path, remotePath };
+		res = pcs_delete(pcs, &slist);
+		if (!res) {
+			PRINT_FATAL("Can't backup %s to %s: Delete dir %s failed. %s", localFile->path, remotePath, remotePath, pcs_strerror(pcs, PCS_NONE));
+			freeCacheInfo(&dst);
+			return -1;
+		}
+		pcs_pan_api_res_destroy(res);
+		if (db_remove_cache_by_pre(pre, remotePath)) {
+			PRINT_FATAL("Can't remove the local cache. %s", remotePath);
+			freeCacheInfo(&dst);
+			return -1;
+		}
+		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, &state);
+		rc = pcs_upload(pcs, remotePath, PcsTrue, localFile->path);
+		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
+		if (!rc) {
+			PRINT_FATAL("Can't backup %s to %s: %s   ", localFile->path, remotePath, pcs_strerror(pcs, PCS_NONE));
+			freeCacheInfo(&dst);
+			return -1;
+		}
+		PRINT_NOTICE("Backup %s to %s   ", localFile->path, rc->path);
+		rc->user_flag = FLAG_SUCC;
+		if (db_add_cache(rc, pre)) {
+			freeCacheInfo(&dst);
+			pcs_fileinfo_destroy(rc);
+			return -1;
+		}
+		pcs_fileinfo_destroy(rc);
+	}
+	else if (localFile->mtime > dst.server_mtime) {
+		PcsFileInfo *rc;
+		struct ProgressState state = { localFile->path, remotePath };
+		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, &state);
+		rc = pcs_upload(pcs, remotePath, PcsTrue, localFile->path);
+		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
+		if (!rc) {
+			PRINT_FATAL("Can't backup %s to %s: %s   ", localFile->path, remotePath, pcs_strerror(pcs, PCS_NONE));
+			freeCacheInfo(&dst);
+			return -1;
+		}
+		PRINT_NOTICE("Backup %s to %s   ", localFile->path, rc->path);
+		rc->user_flag = FLAG_SUCC;
+		if (db_update_cache(rc, pre)) {
+			freeCacheInfo(&dst);
+			pcs_fileinfo_destroy(rc);
+			return -1;
+		}
+		pcs_fileinfo_destroy(rc);
+	}
+	freeCacheInfo(&dst);
+	return 0;
+}
+
+static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre)
+{
+	return 0;
+}
+
+static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre) 
 {
 	return 0;
 }
@@ -1078,6 +1307,15 @@ static int method_backup(int itemIndex)
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
+	//清除子目录本地标记
+	if (db_set_cache_flags(item->remotePath, 0)) {
+		PRINT_NOTICE("Can't reset local cache flags for %s", item->remotePath);
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		my_dirent_destroy(ent);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
 	rc = get_file_ent(&ent, item->localPath);
 	if (rc == 0) {
 		PRINT_NOTICE("The local path not exist: %s", item->localPath);
@@ -1086,39 +1324,70 @@ static int method_backup(int itemIndex)
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	if (rc == 2) { //类型为目录
-		if (db_set_cache_flags(item->remotePath, 0)) {
-			PRINT_NOTICE("Can't reset local cache flags for %s", item->remotePath);
-			goto error;
-		}
-	}
-	else if (rc == 1) { //类型为文件
-
-	}
-	else {
-		PRINT_NOTICE("Unknow local file type %d: %s", rc, item->localPath);
+	if (db_prepare(&pre, SQL_CACHE_INSERT, SQL_CACHE_SELECT, SQL_CACHE_DELETE, SQL_CACHE_UPDATE, NULL)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
-		if (ent) my_dirent_destroy(ent);
+		my_dirent_destroy(ent);
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	if (ent) my_dirent_destroy(ent);
-	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) {
+	if (printf_enabled) {
+		pcs_setopts(pcs,
+			PCS_OPTION_PROGRESS_FUNCTION, method_backup_progress,
+			PCS_OPTION_PROGRESS, PcsTrue,
+			PCS_OPTION_END);
+	}
+	else {
+		pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
+	}
+	if (rc == 2) { //类型为目录
+		if (method_backup_folder(item->localPath, item->remotePath, &pre)) {
+			pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
+			db_set_action(action, ACTION_STATUS_ERROR, 0);
+			pcs_free(action);
+			my_dirent_destroy(ent);
+			db_prepare_destroy(&pre);
+			PRINT_NOTICE("Backup - End");
+			return -1;
+		}
+	}
+	else if (rc == 1) { //类型为文件
+		if (method_backup_file(ent, item->remotePath, &pre)) {
+			pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
+			db_set_action(action, ACTION_STATUS_ERROR, 0);
+			pcs_free(action);
+			my_dirent_destroy(ent);
+			db_prepare_destroy(&pre);
+			PRINT_NOTICE("Backup - End");
+			return -1;
+		}
+	}
+	else {
+		PRINT_NOTICE("Unknow local file type %d: %s", rc, item->localPath);
+		pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		my_dirent_destroy(ent);
+		db_prepare_destroy(&pre);
+		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	//if (method_update_folder(remotePath, &pre, &fileCount, &directFileCount)) { db_set_action(action, ACTION_STATUS_ERROR); goto error; }
+	pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
+	my_dirent_destroy(ent);
+	//移除服务器中，本地不存在的文件
+	if (method_backup_remove_untrack(item->remotePath, &pre)) {
+		PRINT_NOTICE("Can't remove untrack files from the server: %s", item->remotePath);
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		db_prepare_destroy(&pre);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
+	db_set_action(action, ACTION_STATUS_FINISHED, 0);
+	pcs_free(action);
 	db_prepare_destroy(&pre);
-	if (action) { pcs_free(action); action = NULL; }
-	freeActionInfo(&ai);
 	PRINT_NOTICE("Backup - End");
 	return 0;
-error:
-	db_prepare_destroy(&pre);
-	if (action) { pcs_free(action); action = NULL; }
-	freeActionInfo(&ai);
-	PRINT_NOTICE("Backup - End");
-	return -1;
 }
 
 static int task(int itemIndex)
