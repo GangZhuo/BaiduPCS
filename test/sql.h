@@ -59,7 +59,8 @@
 //								"WHERE server_path=?2"
 #define SQL_CACHE_DELETE		"DELETE FROM pcs_cache WHERE server_path=?1"
 #define SQL_CACHE_CLEAR			"DELETE FROM pcs_cache WHERE server_path LIKE ?1"
-#define SQL_CACHE_SET_FLAG		"UPDATE pcs_cache SET flag = ?2 WHERE server_path LIKE ?1"
+#define SQL_CACHE_SET_FLAG_SUB	"UPDATE pcs_cache SET flag = ?2 WHERE server_path LIKE ?1"
+#define SQL_CACHE_SET_FLAG		"UPDATE pcs_cache SET flag = ?2 WHERE server_path = ?1"
 //#define SQL_CACHE_CLEAR_ALL		"DELETE FROM pcs_cache"
 
 

@@ -629,7 +629,11 @@ static int db_get_action(ActionInfo *dst, const char *action)
 	return 0;
 }
 
-static int db_clear_cache(const char *path)
+/*
+删除path目录下所有缓存，不会删除path的缓存。
+例: db_clear_caches("/backup"); //将删除所有以"/backup/"开头的文件缓存，但是"/backup"的缓存不会删除
+*/
+static int db_clear_caches(const char *path)
 {
 	int rc;
 	sqlite3_stmt *stmt = NULL;
@@ -670,6 +674,10 @@ static int db_clear_cache(const char *path)
 	return 0;
 }
 
+/*
+删除path的缓存，不包括其子目录
+例: db_remove_cache("/backup"); //将删除"/backup"的缓存，但是以"/backup/"开头的缓存不会删除
+*/
 static int db_remove_cache(const char *path)
 {
 	int rc;
@@ -695,15 +703,19 @@ static int db_remove_cache(const char *path)
 	return 0;
 }
 
-static int db_set_cache_flag(const char *path, int flag)
+/*
+设置path目录下所有缓存的标识，不会设置path的缓存标识。
+例: db_set_cache_flags("/backup", 0); //将设置所有以"/backup/"开头的缓存标识为0，但是"/backup"的缓存标识不会设置
+*/
+static int db_set_cache_flags(const char *path, int flag)
 {
 	int rc;
 	sqlite3_stmt *stmt = NULL;
 	int sz;
 	char *val;
-	rc = sqlite3_prepare_v2(db, SQL_CACHE_SET_FLAG, -1, &stmt, NULL);
+	rc = sqlite3_prepare_v2(db, SQL_CACHE_SET_FLAG_SUB, -1, &stmt, NULL);
 	if (rc) {
-		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
+		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SET_FLAG_SUB, sqlite3_errmsg(db));
 		return -1;
 	}
 	sz = strlen(path);
@@ -721,13 +733,38 @@ static int db_set_cache_flag(const char *path, int flag)
 	rc = sqlite3_bind_int(stmt, 2, flag);
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
-		PRINT_FATAL("Can't execute the statement %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
+		PRINT_FATAL("Can't execute the statement %s: %s", SQL_CACHE_SET_FLAG_SUB, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
 		pcs_free(val);
 		return -1;
 	}
 	sqlite3_finalize(stmt);
 	pcs_free(val);
+	return 0;
+}
+
+/*
+设置path缓存的标识，不包括其子目录
+例: db_set_cache_flag("/backup", 0); //将设置"/backup"的缓存标识为0，但是以"/backup/"开头的缓存标识不会设置
+*/
+static int db_set_cache_flag(const char *path, int flag)
+{
+	int rc;
+	sqlite3_stmt *stmt = NULL;
+	rc = sqlite3_prepare_v2(db, SQL_CACHE_SET_FLAG, -1, &stmt, NULL);
+	if (rc) {
+		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
+		return -1;
+	}
+	rc = sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
+	rc = sqlite3_bind_int(stmt, 2, flag);
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+		PRINT_FATAL("Can't execute the statement %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return -1;
+	}
+	sqlite3_finalize(stmt);
 	return 0;
 }
 
@@ -891,10 +928,10 @@ static int method_update(const char *remotePath)
 	meta = pcs_meta(pcs, remotePath);
 	if (!meta) {
 		PRINT_NOTICE("The remote path not exist: %s", remotePath);
-		db_set_action(action, ACTION_STATUS_FINISHED, 0);
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		PRINT_NOTICE("Update meta data - End");
-		return 0;
+		return -1;
 	}
 	//准备插入数据到缓存表格中的SQL过程
 	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) {
@@ -915,7 +952,7 @@ static int method_update(const char *remotePath)
 	}
 	if (meta->isdir) {
 		//删除子目录的本地缓存
-		if (db_clear_cache(remotePath)) {
+		if (db_clear_caches(remotePath)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			pcs_fileinfo_destroy(meta);
@@ -945,6 +982,11 @@ static int method_update(const char *remotePath)
 	return 0;
 }
 
+static char *get_remote_path(const char *localPath, const char *localBasePath, const char *remoteBasePath)
+{
+
+}
+
 static int method_backup_folder(const char *localPath, const char *remotePath)
 {
 	return 0;
@@ -955,7 +997,10 @@ static int method_backup(int itemIndex)
 	BackupItem *item = &config.items[itemIndex];
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
-	char *action, *updateAction = NULL;
+	char *action = NULL, *updateAction = NULL;
+	int rc = 0;
+	my_dirent *ent = NULL;
+
 	PRINT_NOTICE("Backup - Start");
 	if (pcs_islogin(pcs) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
@@ -995,6 +1040,7 @@ static int method_backup(int itemIndex)
 	strcpy(updateAction, "UPDATE: ");
 	strcat(updateAction, item->remotePath);
 	if (db_get_action(&ai, updateAction)) {
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(updateAction);
 		pcs_free(action);
 		PRINT_NOTICE("Backup - End");
@@ -1002,6 +1048,7 @@ static int method_backup(int itemIndex)
 	}
 	if (ai.status == ACTION_STATUS_RUNNING) {
 		PRINT_FATAL("There have another update thread running, which is start by %s at %s", ai.create_app, format_time(ai.start_time));
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(updateAction);
 		pcs_free(action);
 		PRINT_NOTICE("Backup - End");
@@ -1011,6 +1058,7 @@ static int method_backup(int itemIndex)
 		PRINT_NOTICE("Update local cache for %s", item->remotePath);
 		if (method_update(item->remotePath)) {
 			PRINT_NOTICE("Can't update local cache for %s", item->remotePath);
+			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(updateAction);
 			pcs_free(action);
 			freeActionInfo(&ai);
@@ -1022,12 +1070,40 @@ static int method_backup(int itemIndex)
 	freeActionInfo(&ai);
 	//检查本地缓存是否更新 - 结束
 
-
-
+	//清除本地标记位
 	if (db_set_cache_flag(item->remotePath, 0)) {
 		PRINT_NOTICE("Can't reset local cache flags for %s", item->remotePath);
-		goto error;
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		PRINT_NOTICE("Backup - End");
+		return -1;
 	}
+	rc = get_file_ent(&ent, item->localPath);
+	if (rc == 0) {
+		PRINT_NOTICE("The local path not exist: %s", item->localPath);
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
+	if (rc == 2) { //类型为目录
+		if (db_set_cache_flags(item->remotePath, 0)) {
+			PRINT_NOTICE("Can't reset local cache flags for %s", item->remotePath);
+			goto error;
+		}
+	}
+	else if (rc == 1) { //类型为文件
+
+	}
+	else {
+		PRINT_NOTICE("Unknow local file type %d: %s", rc, item->localPath);
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		if (ent) my_dirent_destroy(ent);
+		PRINT_NOTICE("Backup - End");
+		return -1;
+	}
+	if (ent) my_dirent_destroy(ent);
 	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) {
 		return -1;
 	}
@@ -1201,6 +1277,7 @@ int run_daemon(int argc, char *argv[])
 int start_daemon(int argc, char *argv[])
 {
 	int rc;
+
 	_pcs_mem_printf = &d_mem_printf;
 
 	log_close();

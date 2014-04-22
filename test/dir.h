@@ -17,6 +17,7 @@ struct my_dirent
    my_dirent *next;
 };
 
+int get_file_ent(my_dirent **pEnt, const char *path);
 int is_dir_or_file(const char *path);
 my_dirent *list_dir(const char *path, int recursion);
 void my_dirent_destroy(my_dirent *link);
