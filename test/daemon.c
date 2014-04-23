@@ -1419,24 +1419,34 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 	}
 	if (!dst.fs_id) { //如果远程目录不存在，则创建
 		PcsRes pcsres = PCS_NONE;
-		PcsFileInfo *meta = NULL;
+		//PcsFileInfo *meta = NULL;
+		PcsFileInfo meta = { 0 }; time_t now;
 		pcsres = pcs_mkdir(pcs, remotePath);
 		if (pcsres != PCS_OK) {
 			PRINT_FATAL("Can't create the directory %s: %s\n", remotePath, pcs_strerror(pcs, PCS_NONE));
 			return -1;
 		}
-		//创建成功后，获取其元数据并存入本地缓存
-		meta = pcs_meta(pcs, remotePath);
-		if (!meta) {
-			PRINT_FATAL("Can't get meta: %s", remotePath);
+		////创建成功后，获取其元数据并存入本地缓存
+		//meta = pcs_meta(pcs, remotePath);
+		//if (!meta) {
+		//	PRINT_FATAL("Can't get meta: %s", remotePath);
+		//	return -1;
+		//}
+		//meta->user_flag = FLAG_SUCC;
+		//if (db_add_cache(meta, pre)) {
+		//	pcs_fileinfo_destroy(meta);
+		//	return -1;
+		//}
+		//pcs_fileinfo_destroy(meta);
+		meta.fs_id = 1;
+		meta.path = (char *)remotePath;
+		meta.isdir = PcsTrue;
+		time(&now);
+		meta.server_ctime = meta.server_mtime = (UInt64)now;
+		meta.user_flag = FLAG_SUCC;
+		if (db_add_cache(&meta, pre)) {
 			return -1;
 		}
-		meta->user_flag = FLAG_SUCC;
-		if (db_add_cache(meta, pre)) {
-			pcs_fileinfo_destroy(meta);
-			return -1;
-		}
-		pcs_fileinfo_destroy(meta);
 		if (st) {
 			st->backupDir++;
 			st->totalDir++;
