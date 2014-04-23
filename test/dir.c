@@ -37,12 +37,12 @@ int get_file_ent(my_dirent **pEnt, const char *path)
 	}
 	else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 		//判断是否为目录
-		*pEnt = create_dirent(path, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL));
+		if (pEnt) *pEnt = create_dirent(path, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL));
 		return 2;
 	}
 	else {
 		//判断为文件
-		*pEnt = create_dirent(path, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL));
+		if (pEnt) *pEnt = create_dirent(path, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL));
 		return 1;
 	}
 }
@@ -249,12 +249,12 @@ int get_file_ent(my_dirent **pEnt, const char *path)
 	stat(path, &st);
 	if (S_ISDIR(st.st_mode)) {
 		//为目录
-		*pEnt = create_dirent(path, NULL, 1, st.st_mtime);
+		if (pEnt) *pEnt = create_dirent(path, NULL, 1, st.st_mtime);
 		return 2;
 	}
 	else if (S_ISREG(st.st_mode)) {
 		//为文件
-		*pEnt = create_dirent(path, NULL, 0, st.st_mtime);
+		if (pEnt) *pEnt = create_dirent(path, NULL, 0, st.st_mtime);
 		return 1;
 	}
 	return 0;

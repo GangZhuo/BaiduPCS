@@ -1,7 +1,8 @@
 #ifndef _DAEMON_H
 #define _DAEMON_H
 
-int start_daemon(int argc, char *argv[]);
+#include "shell_args.h"
+int start_daemon(struct params *params);
 
 
 

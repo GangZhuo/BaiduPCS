@@ -27,6 +27,8 @@ const char *argp_program_version = program_full_name;
 #define OPT_SYNCH	1
 #define OPT_COOKIE	2
 #define OPT_RC4		3
+#define OPT_CONFIG	4
+#define OPT_CACHE	5
 
 struct argp_option options[] = {
 	{ 0,			0,	 0,				0,							"Options:", 0},
@@ -47,6 +49,8 @@ struct argp_option options[] = {
 	{ "verbose",	'v', 0,				OPTION_ARG_OPTIONAL,		"Show the response text.", 0},
 	{ "cookie",		OPT_COOKIE, "<cookiefile>", OPTION_ARG_OPTIONAL,"Specify the cookie file.", 0},
 	{ "rc4",		OPT_RC4, "<rc4-key>", OPTION_ARG_OPTIONAL,		"Specify that use rc4 to encode/decode the content.", 0},
+	{ "config",     OPT_CONFIG, "<config>", OPTION_ARG_OPTIONAL,    "Specify the config file.", 0 },
+	{ "cache",     OPT_CACHE, "<cache>", OPTION_ARG_OPTIONAL,       "Specify the cache file.", 0 },
 
 	{0, 0, 0, 0, 0, 0}
 };
@@ -185,7 +189,7 @@ PcsBool shell_args_check_params(struct params *params)
 
 	case ACTION_QUOTA:
 		if (params->args_count != 0) {
-			print_arg_err("wrong arguments\n");
+			print_arg_err("usage: " program_name " quota\n");
 			res = PcsFalse;
 			break;
 		}
@@ -193,7 +197,7 @@ PcsBool shell_args_check_params(struct params *params)
 
 	case ACTION_LIST:
 		if (params->args_count != 1) {
-			print_arg_err("wrong arguments\n");
+			print_arg_err("usage: " program_name " list <remote path>\nSample: " program_name " list /backup\n");
 			res = PcsFalse;
 			break;
 		}
@@ -210,71 +214,15 @@ PcsBool shell_args_check_params(struct params *params)
 
 	case ACTION_RENAME:
 		if (params->args_count != 2) {
-			print_arg_err("wrong arguments\n");
-			res = PcsFalse;
-			break;
-		}
-		break;
-
-	case ACTION_MOVE:
-		if (params->args_count != 2) {
-			print_arg_err("wrong arguments\n");
-			res = PcsFalse;
-			break;
-		}
-		break;
-
-	case ACTION_COPY:
-		if (params->args_count != 2) {
-			print_arg_err("wrong arguments\n");
-			res = PcsFalse;
-			break;
-		}
-		break;
-
-	case ACTION_MKDIR:
-		if (params->args_count != 1) {
-			print_arg_err("wrong arguments\n");
+			print_arg_err("usage: " program_name " rename <remote path> <new name>\nSample: " program_name " rename /backup/1.jpg 2.jpg\n");
 			res = PcsFalse;
 			break;
 		}
 		break;
 
 	case ACTION_DELETE:
-		if (params->args_count == 0) {
-			print_arg_err("wrong arguments\n");
-			res = PcsFalse;
-			break;
-		}
-		break;
-
-	case ACTION_CAT:
-		if (params->args_count != 1) {
-			print_arg_err("wrong arguments\n");
-			res = PcsFalse;
-			break;
-		}
-		break;
-
-	case ACTION_ECHO:
-		if (params->args_count != 2) {
-			print_arg_err("wrong arguments\n");
-			res = PcsFalse;
-			break;
-		}
-		break;
-
-	case ACTION_SEARCH:
-		if (params->args_count != 2) {
-			print_arg_err("wrong arguments\n");
-			res = PcsFalse;
-			break;
-		}
-		break;
-
-	case ACTION_META:
-		if (params->args_count != 1) {
-			print_arg_err("wrong arguments\n");
+		if (params->args_count <= 0) {
+			print_arg_err("usage: " program_name " delete <remote path> ...\nSample: " program_name " delete /backup/1.jpg /backup/2.jpg /backup/3.jpg\n");
 			res = PcsFalse;
 			break;
 		}
@@ -282,7 +230,7 @@ PcsBool shell_args_check_params(struct params *params)
 
 	case ACTION_DOWNLOAD:
 		if (params->args_count != 2) {
-			print_arg_err("wrong arguments\n");
+			print_arg_err("usage: " program_name " download <remote path> <local path>\nSample: " program_name " download -r /backup/upload_backup /var/www/upload\n");
 			res = PcsFalse;
 			break;
 		}
@@ -290,7 +238,120 @@ PcsBool shell_args_check_params(struct params *params)
 
 	case ACTION_UPLOAD:
 		if (params->args_count != 2) {
-			print_arg_err("wrong arguments\n");
+			print_arg_err("usage: " program_name " upload <local path> <local path>\nSample: " program_name " upload -r /var/www/upload /backup/upload_backup\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_MOVE:
+		if (params->args_count != 2) {
+			print_arg_err("usage: " program_name " move <remote path> <new path>\nSample: " program_name " move /backup/upload_backup /backup/xxx.com/upload_backup\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_MKDIR:
+		if (params->args_count != 1) {
+			print_arg_err("usage: " program_name " mkdir <remote path>\nSample: " program_name " mkdir /backup/xxx.com\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_ECHO:
+		if (params->args_count != 2) {
+			print_arg_err("usage: " program_name " echo <remote path> <text>\nSample: " program_name " echo -a /data/note.txt \"The text that append by 'echo' command\"\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+
+	case ACTION_CAT:
+		if (params->args_count != 1) {
+			print_arg_err("usage: " program_name " cat <remote path>\nSample: " program_name " cat /data/note.txt\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_SEARCH:
+		if (params->args_count != 2) {
+			print_arg_err("usage: " program_name " search <search folder> <key word>\nSample: " program_name " search -r /backup config\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_COPY:
+		if (params->args_count != 2) {
+			print_arg_err("usage: " program_name " copy <remote path> <new path>\nSample: " program_name " copy /backup/data /backup/data_20140401\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_META:
+		if (params->args_count != 1) {
+			print_arg_err("usage: " program_name " meta <remote path>\nSample: " program_name " meta /backup/data/1.jpg\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_SVC:
+		if (!params->config || !params->config[0]) {
+			print_arg_err("usage: " program_name " svc --config=<config file>\nSample: " program_name " svc --config=/etc/pcs/default.json\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_RESET:
+		if (params->args_count != 0) {
+			print_arg_err("usage: " program_name " reset\nSample: " program_name " reset\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_UPDATE:
+		if (params->args_count != 1 || !params->cookie || !params->cache) {
+			print_arg_err("usage: " program_name " update --cookie=<cookie file> --cache=<cache file> <remote path>\nSample: " program_name " update --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /backup/xxx.com\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_BACKUP:
+		if (params->args_count != 2 || !params->cookie || !params->cache) {
+			print_arg_err("usage: " program_name " backup --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\nSample: " program_name " backup --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_RESTORE:
+		if (params->args_count != 2 || !params->cookie || !params->cache) {
+			print_arg_err("usage: " program_name " restore --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\nSample: " program_name " restore --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_COMBIN:
+		if (params->args_count != 2 || !params->cookie || !params->cache) {
+			print_arg_err("usage: " program_name " combin --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\nSample: " program_name " combin --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
+	case ACTION_COMPARE:
+		if (params->args_count != 2 || !params->cookie || !params->cache) {
+			print_arg_err("usage: " program_name " compare --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\nSample: " program_name " compare --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n");
 			res = PcsFalse;
 			break;
 		}
@@ -321,6 +382,8 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 			}
 			pcs_free(params->args);
 		}
+		if (params->config) pcs_free(params->config);
+		if (params->cache) pcs_free(params->cache);
 		params->is_fail = PcsFalse;
 		params->username = NULL;
 		params->password = NULL;
@@ -338,6 +401,8 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		params->action = ACTION_NONE;
 		params->args = NULL;
 		params->args_count = 0;
+		params->config = NULL;
+		params->cache = NULL;
 		break;
 
 	case ARGP_KEY_NO_ARGS:
@@ -396,7 +461,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		break;
 
 	case 'u':
-		if (arg) {
+		if (arg && arg[0]) {
 			params->username = pcs_utils_strdup(arg);
 		}
 		//else {
@@ -406,7 +471,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		break;
 
 	case 'p':
-		if (arg) {
+		if (arg && arg[0]) {
 			params->password = pcs_utils_strdup(arg);
 		}
 		break;
@@ -446,15 +511,27 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		break;
 
 	case OPT_COOKIE:
-		if (arg) {
+		if (arg && arg[0]) {
 			params->cookie = pcs_utils_strdup(arg);
 		}
 		break;
 
 	case OPT_RC4:
 		params->is_rc4 = PcsTrue;
-		if (arg) {
+		if (arg && arg[0]) {
 			params->rc4_key = pcs_utils_strdup(arg);
+		}
+		break;
+
+	case OPT_CONFIG:
+		if (arg && arg[0]) {
+			params->config = pcs_utils_strdup(arg);
+		}
+		break;
+
+	case OPT_CACHE:
+		if (arg && arg[0]) {
+			params->cache = pcs_utils_strdup(arg);
 		}
 		break;
 
@@ -479,6 +556,9 @@ static struct argp argp = {
 void shell_args_parse(int argc, char *argv[], struct params *params)
 {
 	argp_parse (&argp, argc, argv, 0, 0, params);
+	if (!shell_args_check_params(params)) {
+		params->is_fail = PcsTrue;
+	}
 }
 
 
@@ -504,6 +584,8 @@ void shell_args_destroy_params(struct params *params)
 		}
 		pcs_free(params->args);
 	}
+	if (params->config) pcs_free(params->config);
+	if (params->cache) pcs_free(params->cache);
 	pcs_free(params);
 }
 
