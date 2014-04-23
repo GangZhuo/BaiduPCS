@@ -288,6 +288,28 @@ static int convert_to_time_t(char *str)
 	return rc;
 }
 
+static int convert_to_time_t_2(char *str)
+{
+	int rc;
+	char *s[4], *p;
+	int i = 0;
+	p = str;
+	s[i++] = p;
+	while (*p) {
+		if (*p == ':') {
+			*p = '\0';
+			p++;
+			s[i++] = p;
+		}
+		p++;
+	}
+	rc = atoi(s[0]) * 24 * 60 * 60;
+	rc += atoi(s[1]) * 60 * 60;
+	rc += atoi(s[2]) * 60;
+	rc += atoi(s[3]);
+	return rc;
+}
+
 /*读取并解析配置文件*/
 static int readConfigFile()
 {
@@ -384,7 +406,7 @@ static int readConfigFile()
 				cJSON_Delete(json);
 				return -1;
 			}
-			config.items[i].interval = value->valueint;
+			config.items[i].interval = convert_to_time_t_2(value->valuestring);
 			if (config.items[i].method == METHOD_RESET) continue;
 			value = cJSON_GetObjectItem(item, "localPath");
 			if (!value) {
