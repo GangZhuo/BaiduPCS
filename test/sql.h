@@ -44,11 +44,16 @@
 #define SQL_ACTION_UPDATE_END	"UPDATE pcs_action SET status=?2,end_time=?3,mapp=?4 WHERE action=?1"
 #define SQL_ACTION_DELETE		"DELETE FROM pcs_action WHERE action=?1"
 
-#define SQL_CACHE_SELECT		"SELECT ROWID, server_fs_id, server_path, server_filename, server_ctime, server_mtime, "\
+#define SQL_CACHE_SELECT		"SELECT server_fs_id, server_path, server_filename, server_ctime, server_mtime, "\
 								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\
 								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp, flag "\
 								"FROM pcs_cache "\
 								"WHERE server_path=?1"
+#define SQL_CACHE_SELECT_UNTRACK "SELECT server_fs_id, server_path, server_filename, server_ctime, server_mtime, "\
+								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\
+								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp, flag "\
+								"FROM pcs_cache "\
+								"WHERE server_path LIKE ?1 AND flag = 0"
 #define SQL_CACHE_INSERT		"INSERT INTO pcs_cache (server_fs_id, server_path, server_filename, server_ctime, server_mtime, " \
 								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\
 								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp, flag) " \
