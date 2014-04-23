@@ -1348,9 +1348,21 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 		if (config.printf_enabled) {
 			printf("Backup %s -> %s\n", localFile->path, remotePath);
 		}
-		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, &state);
+		if (config.printf_enabled) {
+			pcs_setopts(pcs,
+				PCS_OPTION_PROGRESS_FUNCTION, method_backup_progress,
+				PCS_OPTION_PROGRESS_FUNCTION_DATE, &state,
+				PCS_OPTION_PROGRESS, PcsTrue,
+				PCS_OPTION_END);
+		}
 		rc = pcs_upload(pcs, remotePath, PcsTrue, localFile->path);
-		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
+		if (config.printf_enabled) {
+			pcs_setopts(pcs,
+				PCS_OPTION_PROGRESS_FUNCTION, NULL,
+				PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
+				PCS_OPTION_PROGRESS, PcsFalse,
+				PCS_OPTION_END);
+		}
 		if (!rc) {
 			PRINT_FATAL("Can't backup %s to %s: %s   ", localFile->path, remotePath, pcs_strerror(pcs, PCS_NONE));
 			freeCacheInfo(&dst);
@@ -1709,18 +1721,8 @@ int method_backup(const char *localPath, const char *remotePath, int isCombin)
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	if (config.printf_enabled) {
-		pcs_setopts(pcs,
-			PCS_OPTION_PROGRESS_FUNCTION, method_backup_progress,
-			PCS_OPTION_PROGRESS, PcsTrue,
-			PCS_OPTION_END);
-	}
-	else {
-		pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
-	}
 	if (rc == 2) { //类型为目录
 		if (method_backup_folder(localPath, remotePath, &pre, &st)) {
-			pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			my_dirent_destroy(ent);
@@ -1731,7 +1733,6 @@ int method_backup(const char *localPath, const char *remotePath, int isCombin)
 	}
 	else if (rc == 1) { //类型为文件
 		if (method_backup_file(ent, remotePath, &pre, &st)) {
-			pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			my_dirent_destroy(ent);
@@ -1742,7 +1743,6 @@ int method_backup(const char *localPath, const char *remotePath, int isCombin)
 	}
 	else {
 		PRINT_FATAL("Unknow local file type %d: %s", rc, localPath);
-		pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		my_dirent_destroy(ent);
@@ -1750,7 +1750,6 @@ int method_backup(const char *localPath, const char *remotePath, int isCombin)
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 	my_dirent_destroy(ent);
 	//移除服务器中，本地不存在的文件
 	if (!isCombin && method_backup_remove_untrack(remotePath, &pre, &st)) {
@@ -2537,6 +2536,9 @@ static int run_svc(struct params *params)
 			PRINT_NOTICE("Log file continue from %s", log_file_path());
 		}
 	}
+	PRINT_NOTICE("Run in Daemon: %s", config.run_in_daemon ? "yes" : "no");
+	PRINT_NOTICE("Log Enabled: %s", config.log_enabled ? "yes" : "no");
+	PRINT_NOTICE("Printf Enabled: %s", config.printf_enabled ? "yes" : "no");
 	if (db_open()) {
 		freeConfig(FALSE);
 		PRINT_NOTICE("Application end up");
