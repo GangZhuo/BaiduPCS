@@ -75,6 +75,13 @@ static const char doc[] = "\nProvide some commands that can access the baidu net
 	"  search                   Search the baidu network disk\n"
 	"  download                 Download the file\n"
 	"  upload                   Upload the file\n"
+	"  svc                      Upload the file\n"
+	"  reset                    Upload the file\n"
+	"  update                   Upload the file\n"
+	"  backup                   Upload the file\n"
+	"  restore                  Upload the file\n"
+	"  combin                   Upload the file\n"
+	"  compare                  Upload the file\n"
 
 	"\v\n"
 	"If you are first use the program, or you session is time out, "
@@ -364,6 +371,20 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 				params->action = ACTION_SEARCH;
 			else if (strcmp(arg, "meta") == 0)
 				params->action = ACTION_META;
+			else if (strcmp(arg, "svc") == 0)
+				params->action = ACTION_SVC;
+			else if (strcmp(arg, "reset") == 0)
+				params->action = ACTION_RESET;
+			else if (strcmp(arg, "update") == 0)
+				params->action = ACTION_UPDATE;
+			else if (strcmp(arg, "backup") == 0)
+				params->action = ACTION_BACKUP;
+			else if (strcmp(arg, "restore") == 0)
+				params->action = ACTION_RESTORE;
+			else if (strcmp(arg, "combin") == 0)
+				params->action = ACTION_COMBIN;
+			else if (strcmp(arg, "compare") == 0)
+				params->action = ACTION_COMPARE;
 			else {
 				print_arg_err("unknown command\n");
 				return EINVAL;
