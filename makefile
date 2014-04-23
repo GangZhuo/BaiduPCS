@@ -10,7 +10,7 @@ SHELL_OBJS   = bin/shell.o bin/pcs_io.o bin/shell_args.o bin/dir.o bin/hashtable
 ifeq ($(LC_OS_NAME), cygwin)
 CYGWIN_CCFLAGS = -largp
 else
-CYGWIN_CCFLAGS = -largp
+CYGWIN_CCFLAGS = 
 endif
 
 ifeq ($(ver), debug)
