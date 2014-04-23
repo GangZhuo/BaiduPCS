@@ -5,6 +5,7 @@
 
 #include <io.h>
 #include <malloc.h>
+#include <direct.h>
 #include <Windows.h>
 #include <sys/utime.h>
 
@@ -133,19 +134,25 @@ int filesearch(const char *path, my_dirent *root, int recursion)
 			continue;
 		if ((_A_SUBDIR == filefind.attrib)) {
 			ent = create_dirent(path, filefind.name, 1, filefind.time_write);
-			if (!ent)
+			if (!ent) {
+				_findclose(handle);
 				return -1;
+			}
 			cusor->next = ent;
 			cusor = ent;
 			if (recursion) {
-				if (filesearch(ent->path, cusor, recursion))
+				if (filesearch(ent->path, cusor, recursion)) {
+					_findclose(handle);
 					return -1;
+				}
 			}
 		}
 		else {
 			ent = create_dirent(path, filefind.name, 0, filefind.time_write);
-			if (!ent)
+			if (!ent) {
+				_findclose(handle);
 				return -1;
+			}
 			cusor->next = ent;
 			cusor = ent;
 		}
@@ -191,7 +198,7 @@ int my_dirent_remove(const char *path)
 		}
 		my_dirent_destroy(root.next);
 		if (!i) {
-			res = remove(path);
+			res = _rmdir(path);
 		}
 	}
 	else {
