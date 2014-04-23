@@ -11,7 +11,6 @@
 #else
 #  include <unistd.h>
 #  define D_SLEEP(ms) sleep(ms)
-#  define mkdir(p) (mkdir)(p, 0700)
 #endif
 
 #include "../sqlite/sqlite3.h"
@@ -1423,7 +1422,6 @@ static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, 
 	sqlite3_stmt *stmt = pre->stmts[5];
 	int sz;
 	char *val;
-	PcsPanApiRes *res;
 	PcsSList *slist = NULL, *it;
 	sz = strlen(remotePath);
 	val = (char *)pcs_malloc(sz + 3);
@@ -1526,9 +1524,8 @@ static int method_backup_check_quota()
 	return 0;
 }
 
-static int method_backup(int itemIndex)
+int method_backup(const char *localPath, const char *remotePath)
 {
-	BackupItem *item = &config.items[itemIndex];
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
 	char *action = NULL, *updateAction = NULL;
@@ -1545,12 +1542,12 @@ static int method_backup(int itemIndex)
 	if (method_backup_check_quota()) {
 		return -1;
 	}
-	PRINT_NOTICE("Local Path: %s", item->localPath);
-	PRINT_NOTICE("Server Path: %s", item->remotePath);
+	PRINT_NOTICE("Local Path: %s", localPath);
+	PRINT_NOTICE("Server Path: %s", remotePath);
 
-	action = (char *)pcs_malloc(strlen(item->localPath) + strlen(item->remotePath) + 16);
-	strcpy(action, "BACKUP: "); strcat(action, item->localPath);
-	strcat(action, " -> "); strcat(action, item->remotePath);
+	action = (char *)pcs_malloc(strlen(localPath) + strlen(remotePath) + 16);
+	strcpy(action, "BACKUP: "); strcat(action, localPath);
+	strcat(action, " -> "); strcat(action, remotePath);
 	//获取当前的ACTION
 	if (db_get_action(&ai, action)) {
 		pcs_free(action);
@@ -1574,9 +1571,9 @@ static int method_backup(int itemIndex)
 	}
 
 	//检查本地缓存是否更新 - 开始。如果未更新则更新本地缓存
-	updateAction = (char *)pcs_malloc(strlen(item->remotePath) + 16);
+	updateAction = (char *)pcs_malloc(strlen(remotePath) + 16);
 	strcpy(updateAction, "UPDATE: ");
-	strcat(updateAction, item->remotePath);
+	strcat(updateAction, remotePath);
 	if (db_get_action(&ai, updateAction)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(updateAction);
@@ -1593,9 +1590,9 @@ static int method_backup(int itemIndex)
 		return -1;
 	}
 	if (!ai.rowid || ai.status != ACTION_STATUS_FINISHED) {
-		PRINT_NOTICE("Update local cache for %s", item->remotePath);
-		if (method_update(item->remotePath)) {
-			PRINT_FATAL("Can't update local cache for %s", item->remotePath);
+		PRINT_NOTICE("Update local cache for %s", remotePath);
+		if (method_update(remotePath)) {
+			PRINT_FATAL("Can't update local cache for %s", remotePath);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(updateAction);
 			pcs_free(action);
@@ -1609,25 +1606,25 @@ static int method_backup(int itemIndex)
 	//检查本地缓存是否更新 - 结束
 
 	//清除本地标记位
-	if (db_set_cache_flag(item->remotePath, 0)) {
-		PRINT_FATAL("Can't reset local cache flags for %s", item->remotePath);
+	if (db_set_cache_flag(remotePath, 0)) {
+		PRINT_FATAL("Can't reset local cache flags for %s", remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
 	//清除子目录本地标记
-	if (db_set_cache_flags(item->remotePath, 0)) {
-		PRINT_FATAL("Can't reset local cache flags for %s", item->remotePath);
+	if (db_set_cache_flags(remotePath, 0)) {
+		PRINT_FATAL("Can't reset local cache flags for %s", remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		my_dirent_destroy(ent);
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	rc = get_file_ent(&ent, item->localPath);
+	rc = get_file_ent(&ent, localPath);
 	if (rc == 0) {
-		PRINT_FATAL("The local path not exist: %s", item->localPath);
+		PRINT_FATAL("The local path not exist: %s", localPath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		PRINT_NOTICE("Backup - End");
@@ -1650,7 +1647,7 @@ static int method_backup(int itemIndex)
 		pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 	}
 	if (rc == 2) { //类型为目录
-		if (method_backup_folder(item->localPath, item->remotePath, &pre, &st)) {
+		if (method_backup_folder(localPath, remotePath, &pre, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -1661,7 +1658,7 @@ static int method_backup(int itemIndex)
 		}
 	}
 	else if (rc == 1) { //类型为文件
-		if (method_backup_file(ent, item->remotePath, &pre, &st)) {
+		if (method_backup_file(ent, remotePath, &pre, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -1672,7 +1669,7 @@ static int method_backup(int itemIndex)
 		}
 	}
 	else {
-		PRINT_FATAL("Unknow local file type %d: %s", rc, item->localPath);
+		PRINT_FATAL("Unknow local file type %d: %s", rc, localPath);
 		pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
@@ -1684,8 +1681,8 @@ static int method_backup(int itemIndex)
 	pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 	my_dirent_destroy(ent);
 	//移除服务器中，本地不存在的文件
-	if (method_backup_remove_untrack(item->remotePath, &pre, &st)) {
-		//PRINT_FATAL("Can't remove untrack files from the server: %s", item->remotePath);
+	if (method_backup_remove_untrack(remotePath, &pre, &st)) {
+		//PRINT_FATAL("Can't remove untrack files from the server: %s", remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		db_prepare_destroy(&pre);
@@ -1735,7 +1732,7 @@ static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPre
 			st->removeDir++;
 		}
 	}
-	if (ent == NULL || ent->mtime < remote->server_mtime) {
+	if (ent == NULL || ent->mtime < ((time_t)remote->server_mtime)) {
 		DownloadState ds = {0};
 		PcsRes res;
 		ds.pf = fopen(localPath, "wb");
@@ -1809,7 +1806,11 @@ static int method_restore_folder(const char *localPath, const char *remotePath, 
 		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SELECT_SUB, sqlite3_errmsg(db));
 		return -1;
 	}
+#ifdef WIN32
 	mkdir(localPath);
+#else
+	mkdir(localPath, 0700);
+#endif
 	sz = strlen(remotePath);
 	val = (char *)pcs_malloc(sz + 3);
 	memcpy(val, remotePath, sz + 1);
@@ -1911,9 +1912,8 @@ static int method_restore_remove_untrack(const char *localPath, const char *remo
 	return 0;
 }
 
-static int method_restore(int itemIndex)
+static int method_restore(const char *localPath, const char *remotePath)
 {
-	BackupItem *item = &config.items[itemIndex];
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
 	char *action = NULL, *updateAction = NULL;
@@ -1926,12 +1926,12 @@ static int method_restore(int itemIndex)
 		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
-	PRINT_NOTICE("Local Path: %s", item->localPath);
-	PRINT_NOTICE("Server Path: %s", item->remotePath);
+	PRINT_NOTICE("Local Path: %s", localPath);
+	PRINT_NOTICE("Server Path: %s", remotePath);
 
-	action = (char *)pcs_malloc(strlen(item->localPath) + strlen(item->remotePath) + 16);
-	strcpy(action, "RESTORE: "); strcat(action, item->localPath);
-	strcat(action, " <- "); strcat(action, item->remotePath);
+	action = (char *)pcs_malloc(strlen(localPath) + strlen(remotePath) + 16);
+	strcpy(action, "RESTORE: "); strcat(action, localPath);
+	strcat(action, " <- "); strcat(action, remotePath);
 	//获取当前的ACTION
 	if (db_get_action(&ai, action)) {
 		pcs_free(action);
@@ -1955,9 +1955,9 @@ static int method_restore(int itemIndex)
 	}
 
 	//检查本地缓存是否更新 - 开始。如果未更新则更新本地缓存
-	updateAction = (char *)pcs_malloc(strlen(item->remotePath) + 16);
+	updateAction = (char *)pcs_malloc(strlen(remotePath) + 16);
 	strcpy(updateAction, "UPDATE: ");
-	strcat(updateAction, item->remotePath);
+	strcat(updateAction, remotePath);
 	if (db_get_action(&ai, updateAction)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(updateAction);
@@ -1974,9 +1974,9 @@ static int method_restore(int itemIndex)
 		return -1;
 	}
 	if (!ai.rowid || ai.status != ACTION_STATUS_FINISHED) {
-		PRINT_NOTICE("Update local cache for %s", item->remotePath);
-		if (method_update(item->remotePath)) {
-			PRINT_FATAL("Can't update local cache for %s", item->remotePath);
+		PRINT_NOTICE("Update local cache for %s", remotePath);
+		if (method_update(remotePath)) {
+			PRINT_FATAL("Can't update local cache for %s", remotePath);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(updateAction);
 			pcs_free(action);
@@ -1995,8 +1995,8 @@ static int method_restore(int itemIndex)
 		PRINT_NOTICE("Restore - End");
 		return -1;
 	}
-	if (db_get_cache(&rf, &pre, item->remotePath) || !rf.fs_id) {
-		PRINT_FATAL("The remote path not exist: %s", item->remotePath);
+	if (db_get_cache(&rf, &pre, remotePath) || !rf.fs_id) {
+		PRINT_FATAL("The remote path not exist: %s", remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		db_prepare_destroy(&pre);
@@ -2005,7 +2005,7 @@ static int method_restore(int itemIndex)
 	}
 	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &method_restore_write);
 	if (rf.isdir) { //类型为目录
-		if (method_restore_folder(item->localPath, item->remotePath, &pre, &st)) {
+		if (method_restore_folder(localPath, remotePath, &pre, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -2016,7 +2016,7 @@ static int method_restore(int itemIndex)
 		}
 	}
 	else { //类型为文件
-		if (method_restore_file(item->localPath, &rf, &pre, &st)) {
+		if (method_restore_file(localPath, &rf, &pre, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -2029,8 +2029,8 @@ static int method_restore(int itemIndex)
 	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 	freeCacheInfo(&rf);
 	//移除服务器中，本地不存在的文件
-	if (method_restore_remove_untrack(item->localPath ,item->remotePath, &pre, &st)) {
-		//PRINT_FATAL("Can't remove untrack files: %s", item->localPath);
+	if (method_restore_remove_untrack(localPath ,remotePath, &pre, &st)) {
+		//PRINT_FATAL("Can't remove untrack files: %s", localPath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		db_prepare_destroy(&pre);
@@ -2059,17 +2059,17 @@ static int task(int itemIndex)
 		}
 		break;
 	case METHOD_BACKUP:
-		rc = method_backup(itemIndex);
+		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_backup(itemIndex);
+			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
 		}
 		break;
 	case METHOD_RESTORE:
-		rc = method_restore(itemIndex);
+		rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_restore(itemIndex);
+			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
 		}
 		break;
 	case METHOD_RESET:
