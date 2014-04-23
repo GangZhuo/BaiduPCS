@@ -32,6 +32,7 @@
 #define METHOD_UPDATE	1
 #define METHOD_BACKUP	2
 #define METHOD_RESTORE	3
+#define METHOD_RESET	4
 
 #define ACTION_STATUS_RUNNING	1
 #define ACTION_STATUS_FINISHED	2
@@ -302,20 +303,6 @@ static int readConfigFile()
 		memset (config.items, 0, sizeof(BackupItem) * config.itemCount);
 		for (i = 0; i < config.itemCount; i++) {
 			item = cJSON_GetArrayItem(items, i);
-			value = cJSON_GetObjectItem(item, "localPath");
-			if (!value) {
-				PRINT_FATAL("No \"localPath\" option in items[%d] (%s)", i, config.configFilePath);
-				cJSON_Delete(json);
-				return -1;
-			}
-			config.items[i].localPath = pcs_utils_strdup(value->valuestring);
-			value = cJSON_GetObjectItem(item, "remotePath");
-			if (!value) {
-				PRINT_FATAL("No \"remotePath\" option in items[%d] (%s)", i, config.configFilePath);
-				cJSON_Delete(json);
-				return -1;
-			}
-			config.items[i].remotePath = pcs_utils_strdup(value->valuestring);
 			value = cJSON_GetObjectItem(item, "method");
 			if (!value) {
 				PRINT_FATAL("No \"method\" option in items[%d] (%s)", i, config.configFilePath);
@@ -328,6 +315,8 @@ static int readConfigFile()
 				config.items[i].method = METHOD_BACKUP;
 			else if (strcmp(value->valuestring, "restore") == 0)
 				config.items[i].method = METHOD_RESTORE;
+			else if (strcmp(value->valuestring, "reset") == 0)
+				config.items[i].method = METHOD_RESET;
 			else {
 				PRINT_FATAL("Wrong \"method\" option in items[%d], the method should be one of [\"update\", \"backup\", \"restore\"] (%s)", i, config.configFilePath);
 				cJSON_Delete(json);
@@ -347,6 +336,21 @@ static int readConfigFile()
 				return -1;
 			}
 			config.items[i].interval = value->valueint;
+			if (config.items[i].method == METHOD_RESET) continue;
+			value = cJSON_GetObjectItem(item, "localPath");
+			if (!value) {
+				PRINT_FATAL("No \"localPath\" option in items[%d] (%s)", i, config.configFilePath);
+				cJSON_Delete(json);
+				return -1;
+			}
+			config.items[i].localPath = pcs_utils_strdup(value->valuestring);
+			value = cJSON_GetObjectItem(item, "remotePath");
+			if (!value) {
+				PRINT_FATAL("No \"remotePath\" option in items[%d] (%s)", i, config.configFilePath);
+				cJSON_Delete(json);
+				return -1;
+			}
+			config.items[i].remotePath = pcs_utils_strdup(value->valuestring);
 		}
 	}
 	cJSON_Delete(json);
@@ -1181,6 +1185,22 @@ static char *get_remote_path(const char *localPath, const char *localBasePath, c
 	return rc;
 }
 
+static int method_reset()
+{
+	int rc;
+	rc = sqlite3_exec(db, "DELETE FROM pcs_action", NULL, NULL, NULL);
+	if (rc) {
+		PRINT_FATAL("Can't clear pcs_action data: %s", sqlite3_errmsg(db));
+		return -1;
+	}
+	rc = sqlite3_exec(db, "DELETE FROM pcs_cache", NULL, NULL, NULL);
+	if (rc) {
+		PRINT_FATAL("Can't clear pcs_cache data: %s", sqlite3_errmsg(db));
+		return -1;
+	}
+	return 0;
+}
+
 static int method_backup_progress(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
 {
 	struct ProgressState *state = (struct ProgressState *)clientp;
@@ -1195,6 +1215,7 @@ static int method_backup_progress(void *clientp, double dltotal, double dlnow, d
 	return 0;
 }
 
+/*备份文件*/
 static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre, BackupState *st)
 {
 	PcsFileInfo dst = {0};
@@ -1270,6 +1291,7 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 	return 0;
 }
 
+/*创建目录*/
 static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupState *st)
 {
 	PcsFileInfo dst = {0};
@@ -1337,6 +1359,7 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 	return 0;
 }
 
+/*备份目录*/
 static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre, BackupState *st)
 {
 	my_dirent *ents = NULL,
@@ -1374,8 +1397,95 @@ static int method_backup_folder(const char *localPath, const char *remotePath, D
 	return 0;
 }
 
+/*删除本地已经移除的文件或目录*/
 static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, BackupState *st) 
 {
+	int rc, is_dir;
+	sqlite3_stmt *stmt = pre->stmts[5];
+	int sz;
+	char *val;
+	PcsPanApiRes *res;
+	PcsSList *slist = NULL, *it;
+	sz = strlen(remotePath);
+	val = (char *)pcs_malloc(sz + 3);
+	memcpy(val, remotePath, sz + 1);
+	if (val[sz - 1] != '/') {
+		val[sz] = '/'; val[sz + 1] = '%'; val[sz + 2] = '\0';
+		sz += 2;
+	}
+	else {
+		val[sz] = '%'; val[sz + 1] = '\0';
+		sz++;
+	}
+	rc = sqlite3_bind_text(stmt, 1, val, sz, SQLITE_STATIC);
+	if (rc) {
+		PRINT_FATAL("Can't bind the text into the statement: %s", sqlite3_errmsg(db));
+		sqlite3_reset(stmt);
+		return -1;
+	}
+	while (1) {
+		rc = sqlite3_step(stmt);
+		if (rc == SQLITE_DONE) break;
+		if (rc != SQLITE_ROW) {
+			PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+			pcs_free(val);
+			pcs_slist_destroy(slist);
+			sqlite3_reset(stmt);
+			return -1;
+		}
+		it = pcs_slist_create_ex((const char *)sqlite3_column_text(stmt, 1), -1);
+		is_dir = sqlite3_column_int(stmt, 7);
+		it->next = slist;
+		slist = it;
+		if (st) {
+			if (is_dir) {
+				st->removeDir++;
+			}
+			else {
+				st->removeFiles++;
+			}
+		}
+	}
+	if (slist) {
+		PcsPanApiRes *res;
+		PcsPanApiResInfoList *info;
+		res = pcs_delete(pcs, slist);
+		if (!res) {
+			PRINT_FATAL("Can't remove the remote file %s: %s", remotePath, pcs_strerror(pcs, PCS_NONE));
+			pcs_free(val);
+			pcs_slist_destroy(slist);
+			sqlite3_reset(stmt);
+			return -1;
+		}
+	
+		info = res->info_list;
+		while(info) {
+			if (info->info.error) {
+				PRINT_FATAL("Can't remove the remote file %s", info->info.path);
+				pcs_free(val);
+				pcs_slist_destroy(slist);
+				pcs_pan_api_res_destroy(res);
+				sqlite3_reset(stmt);
+				return -1;
+			}
+			else {
+				if (db_remove_cache_by_pre(pre, info->info.path)) {
+					PRINT_FATAL("Can't remove the local cache. %s", info->info.path);
+					pcs_free(val);
+					pcs_slist_destroy(slist);
+					pcs_pan_api_res_destroy(res);
+					sqlite3_reset(stmt);
+					return -1;
+				}
+				PRINT_NOTICE("Remove %s", info->info.path);
+			}
+			info = info->next;
+		}
+		pcs_pan_api_res_destroy(res);
+		pcs_slist_destroy(slist);
+	}
+	pcs_free(val);
+	sqlite3_reset(stmt);
 	return 0;
 }
 
@@ -1504,7 +1614,7 @@ static int method_backup(int itemIndex)
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	if (db_prepare(&pre, SQL_CACHE_INSERT, SQL_CACHE_SELECT, SQL_CACHE_DELETE, SQL_CACHE_UPDATE, SQL_CACHE_SET_FLAG, NULL)) {
+	if (db_prepare(&pre, SQL_CACHE_INSERT, SQL_CACHE_SELECT, SQL_CACHE_DELETE, SQL_CACHE_UPDATE, SQL_CACHE_SET_FLAG, SQL_CACHE_SELECT_UNTRACK, NULL)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		my_dirent_destroy(ent);
@@ -1567,7 +1677,7 @@ static int method_backup(int itemIndex)
 	pcs_free(action);
 	db_prepare_destroy(&pre);
 	PRINT_NOTICE("Backup File: %d, Skip File: %d, Remove File: %d, Total File: %d", st.backupFiles, st.skipFiles, st.removeFiles, st.totalFiles);
-	PRINT_NOTICE("Backup Dir: %d, Skip Dir: %d, Remove Dir: %d, Total Dir: %d", st.backupDir, st.skipDir, st.removeDir, st.totalDir);
+	PRINT_NOTICE("Backup Dir : %d, Skip Dirv: %d, Remove Dir : %d, Total Dir : %d", st.backupDir, st.skipDir, st.removeDir, st.totalDir);
 	PRINT_NOTICE("Backup - End");
 	return 0;
 }
@@ -1582,6 +1692,8 @@ static int task(int itemIndex)
 		return method_backup(itemIndex);
 	case METHOD_RESTORE:
 		break;
+	case METHOD_RESET:
+		return method_reset();
 	}
 	return 0;
 }
