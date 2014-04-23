@@ -1251,8 +1251,11 @@ PCS_API PcsRes pcs_download(Pcs handle, const char *path)
 	if (!url) {
 		return PCS_BUILD_URL;
 	}
-	if (pcs_http_get_download(pcs->http, url, PcsTrue))
+	if (pcs_http_get_download(pcs->http, url, PcsTrue)) {
+		pcs_free(url);
 		return PCS_OK;
+	}
+	pcs_free(url);
 	pcs_set_error(handle, pcs_http_strerror(pcs->http));
 	return PCS_FAIL;
 }
