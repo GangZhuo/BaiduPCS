@@ -303,55 +303,68 @@ PcsBool shell_args_check_params(struct params *params)
 
 	case ACTION_SVC:
 		if (!params->config || !params->config[0]) {
-			print_arg_err("usage: " program_name " svc --config=<config file>\nSample: " program_name " svc --config=/etc/pcs/default.json\n");
+			print_arg_err("usage: " program_name " svc --config=<config file>\n"
+				"Sample: " program_name " svc --config=/etc/pcs/default.json\n");
 			res = PcsFalse;
 			break;
 		}
 		break;
 
 	case ACTION_RESET:
-		if (params->args_count != 0 || !params->cookie || !params->cache) {
-			print_arg_err("usage: " program_name " reset --cookie=<cookie file> --cache=<cache file>\nSample: " program_name " reset --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db\n");
+		if (params->args_count != 0 || (!params->config && (!params->cookie || !params->cache))) {
+			print_arg_err("usage: " program_name " reset --cookie=<cookie file> --cache=<cache file>\n"
+				"Sample: " program_name " reset --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db\n"
+				"        " program_name " reset --config=/etc/pcs/default.json\n");
 			res = PcsFalse;
 			break;
 		}
 		break;
 
 	case ACTION_UPDATE:
-		if (params->args_count != 1 || !params->cookie || !params->cache) {
-			print_arg_err("usage: " program_name " update --cookie=<cookie file> --cache=<cache file> <remote path>\nSample: " program_name " update --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /backup/xxx.com\n");
+		if (params->args_count != 1 || (!params->config && (!params->cookie || !params->cache))) {
+			print_arg_err("usage: " program_name " update --cookie=<cookie file> --cache=<cache file> <remote path>\n"
+				"Sample: " program_name " update --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /backup/xxx.com\n"
+				"        " program_name " update --config=/etc/pcs/default.json /backup/xxx.com\n");
 			res = PcsFalse;
 			break;
 		}
 		break;
 
 	case ACTION_BACKUP:
-		if (params->args_count != 2 || !params->cookie || !params->cache) {
-			print_arg_err("usage: " program_name " backup --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\nSample: " program_name " backup --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n");
+		if (params->args_count != 2 || (!params->config && (!params->cookie || !params->cache))) {
+			print_arg_err("usage: " program_name " backup --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\n"
+				"Sample: " program_name " backup --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n"
+				"        " program_name " backup --config=/etc/pcs/default.json /var/www/xxx.com /backup/xxx.com\n");
 			res = PcsFalse;
 			break;
 		}
 		break;
 
 	case ACTION_RESTORE:
-		if (params->args_count != 2 || !params->cookie || !params->cache) {
-			print_arg_err("usage: " program_name " restore --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\nSample: " program_name " restore --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n");
+		if (params->args_count != 2 || (!params->config && (!params->cookie || !params->cache))) {
+			print_arg_err("usage: " program_name " restore --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\n"
+				"Sample: " program_name " restore --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n"
+				"        " program_name " restore --config=/etc/pcs/default.json /var/www/xxx.com /backup/xxx.com\n");
 			res = PcsFalse;
 			break;
 		}
 		break;
 
 	case ACTION_COMBIN:
-		if (params->args_count != 2 || !params->cookie || !params->cache) {
-			print_arg_err("usage: " program_name " combin --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\nSample: " program_name " combin --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n");
+		if (params->args_count != 2 || (!params->config && (!params->cookie || !params->cache))) {
+			print_arg_err("usage: " program_name " combin --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\n"
+				"Sample: " program_name " combin --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n"
+				"        " program_name " combin --config=/etc/pcs/default.json /var/www/xxx.com /backup/xxx.com\n");
 			res = PcsFalse;
 			break;
 		}
 		break;
 
 	case ACTION_COMPARE:
-		if (params->args_count != 2 || !params->cookie || !params->cache) {
-			print_arg_err("usage: " program_name " compare --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\nSample: " program_name " compare --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n");
+		if (params->args_count != 2 || (!params->config && (!params->cookie || !params->cache))) {
+			print_arg_err("usage: " program_name " compare --cookie=<cookie file> --cache=<cache file> <local path> <remote path>\n"
+				"Sample: " program_name " compare --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db /var/www/xxx.com /backup/xxx.com\n"
+				"        " program_name " compare --config=/etc/pcs/default.json /var/www/xxx.com /backup/xxx.com\n");
 			res = PcsFalse;
 			break;
 		}

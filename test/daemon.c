@@ -2573,18 +2573,70 @@ static int run_svc(struct params *params)
 	return 0;
 }
 
+static int parse_run_shell_params(struct params *params)
+{
+	//读参数 - 开始
+	if (params->config) {
+		config.configFilePath = pcs_utils_strdup(params->config);
+		if (readConfigFile()) {
+			config.run_in_daemon = 0;
+			config.printf_enabled = 1;
+			config.log_enabled = 0;
+			PRINT_FATAL("Read config file error. %s", config.configFilePath);
+			freeConfig(FALSE);
+			return -1;
+		}
+		config.run_in_daemon = 0;
+		config.printf_enabled = 1;
+		config.log_enabled = 0;
+		if (params->cookie) {
+			if (config.cookieFilePath) pcs_free(config.cookieFilePath);
+			config.cookieFilePath = pcs_utils_strdup(params->cookie);
+		}
+		if (params->cache) {
+			if (config.cacheFilePath) pcs_free(config.cacheFilePath);
+			config.cacheFilePath = pcs_utils_strdup(params->cache);
+		}
+	}
+	else {
+		config.configFilePath = NULL;
+		config.logFilePath = NULL;
+	}
+	if (params->cookie) {
+		if (config.cookieFilePath) pcs_free(config.cookieFilePath);
+		config.cookieFilePath = pcs_utils_strdup(params->cookie);
+	}
+	if (params->cache) {
+		if (config.cacheFilePath) pcs_free(config.cacheFilePath);
+		config.cacheFilePath = pcs_utils_strdup(params->cache);
+	}
+	if (!config.cookieFilePath) {
+		PRINT_FATAL("Do not specify the cookie file.");
+		freeConfig(FALSE);
+		return -1;
+	}
+	if (!config.cacheFilePath) {
+		PRINT_FATAL("Do not specify the cache file.");
+		freeConfig(FALSE);
+		return -1;
+	}
+	//读参数 - 结束
+	return 0;
+}
+
 static int run_shell(struct params *params)
 {
 	int rc = 0;
 	config.run_in_daemon = 0;
 	config.printf_enabled = 1;
 	config.log_enabled = 0;
-	config.configFilePath = NULL;
-	config.cookieFilePath = pcs_utils_strdup(params->cookie);
-	config.cacheFilePath = pcs_utils_strdup(params->cache);
-	config.logFilePath = NULL;
-
 	PRINT_NOTICE("Application start up");
+
+	if (parse_run_shell_params(params)) {
+		PRINT_NOTICE("Application end up");
+		return -1;
+	}
+
 	if (db_open()) {
 		freeConfig(FALSE);
 		PRINT_NOTICE("Application end up");
