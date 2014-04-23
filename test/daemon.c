@@ -1264,16 +1264,20 @@ static char *get_remote_path(const char *localPath, const char *localBasePath, c
 static int method_reset()
 {
 	int rc;
+	PRINT_NOTICE("Reset - Start");
 	rc = sqlite3_exec(db, "DELETE FROM pcs_action", NULL, NULL, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't clear pcs_action data: %s", sqlite3_errmsg(db));
+		PRINT_NOTICE("Reset - End");
 		return -1;
 	}
 	rc = sqlite3_exec(db, "DELETE FROM pcs_cache", NULL, NULL, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't clear pcs_cache data: %s", sqlite3_errmsg(db));
+		PRINT_NOTICE("Reset - End");
 		return -1;
 	}
+	PRINT_NOTICE("Reset - End");
 	return 0;
 }
 

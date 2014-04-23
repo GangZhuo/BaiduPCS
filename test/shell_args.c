@@ -310,8 +310,8 @@ PcsBool shell_args_check_params(struct params *params)
 		break;
 
 	case ACTION_RESET:
-		if (params->args_count != 0) {
-			print_arg_err("usage: " program_name " reset\nSample: " program_name " reset\n");
+		if (params->args_count != 0 || !params->cookie || !params->cache) {
+			print_arg_err("usage: " program_name " reset --cookie=<cookie file> --cache=<cache file>\nSample: " program_name " reset --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db\n");
 			res = PcsFalse;
 			break;
 		}
