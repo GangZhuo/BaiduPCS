@@ -20,7 +20,7 @@
 #include "logger.h"
 #include "dir.h"
 
-#define APP_NAME		(run_in_daemon ? "pcs daemon" : "pcs normal")
+#define APP_NAME		(config.run_in_daemon ? "pcs daemon" : "pcs normal")
 
 #ifndef TRUE
 #  define TRUE 1
@@ -39,12 +39,12 @@
 
 #define FLAG_SUCC				1
 
-#define PRINT_FATAL(...)	{ if (log_enabled) { log_write(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__);   } if (printf_enabled) { printf("[FATAL]   ");    printf(__VA_ARGS__); printf("\n"); } }
-#define PRINT_WARNING(...)  { if (log_enabled) { log_write(LOG_WARNING, __FILE__, __LINE__, __VA_ARGS__); } if (printf_enabled) { printf("[WARNING] ");    printf(__VA_ARGS__); printf("\n"); } }
-#define PRINT_MONITOR(...)  { if (log_enabled) { log_write(LOG_MONITOR, __FILE__, __LINE__, __VA_ARGS__); } if (printf_enabled) { printf("[MONITOR] ");    printf(__VA_ARGS__); printf("\n"); } }
-#define PRINT_NOTICE(...)	{ if (log_enabled) { log_write(LOG_NOTICE, __FILE__, __LINE__, __VA_ARGS__);  } if (printf_enabled) { printf("[NOTICE]  ");    printf(__VA_ARGS__); printf("\n"); } }
-#define PRINT_TRACE(...)	{ if (log_enabled) { log_write(LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__);   } if (printf_enabled) { printf("[TRACE]   ");    printf(__VA_ARGS__); printf("\n"); } }
-#define PRINT_DEBUG(...)	{ if (log_enabled) { log_write(LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__);   } if (printf_enabled) { printf("[DEBUG]   ");    printf(__VA_ARGS__); printf("\n"); } }
+#define PRINT_FATAL(...)	{ if (config.log_enabled) { log_write(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__);   } if (config.printf_enabled) { printf("[FATAL]   ");    printf(__VA_ARGS__); printf("\n"); } }
+#define PRINT_WARNING(...)  { if (config.log_enabled) { log_write(LOG_WARNING, __FILE__, __LINE__, __VA_ARGS__); } if (config.printf_enabled) { printf("[WARNING] ");    printf(__VA_ARGS__); printf("\n"); } }
+#define PRINT_MONITOR(...)  { if (config.log_enabled) { log_write(LOG_MONITOR, __FILE__, __LINE__, __VA_ARGS__); } if (config.printf_enabled) { printf("[MONITOR] ");    printf(__VA_ARGS__); printf("\n"); } }
+#define PRINT_NOTICE(...)	{ if (config.log_enabled) { log_write(LOG_NOTICE, __FILE__, __LINE__, __VA_ARGS__);  } if (config.printf_enabled) { printf("[NOTICE]  ");    printf(__VA_ARGS__); printf("\n"); } }
+#define PRINT_TRACE(...)	{ if (config.log_enabled) { log_write(LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__);   } if (config.printf_enabled) { printf("[TRACE]   ");    printf(__VA_ARGS__); printf("\n"); } }
+#define PRINT_DEBUG(...)	{ if (config.log_enabled) { log_write(LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__);   } if (config.printf_enabled) { printf("[DEBUG]   ");    printf(__VA_ARGS__); printf("\n"); } }
 
 #include "sql.h"
 
@@ -75,6 +75,9 @@ typedef struct Config {
 	BackupItem	*items; /*需要备份|还原的项*/
 	int			itemCount;
 
+	int			run_in_daemon;
+	int			log_enabled;
+	int			printf_enabled;
 
 } Config;
 
@@ -88,10 +91,24 @@ typedef struct DbPrepareList {
 	struct DbPrepareList *next;
 } DbPrepareList;
 
+struct ProgressState {
+	const char *localPath;
+	const char *remotePath;
+};
+
+typedef struct BackupState {
+	int backupFiles;
+	int skipFiles;
+	int removeFiles;
+	int totalFiles;
+
+	int backupDir;
+	int skipDir;
+	int removeDir;
+	int totalDir;
+} BackupState;
+
 static Config config = {0};
-static int run_in_daemon = 0;
-static int log_enabled = 0;
-static int printf_enabled = 0;
 static sqlite3 *db = NULL;
 static Pcs pcs = NULL;
 
@@ -138,12 +155,12 @@ static void d_mem_printf(const char *fmt, ...)
 {
     va_list ap;
 
-	if (log_enabled) {
+	if (config.log_enabled) {
 		va_start(ap, fmt);  
 		log_writev(LOG_WARNING, __FILE__, __LINE__, fmt, ap);
 		va_end(ap);   
 	}
-	if (printf_enabled) {
+	if (config.printf_enabled) {
 		va_start(ap, fmt);  
 		vprintf(fmt, ap);
 		va_end(ap);
@@ -162,6 +179,9 @@ static const char *format_time(time_t time)
 static void freeConfig(int keepConfigFilePath)
 {
 	char *configPath = config.configFilePath;
+	int	run_in_daemon = config.run_in_daemon;
+	int	log_enabled = config.log_enabled;
+	int	printf_enabled = config.printf_enabled;
 	if (!keepConfigFilePath && config.configFilePath) pcs_free(config.configFilePath);
 	if (config.cookieFilePath) pcs_free(config.cookieFilePath);
 	if (config.cacheFilePath) pcs_free(config.cacheFilePath);
@@ -176,6 +196,9 @@ static void freeConfig(int keepConfigFilePath)
 	}
 	memset(&config, 0, sizeof(Config));
 	config.configFilePath = configPath;
+	config.run_in_daemon = run_in_daemon;
+	config.log_enabled = log_enabled;
+	config.printf_enabled = printf_enabled;
 }
 
 /*读取文件内容*/
@@ -260,6 +283,12 @@ static int readConfigFile()
 		config.logFilePath = pcs_utils_strdup(item->valuestring);
 	else
 		config.logFilePath = NULL;
+	item = cJSON_GetObjectItem(json, "logEnabled");
+	if (item) config.log_enabled = item->valueint;
+	item = cJSON_GetObjectItem(json, "PrintfEnabled");
+	if (item) config.printf_enabled = item->valueint;
+	item = cJSON_GetObjectItem(json, "RunInDaemon");
+	if (item) config.run_in_daemon = item->valueint;
 	items = cJSON_GetObjectItem(json, "items");
 	if (!items) {
 		PRINT_FATAL("No \"items\" option (%s)", config.configFilePath);
@@ -617,7 +646,6 @@ static int db_get_action(ActionInfo *dst, const char *action)
 {
 	int rc;
 	sqlite3_stmt *stmt = NULL;
-	time_t now;
 	rc = sqlite3_prepare_v2(db, SQL_ACTION_SELECT, -1, &stmt, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't build the sql %s: %s", SQL_ACTION_SELECT, sqlite3_errmsg(db));
@@ -638,7 +666,7 @@ static int db_get_action(ActionInfo *dst, const char *action)
 	}
 	freeActionInfo(dst);
 	if (rc == SQLITE_DONE) {
-		PRINT_NOTICE("The action [%s] not exist", action);
+		//PRINT_NOTICE("The action [%s] not exist", action);
 		sqlite3_finalize(stmt);
 		return 0;
 	}
@@ -737,6 +765,8 @@ static int db_set_cache_flags(const char *path, int flag)
 	sqlite3_stmt *stmt = NULL;
 	int sz;
 	char *val;
+	time_t now;
+	time(&now);
 	rc = sqlite3_prepare_v2(db, SQL_CACHE_SET_FLAG_SUB, -1, &stmt, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SET_FLAG_SUB, sqlite3_errmsg(db));
@@ -755,6 +785,8 @@ static int db_set_cache_flags(const char *path, int flag)
 	}
 	rc = sqlite3_bind_text(stmt, 1, val, sz, SQLITE_STATIC);
 	rc = sqlite3_bind_int(stmt, 2, flag);
+	rc = sqlite3_bind_int64(stmt, 3, now);
+	rc = sqlite3_bind_text(stmt, 4, APP_NAME, -1, SQLITE_STATIC);
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
 		PRINT_FATAL("Can't execute the statement %s: %s", SQL_CACHE_SET_FLAG_SUB, sqlite3_errmsg(db));
@@ -775,6 +807,8 @@ static int db_set_cache_flag(const char *path, int flag)
 {
 	int rc;
 	sqlite3_stmt *stmt = NULL;
+	time_t now;
+	time(&now);
 	rc = sqlite3_prepare_v2(db, SQL_CACHE_SET_FLAG, -1, &stmt, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
@@ -782,6 +816,8 @@ static int db_set_cache_flag(const char *path, int flag)
 	}
 	rc = sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
 	rc = sqlite3_bind_int(stmt, 2, flag);
+	rc = sqlite3_bind_int64(stmt, 3, now);
+	rc = sqlite3_bind_text(stmt, 4, APP_NAME, -1, SQLITE_STATIC);
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
 		PRINT_FATAL("Can't execute the statement %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
@@ -873,7 +909,6 @@ static int db_get_cache(PcsFileInfo *dst, DbPrepare *pre, const char *path)
 {
 	int rc;
 	sqlite3_stmt *stmt = NULL;
-	time_t now;
 	freeCacheInfo(dst);
 	stmt = pre->stmts[1];
 	rc = sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
@@ -889,7 +924,7 @@ static int db_get_cache(PcsFileInfo *dst, DbPrepare *pre, const char *path)
 		return 0;
 	}
 	if (rc == SQLITE_DONE) {
-		PRINT_NOTICE("The local cache not exist: %s", path);
+		//PRINT_NOTICE("The local cache not exist: %s", path);
 		sqlite3_reset(stmt);
 		return 0;
 	}
@@ -916,7 +951,6 @@ static int db_remove_cache_by_pre(DbPrepare *pre, const char *path)
 {
 	int rc;
 	sqlite3_stmt *stmt = NULL;
-	time_t now;
 	stmt = pre->stmts[2];
 	rc = sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
 	if (rc) {
@@ -929,6 +963,27 @@ static int db_remove_cache_by_pre(DbPrepare *pre, const char *path)
 		PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
 		sqlite3_reset(stmt);
 		return 0;
+	}
+	sqlite3_reset(stmt);
+	return 0;
+}
+
+static int db_set_cache_flag_by_pre(DbPrepare *pre, const char *path, int flag)
+{
+	int rc;
+	sqlite3_stmt *stmt = NULL;
+	time_t now;
+	time(&now);
+	stmt = pre->stmts[4];
+	rc = sqlite3_bind_text(stmt, 1, path, -1, SQLITE_STATIC);
+	rc = sqlite3_bind_int(stmt, 2, flag);
+	rc = sqlite3_bind_int64(stmt, 3, now);
+	rc = sqlite3_bind_text(stmt, 4, APP_NAME, -1, SQLITE_STATIC);
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+		PRINT_FATAL("Can't execute the statement %s: %s", SQL_CACHE_SET_FLAG, sqlite3_errmsg(db));
+		sqlite3_reset(stmt);
+		return -1;
 	}
 	sqlite3_reset(stmt);
 	return 0;
@@ -971,7 +1026,7 @@ static int method_update_folder(const char *path, DbPrepare *pre, int *pFileCoun
 		cnt = list->count;
 		if (pFileCount) {
 			*pFileCount += cnt;
-			if (printf_enabled) {
+			if (config.printf_enabled) {
 				printf("File Count: %d                 \r", *pFileCount);
 				fflush(stdout);
 			}
@@ -1126,41 +1181,33 @@ static char *get_remote_path(const char *localPath, const char *localBasePath, c
 	return rc;
 }
 
-struct ProgressState {
-	const char *localPath;
-	const char *remotePath;
-};
-
 static int method_backup_progress(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
 {
 	struct ProgressState *state = (struct ProgressState *)clientp;
 	static char tmp[64];
 	tmp[63] = '\0';
-	if (state) {
-		printf("Backup %s -> %s    [", state->localPath, state->remotePath);
-	}
+	//if (state) {
+	//	printf("Backup %s -> %s    [", state->localPath, state->remotePath);
+	//}
 	printf("%s", pcs_utils_readable_size(ulnow, tmp, 63, NULL));
-	printf("/%s]       \r", pcs_utils_readable_size(ultotal, tmp, 63, NULL));
+	printf("/%s       \r", pcs_utils_readable_size(ultotal, tmp, 63, NULL));
 	fflush(stdout);
 	return 0;
 }
 
-
-static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre)
+static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre, BackupState *st)
 {
 	PcsFileInfo dst = {0};
 
 	if (db_get_cache(&dst, pre, remotePath)) {
 		return -1;
 	}
-	if (dst.isdir) {
+	if (dst.fs_id && dst.isdir) {
 		PcsPanApiRes *res;
-		PcsFileInfo *rc;
 		PcsSList slist = { (char *)remotePath, NULL };
-		struct ProgressState state = { localFile->path, remotePath };
 		res = pcs_delete(pcs, &slist);
 		if (!res) {
-			PRINT_FATAL("Can't backup %s to %s: Delete dir %s failed. %s", localFile->path, remotePath, remotePath, pcs_strerror(pcs, PCS_NONE));
+			PRINT_FATAL("Can't remove the dir %s: %s", remotePath, pcs_strerror(pcs, PCS_NONE));
 			freeCacheInfo(&dst);
 			return -1;
 		}
@@ -1170,26 +1217,18 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 			freeCacheInfo(&dst);
 			return -1;
 		}
-		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, &state);
-		rc = pcs_upload(pcs, remotePath, PcsTrue, localFile->path);
-		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
-		if (!rc) {
-			PRINT_FATAL("Can't backup %s to %s: %s   ", localFile->path, remotePath, pcs_strerror(pcs, PCS_NONE));
-			freeCacheInfo(&dst);
-			return -1;
+		freeCacheInfo(&dst);
+		if (st) {
+			st->removeDir++;
 		}
-		PRINT_NOTICE("Backup %s to %s   ", localFile->path, rc->path);
-		rc->user_flag = FLAG_SUCC;
-		if (db_add_cache(rc, pre)) {
-			freeCacheInfo(&dst);
-			pcs_fileinfo_destroy(rc);
-			return -1;
-		}
-		pcs_fileinfo_destroy(rc);
 	}
-	else if (localFile->mtime > dst.server_mtime) {
+	if (localFile->mtime > ((time_t)dst.server_mtime)) {
 		PcsFileInfo *rc;
 		struct ProgressState state = { localFile->path, remotePath };
+		int cacheRC;
+		if (config.printf_enabled) {
+			printf("Backup %s -> %s\n", localFile->path, remotePath);
+		}
 		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, &state);
 		rc = pcs_upload(pcs, remotePath, PcsTrue, localFile->path);
 		pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
@@ -1198,26 +1237,163 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 			freeCacheInfo(&dst);
 			return -1;
 		}
-		PRINT_NOTICE("Backup %s to %s   ", localFile->path, rc->path);
+		if (config.log_enabled) {
+			log_write(LOG_NOTICE, __FILE__, __LINE__, "Backup %s to %s   ", localFile->path, rc->path);
+		}
 		rc->user_flag = FLAG_SUCC;
-		if (db_update_cache(rc, pre)) {
+		if (dst.fs_id)
+			cacheRC = db_update_cache(rc, pre);
+		else
+			cacheRC = db_add_cache(rc, pre);
+		if (cacheRC) {
 			freeCacheInfo(&dst);
 			pcs_fileinfo_destroy(rc);
 			return -1;
 		}
 		pcs_fileinfo_destroy(rc);
+		if (st) {
+			st->backupFiles++;
+			st->totalFiles++;
+		}
+	}
+	else {
+		if (db_set_cache_flag_by_pre(pre, remotePath, FLAG_SUCC)) {
+			freeCacheInfo(&dst);
+			return -1;
+		}
+		if (st) {
+			st->skipFiles++;
+			st->totalFiles++;
+		}
 	}
 	freeCacheInfo(&dst);
 	return 0;
 }
 
-static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre)
+static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupState *st)
+{
+	PcsFileInfo dst = {0};
+
+	if (db_get_cache(&dst, pre, remotePath)) {
+		return -1;
+	}
+	if (dst.fs_id && !dst.isdir) {
+		PcsPanApiRes *res;
+		PcsSList slist = { (char *)remotePath, NULL };
+		res = pcs_delete(pcs, &slist);
+		if (!res) {
+			PRINT_FATAL("Can't remove the remote file %s: %s", remotePath, pcs_strerror(pcs, PCS_NONE));
+			freeCacheInfo(&dst);
+			return -1;
+		}
+		pcs_pan_api_res_destroy(res);
+		if (db_remove_cache_by_pre(pre, remotePath)) {
+			PRINT_FATAL("Can't remove the local cache. %s", remotePath);
+			freeCacheInfo(&dst);
+			return -1;
+		}
+		freeCacheInfo(&dst);
+		if (st) {
+			st->removeFiles++;
+		}
+	}
+	if (!dst.fs_id) { //如果远程目录不存在，则创建
+		PcsRes pcsres = PCS_NONE;
+		PcsFileInfo *meta = NULL;
+		pcsres = pcs_mkdir(pcs, remotePath);
+		if (pcsres != PCS_OK) {
+			PRINT_FATAL("Can't create the directory %s: %s\n", remotePath, pcs_strerror(pcs, PCS_NONE));
+			return -1;
+		}
+		//创建成功后，获取其元数据并存入本地缓存
+		meta = pcs_meta(pcs, remotePath);
+		if (!meta) {
+			PRINT_NOTICE("Can't get meta: %s", remotePath);
+			return -1;
+		}
+		meta->user_flag = FLAG_SUCC;
+		if (db_add_cache(meta, pre)) {
+			pcs_fileinfo_destroy(meta);
+			return -1;
+		}
+		pcs_fileinfo_destroy(meta);
+		if (st) {
+			st->backupDir++;
+			st->totalDir++;
+		}
+		return 0;
+	}
+	else {
+		if (db_set_cache_flag_by_pre(pre, remotePath, FLAG_SUCC)) {
+			freeCacheInfo(&dst);
+			return -1;
+		}
+		if (st) {
+			st->skipDir++;
+			st->totalDir++;
+		}
+	}
+	freeCacheInfo(&dst);
+	return 0;
+}
+
+static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre, BackupState *st)
+{
+	my_dirent *ents = NULL,
+		*ent = NULL;
+	char *dstPath;
+
+	if (method_backup_mkdir(remotePath, pre, st)) {
+		return -1;
+	}
+	ents = list_dir(localPath, 0);
+	if (!ents) { //如果是空目录
+		return 0;
+	}
+	ent = ents;
+	while(ent) {
+		dstPath = get_remote_path(ent->path, localPath, remotePath);
+		if (ent->is_dir) {
+			if (method_backup_folder(ent->path, dstPath, pre, st)) {
+				pcs_free(dstPath);
+				my_dirent_destroy(ents);
+				return -1;
+			}
+		}
+		else {
+			if (method_backup_file(ent, dstPath, pre, st)) {
+				pcs_free(dstPath);
+				my_dirent_destroy(ents);
+				return -1;
+			}
+		}
+		ent = ent->next;
+		pcs_free(dstPath);
+	}
+	my_dirent_destroy(ents);
+	return 0;
+}
+
+static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, BackupState *st) 
 {
 	return 0;
 }
 
-static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre) 
+static int method_backup_check_quota()
 {
+	UInt64 usedByteSize, totalByteSize;
+	if (!quota(&usedByteSize, &totalByteSize)) {
+		char strTotal[32] = {0}, strUsed[32] = {0};
+		pcs_utils_readable_size((double)usedByteSize, strUsed, 30, NULL);
+		pcs_utils_readable_size((double)totalByteSize, strTotal, 30, NULL);
+		PRINT_NOTICE("Quota: %s/%s", strUsed, strTotal);
+		if (totalByteSize - usedByteSize < 10 * 1024 * 1024) {
+			PRINT_FATAL("The remaining space is insufficient 10M");
+			pcs_destroy(pcs);
+			pcs = NULL;
+			return -1;
+		}
+	}
 	return 0;
 }
 
@@ -1229,6 +1405,7 @@ static int method_backup(int itemIndex)
 	char *action = NULL, *updateAction = NULL;
 	int rc = 0;
 	my_dirent *ent = NULL;
+	BackupState st = {0};
 
 	PRINT_NOTICE("Backup - Start");
 	if (pcs_islogin(pcs) != PCS_LOGIN) {
@@ -1236,6 +1413,9 @@ static int method_backup(int itemIndex)
 		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
+	if (method_backup_check_quota()) {
+		return -1;
+	}
 	PRINT_NOTICE("Local Path: %s", item->localPath);
 	PRINT_NOTICE("Server Path: %s", item->remotePath);
 
@@ -1324,14 +1504,14 @@ static int method_backup(int itemIndex)
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	if (db_prepare(&pre, SQL_CACHE_INSERT, SQL_CACHE_SELECT, SQL_CACHE_DELETE, SQL_CACHE_UPDATE, NULL)) {
+	if (db_prepare(&pre, SQL_CACHE_INSERT, SQL_CACHE_SELECT, SQL_CACHE_DELETE, SQL_CACHE_UPDATE, SQL_CACHE_SET_FLAG, NULL)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		my_dirent_destroy(ent);
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	if (printf_enabled) {
+	if (config.printf_enabled) {
 		pcs_setopts(pcs,
 			PCS_OPTION_PROGRESS_FUNCTION, method_backup_progress,
 			PCS_OPTION_PROGRESS, PcsTrue,
@@ -1341,7 +1521,7 @@ static int method_backup(int itemIndex)
 		pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 	}
 	if (rc == 2) { //类型为目录
-		if (method_backup_folder(item->localPath, item->remotePath, &pre)) {
+		if (method_backup_folder(item->localPath, item->remotePath, &pre, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -1352,7 +1532,7 @@ static int method_backup(int itemIndex)
 		}
 	}
 	else if (rc == 1) { //类型为文件
-		if (method_backup_file(ent, item->remotePath, &pre)) {
+		if (method_backup_file(ent, item->remotePath, &pre, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -1375,7 +1555,7 @@ static int method_backup(int itemIndex)
 	pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 	my_dirent_destroy(ent);
 	//移除服务器中，本地不存在的文件
-	if (method_backup_remove_untrack(item->remotePath, &pre)) {
+	if (method_backup_remove_untrack(item->remotePath, &pre, &st)) {
 		PRINT_NOTICE("Can't remove untrack files from the server: %s", item->remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
@@ -1386,6 +1566,8 @@ static int method_backup(int itemIndex)
 	db_set_action(action, ACTION_STATUS_FINISHED, 0);
 	pcs_free(action);
 	db_prepare_destroy(&pre);
+	PRINT_NOTICE("Backup File: %d, Skip File: %d, Remove File: %d, Total File: %d", st.backupFiles, st.skipFiles, st.removeFiles, st.totalFiles);
+	PRINT_NOTICE("Backup Dir: %d, Skip Dir: %d, Remove Dir: %d, Total Dir: %d", st.backupDir, st.skipDir, st.removeDir, st.totalDir);
 	PRINT_NOTICE("Backup - End");
 	return 0;
 }
@@ -1408,9 +1590,9 @@ static int run()
 {
 	int i;
 	time_t now;
-	if (run_in_daemon) {
+	if (config.run_in_daemon) {
 		init_schedule();
-		while(run_in_daemon) {
+		while(config.run_in_daemon) {
 			time(&now);
 			for(i = 0; i < config.itemCount; i++) {
 				if (now >= config.items[i].next_run_time) {
@@ -1434,7 +1616,6 @@ static int run()
 static int startup()
 {
 	PcsRes pcsres;
-	UInt64 usedByteSize, totalByteSize;
 
 	/* 创建一个Pcs对象 */
 	pcs = pcs_create(config.cookieFilePath);
@@ -1446,18 +1627,6 @@ static int startup()
 		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
-	if (!quota(&usedByteSize, &totalByteSize)) {
-		char strTotal[32] = {0}, strUsed[32] = {0};
-		pcs_utils_readable_size((double)usedByteSize, strUsed, 30, NULL);
-		pcs_utils_readable_size((double)totalByteSize, strTotal, 30, NULL);
-		PRINT_NOTICE("Quota: %s/%s", strUsed, strTotal);
-		if (totalByteSize - usedByteSize < 10 * 1024 * 1024) {
-			PRINT_FATAL("The remaining space is insufficient 10M");
-			pcs_destroy(pcs);
-			pcs = NULL;
-			return -1;
-		}
-	}
 	if (config.itemCount == 0) {
 		pcs_destroy(pcs);
 		pcs = NULL;
@@ -1475,7 +1644,7 @@ static int startup()
 
 int run_daemon(int argc, char *argv[])
 {
-	int rc, len;
+	int len;
 	char *p, *src, *dst;
 
 	/*解析参数 - 开始*/
@@ -1552,17 +1721,17 @@ int start_daemon(int argc, char *argv[])
 	log_close();
 	log_open(log_file_path());
 
-	log_enabled = 1;
-	printf_enabled = 1;
+	config.log_enabled = 1;
+	config.printf_enabled = 1;
 
 	/*检查传入参数 - 开始*/
 	if (argc == 3 && pcs_utils_streq(argv[1], "daemon", 6) && pcs_utils_streq(argv[2], "--config=", 9)) {
-		run_in_daemon = 1;
-		printf_enabled = 0;
+		config.run_in_daemon = 1;
+		config.printf_enabled = 0;
 	}
 	else if (argc == 2 && pcs_utils_streq(argv[1], "--config=", 9)) {
-		run_in_daemon = 0;
-		log_enabled = 1;
+		config.run_in_daemon = 0;
+		config.log_enabled = 1;
 	}
 	else {
 		PRINT_FATAL("Wrong arguments!\n    Usage: pcs --config=<config file>\n    Sample: pcs --config=/etc/pcs/default.json");
@@ -1571,8 +1740,8 @@ int start_daemon(int argc, char *argv[])
 	/*检查传入参数 - 结束*/
 
 	PRINT_NOTICE("Application start up");
-	PRINT_NOTICE("Log Enabled: %s", log_enabled ? "true" : "false");
-	PRINT_NOTICE("printf: %s", printf_enabled ? "true" : "false");
+	PRINT_NOTICE("Log Enabled: %s", config.log_enabled ? "true" : "false");
+	PRINT_NOTICE("printf: %s", config.printf_enabled ? "true" : "false");
 	rc = run_daemon(argc, argv);
 	pcs_mem_print_leak();
 	PRINT_NOTICE("Application end up");
