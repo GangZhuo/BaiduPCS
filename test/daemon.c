@@ -267,6 +267,27 @@ static int readFileContent(const char *file, char **pBuffer)
 	return size_of_file;
 }
 
+static int convert_to_time_t(char *str)
+{
+	int rc;
+	char *s[3], *p;
+	int i = 0;
+	p = str;
+	s[i++] = p;
+	while (*p) {
+		if (*p == ':') {
+			*p = '\0';
+			p++;
+			s[i++] = p;
+		}
+		p++;
+	}
+	rc = atoi(s[0]) * 60 * 60;
+	rc += atoi(s[1]) * 60;
+	rc += atoi(s[2]);
+	return rc;
+}
+
 /*读取并解析配置文件*/
 static int readConfigFile()
 {
@@ -356,7 +377,7 @@ static int readConfigFile()
 				cJSON_Delete(json);
 				return -1;
 			}
-			config.items[i].schedule = value->valueint;
+			config.items[i].schedule = convert_to_time_t(value->valuestring);
 			value = cJSON_GetObjectItem(item, "interval");
 			if (!value) {
 				PRINT_FATAL("No \"interval\" option in items[%d] (%s)", i, config.configFilePath);
