@@ -48,6 +48,8 @@ struct params {
 	char		*cookie;
 	char		*sort;
 	char		*rc4_key;
+	char		*config;
+	char		*cache;
 	PcsBool		is_recursion;
 	PcsBool		is_force;
 	PcsBool		is_desc;

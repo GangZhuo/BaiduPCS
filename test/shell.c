@@ -1528,24 +1528,11 @@ static void save_cookie_data(Pcs pcs, const char *cookie_file)
 	fclose(pf);
 }
 
-int shell(int argc, char *argv[])
+int shell(struct params *params)
 {
 	PcsRes pcsres;
 	const char *cookie_file;
 	Pcs pcs;
-	struct params *params = shell_args_create_params();
-	printf("%s\n", program_full_name);
-	if (!params) {
-		printf("Create Param Object Failed\n");
-		return 0;
-	}
-
-	shell_args_parse(argc, argv, params);
-
-	if (params->is_fail) {
-		shell_args_destroy_params(params);
-		return 0;
-	}
 
 	if (params->cookie)
 		cookie_file = params->cookie;
@@ -1575,7 +1562,8 @@ int shell(int argc, char *argv[])
 	if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {
 		if (!params->username) {
 			printf("Your session is time out, please restart with -u option\n");
-			goto shell_exit;
+			pcs_destroy(pcs);
+			return -1;
 		}
 		pcs_setopt(pcs, PCS_OPTION_USERNAME, params->username);
 		if (!params->password) {
@@ -1589,7 +1577,8 @@ int shell(int argc, char *argv[])
 		}
 		if ((pcsres = pcs_login(pcs)) != PCS_OK) {
 			printf("Login Failed: %s\n", pcs_strerror(pcs, pcsres));
-			goto shell_exit;
+			pcs_destroy(pcs);
+			return -1;
 		}
 	}
 	else {
@@ -1598,18 +1587,14 @@ int shell(int argc, char *argv[])
 			printf("You have been logged in with %s, but you specified %s,\ncontinue?(yes|no): \n", pcs_sysUID(pcs), params->username);
 			get_string_from_std_input(flag, 4);
 			if (pcs_utils_strcmpi(flag, "yes") && pcs_utils_strcmpi(flag, "y")) {
-				goto shell_exit;
+				pcs_destroy(pcs);
+				return -1;
 			}
 		}
 	}
 	printf("UID: %s\n", pcs_sysUID(pcs));
 	show_quota(pcs);
 	exec_cmd(pcs, params);
-
-shell_exit:
-	//save_cookie_data(pcs, cookie_file);
 	pcs_destroy(pcs);
-	shell_args_destroy_params(params);
-	pcs_mem_print_leak();
 	return 0;
 }

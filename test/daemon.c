@@ -19,6 +19,7 @@
 #include "../pcs/pcs.h"
 #include "logger.h"
 #include "dir.h"
+#include "shell_args.h"
 
 #define APP_NAME		(config.run_in_daemon ? "pcs daemon" : "pcs normal")
 
@@ -117,6 +118,16 @@ typedef struct DownloadState {
 	size_t size;
 } DownloadState;
 
+typedef struct CompareItem {
+	char	leftType;
+	char	rightType;
+	char	*left;
+	char	op;
+	char	*right;
+	struct CompareItem *next;
+	struct CompareItem *prev;
+} CompareItem;
+
 static Config config = {0};
 static sqlite3 *db = NULL;
 static Pcs pcs = NULL;
@@ -185,13 +196,13 @@ static const char *format_time(time_t time)
 	return strTime;
 }
 
-static void freeConfig(int keepConfigFilePath)
+static void freeConfig(int keepGlobal)
 {
 	char *configPath = config.configFilePath;
 	int	run_in_daemon = config.run_in_daemon;
 	int	log_enabled = config.log_enabled;
 	int	printf_enabled = config.printf_enabled;
-	if (!keepConfigFilePath && config.configFilePath) pcs_free(config.configFilePath);
+	if (!keepGlobal && config.configFilePath) pcs_free(config.configFilePath);
 	if (config.cookieFilePath) pcs_free(config.cookieFilePath);
 	if (config.cacheFilePath) pcs_free(config.cacheFilePath);
 	if (config.logFilePath) pcs_free(config.logFilePath);
@@ -204,10 +215,12 @@ static void freeConfig(int keepConfigFilePath)
 		pcs_free(config.items);
 	}
 	memset(&config, 0, sizeof(Config));
-	config.configFilePath = configPath;
-	config.run_in_daemon = run_in_daemon;
-	config.log_enabled = log_enabled;
-	config.printf_enabled = printf_enabled;
+	if (keepGlobal) {
+		config.configFilePath = configPath;
+		config.run_in_daemon = run_in_daemon;
+		config.log_enabled = log_enabled;
+		config.printf_enabled = printf_enabled;
+	}
 }
 
 /*读取文件内容*/
@@ -2049,6 +2062,344 @@ static int method_restore(const char *localPath, const char *remotePath, int isC
 	return 0;
 }
 
+static int method_combin(const char *localPath, const char *remotePath)
+{
+	int rc;
+	rc = method_backup(localPath, remotePath, 1);
+	if (rc) {
+		rc = method_restore(localPath, remotePath, 1);
+	}
+	return rc;
+}
+
+#define OP_ARROW_UP 'A'
+#define OP_ARROW_DOWN 'V'
+
+static void addCompareItem(CompareItem *list, const char *left, char leftType, char op, const char *right, char rightType)
+{
+	CompareItem *item;
+	item = (CompareItem *)pcs_malloc(sizeof(CompareItem));
+	memset(item, 0, sizeof(CompareItem));
+	item->leftType = leftType;
+	item->rightType = rightType;
+	if (left) item->left = pcs_utils_strdup(left);
+	if (right) item->right = pcs_utils_strdup(right);
+	item->op = op;
+	item->prev = list->prev;
+	item->next = list;
+	list->prev->next = item;
+	list->prev = item;
+}
+
+static void freeCompareList(CompareItem *list)
+{
+	CompareItem *p = list->next, *tmp;
+	while (p != list) {
+		tmp = p;
+		p = p->next;
+		if (tmp->left) pcs_free(tmp->left);
+		if (tmp->right) pcs_free(tmp->right);
+		pcs_free(tmp);
+	}
+}
+
+static void printCompareList(CompareItem *list)
+{
+	int new_file = 0, remove = 0, upload = 0, download = 0;
+	CompareItem *p = list->next;
+	printf("  L R Local Path\n", p->op, p->leftType, p->rightType, p->left);
+	printf("----------------------------------\n");
+	while (p != list) {
+		printf("%c %c %c %s\n", p->op, p->leftType, p->rightType, p->left);
+		switch (p->op){
+		case '+':
+			new_file++;
+			break;
+		case '-':
+			remove++;
+			break;
+		case OP_ARROW_UP:
+			upload++;
+			break;
+		case OP_ARROW_DOWN:
+			download++;
+			break;
+		}
+		p = p->next;
+	}
+	printf("----------------------------------\n");
+	printf("%d new files need download, \n%d local directories need delete, \n%d local files need upload, \n%d local files need update.\n",
+		new_file, remove, upload, download);
+}
+
+static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPrepare *pre, CompareItem *list)
+{
+	my_dirent *ent = NULL;
+	int rc;
+	rc = get_file_ent(&ent, localPath);
+	if (rc == 2) { //是目录
+		addCompareItem(list, localPath, 'D', '-', remote->path, ' ');
+		my_dirent_destroy(ent);
+		ent = NULL;
+	}
+	if (ent == NULL) {
+		addCompareItem(list, localPath, '-', '+', remote->path, 'F');
+	}
+	else if (ent->mtime < ((time_t)remote->server_mtime)) {
+		addCompareItem(list, localPath, 'F', OP_ARROW_DOWN, remote->path, 'F');
+	}
+	else if (ent->mtime > ((time_t)remote->server_mtime)) {
+		addCompareItem(list, localPath, 'F', OP_ARROW_UP, remote->path, 'F');
+	}
+	my_dirent_destroy(ent);
+	return 0;
+}
+
+static int method_compare_folder(const char *localPath, const char *remotePath, DbPrepare *pre, CompareItem *list)
+{
+	int rc;
+	sqlite3_stmt *stmt;
+	int sz;
+	char *val;
+	char *dstPath;
+	PcsFileInfo ri = { 0 };
+	rc = sqlite3_prepare_v2(db, SQL_CACHE_SELECT_SUB, -1, &stmt, NULL);
+	if (rc) {
+		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SELECT_SUB, sqlite3_errmsg(db));
+		return -1;
+	}
+	sz = strlen(remotePath);
+	val = (char *)pcs_malloc(sz + 3);
+	memcpy(val, remotePath, sz + 1);
+	if (val[sz - 1] != '/') {
+		val[sz] = '/'; val[sz + 1] = '%'; val[sz + 2] = '\0';
+		sz += 2;
+	}
+	else {
+		val[sz] = '%'; val[sz + 1] = '\0';
+		sz++;
+	}
+	rc = sqlite3_bind_text(stmt, 1, val, sz, SQLITE_STATIC);
+	if (rc) {
+		PRINT_FATAL("Can't bind the text into the statement: %s", sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return -1;
+	}
+	while (1) {
+		rc = sqlite3_step(stmt);
+		if (rc == SQLITE_DONE) break;
+		if (rc != SQLITE_ROW) {
+			PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+			pcs_free(val);
+			sqlite3_finalize(stmt);
+			return -1;
+		}
+		freeCacheInfo(&ri);
+		db_fill_cache(&ri, stmt);
+		dstPath = get_local_path(ri.path, localPath, remotePath);
+		if (ri.isdir) {
+			if (method_compare_folder(dstPath, ri.path, pre, list)) {
+				PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+				pcs_free(val);
+				pcs_free(dstPath);
+				freeCacheInfo(&ri);
+				sqlite3_finalize(stmt);
+				return -1;
+			}
+		}
+		else {
+			if (method_compare_file(dstPath, &ri, pre, list)) {
+				PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+				pcs_free(val);
+				pcs_free(dstPath);
+				freeCacheInfo(&ri);
+				sqlite3_finalize(stmt);
+				return -1;
+			}
+		}
+		pcs_free(dstPath);
+		freeCacheInfo(&ri);
+	}
+	pcs_free(val);
+	sqlite3_finalize(stmt);
+	return 0;
+}
+
+static int method_compare_untrack(const char *localPath, const char *remotePath, DbPrepare *pre, CompareItem *list)
+{
+	int rc;
+	my_dirent *ents = NULL,
+		*ent = NULL;
+	char *dstPath;
+
+	rc = get_file_ent(NULL, localPath);
+	if (rc == 2) { //目录
+		ents = list_dir(localPath, 0);
+		if (ents) {
+			ent = ents;
+			while (ent) {
+				dstPath = get_remote_path(ent->path, localPath, remotePath);
+				if (method_compare_untrack(ent->path, dstPath, pre, list)) {
+					pcs_free(dstPath);
+					my_dirent_destroy(ents);
+					return -1;
+				}
+				ent = ent->next;
+				pcs_free(dstPath);
+			}
+			my_dirent_destroy(ents);
+		}
+	}
+	else if (rc == 1) {
+		PcsFileInfo cache = { 0 };
+		if (db_get_cache(&cache, pre, remotePath)) {
+			return -1;
+		}
+		if (!cache.fs_id) {
+			addCompareItem(list, localPath, 'F', OP_ARROW_UP, remotePath, 'F');
+		}
+		freeCacheInfo(&cache);
+	}
+	return 0;
+}
+
+static int method_compare(const char *localPath, const char *remotePath)
+{
+	CompareItem list = { 0 };
+	ActionInfo ai = { 0 };
+	DbPrepare pre = { 0 };
+	char *action = NULL, *updateAction = NULL;
+	PcsFileInfo rf = { 0 };
+
+	list.next = &list;
+	list.prev = &list;
+
+	PRINT_NOTICE("Compare - Start");
+	if (pcs_islogin(pcs) != PCS_LOGIN) {
+		PRINT_FATAL("Not login or session time out");
+		return -1;
+	}
+	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
+	PRINT_NOTICE("Local Path: %s", localPath);
+	PRINT_NOTICE("Server Path: %s", remotePath);
+
+	action = (char *)pcs_malloc(strlen(localPath) + strlen(remotePath) + 16);
+	strcpy(action, "COMPARE: "); strcat(action, localPath);
+	strcat(action, " <- "); strcat(action, remotePath);
+	//获取当前的ACTION
+	if (db_get_action(&ai, action)) {
+		pcs_free(action);
+		PRINT_NOTICE("Compare - End");
+		return -1;
+	}
+	//检查ACTION状态
+	if (ai.status == ACTION_STATUS_RUNNING) {
+		PRINT_FATAL("There have another compare thread running, which is start by %s at %s", ai.create_app, format_time(ai.start_time));
+		pcs_free(action);
+		freeActionInfo(&ai);
+		PRINT_NOTICE("Compare - End");
+		return -1;
+	}
+	freeActionInfo(&ai);
+	//设置ACTION为RUNNING状态
+	if (db_set_action(action, ACTION_STATUS_RUNNING, 1)) {
+		pcs_free(action);
+		PRINT_NOTICE("Compare - End");
+		return -1;
+	}
+
+	//检查本地缓存是否更新 - 开始。如果未更新则更新本地缓存
+	updateAction = (char *)pcs_malloc(strlen(remotePath) + 16);
+	strcpy(updateAction, "UPDATE: ");
+	strcat(updateAction, remotePath);
+	if (db_get_action(&ai, updateAction)) {
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(updateAction);
+		pcs_free(action);
+		PRINT_NOTICE("Compare - End");
+		return -1;
+	}
+	if (ai.status == ACTION_STATUS_RUNNING) {
+		PRINT_FATAL("There have another update thread running, which is start by %s at %s", ai.create_app, format_time(ai.start_time));
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(updateAction);
+		pcs_free(action);
+		PRINT_NOTICE("Compare - End");
+		return -1;
+	}
+	if (!ai.rowid || ai.status != ACTION_STATUS_FINISHED) {
+		PRINT_NOTICE("Update local cache for %s", remotePath);
+		if (method_update(remotePath)) {
+			PRINT_FATAL("Can't update local cache for %s", remotePath);
+			db_set_action(action, ACTION_STATUS_ERROR, 0);
+			pcs_free(updateAction);
+			pcs_free(action);
+			freeActionInfo(&ai);
+			PRINT_NOTICE("Compare - End");
+			return -1;
+		}
+	}
+	pcs_free(updateAction);
+	freeActionInfo(&ai);
+	//检查本地缓存是否更新 - 结束
+
+	if (db_prepare(&pre, SQL_CACHE_INSERT, SQL_CACHE_SELECT, SQL_CACHE_DELETE, SQL_CACHE_UPDATE, SQL_CACHE_SET_FLAG, SQL_CACHE_SELECT_SUB, NULL)) {
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		PRINT_NOTICE("Compare - End");
+		return -1;
+	}
+	if (db_get_cache(&rf, &pre, remotePath) || !rf.fs_id) {
+		PRINT_FATAL("The remote path not exist: %s", remotePath);
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		db_prepare_destroy(&pre);
+		PRINT_NOTICE("Compare - End");
+		return -1;
+	}
+	if (rf.isdir) { //类型为目录
+		if (method_compare_folder(localPath, remotePath, &pre, &list)) {
+			db_set_action(action, ACTION_STATUS_ERROR, 0);
+			pcs_free(action);
+			db_prepare_destroy(&pre);
+			freeCacheInfo(&rf);
+			freeCompareList(&list);
+			PRINT_NOTICE("Compare - End");
+			return -1;
+		}
+	}
+	else { //类型为文件
+		if (method_compare_file(localPath, &rf, &pre, &list)) {
+			db_set_action(action, ACTION_STATUS_ERROR, 0);
+			pcs_free(action);
+			db_prepare_destroy(&pre);
+			freeCacheInfo(&rf);
+			freeCompareList(&list);
+			PRINT_NOTICE("Compare - End");
+			return -1;
+		}
+	}
+	freeCacheInfo(&rf);
+	//移除本地文件系统中，在服务器中不存在的文件
+	if (method_compare_untrack(localPath, remotePath, &pre, &list)) {
+		//PRINT_FATAL("Can't remove untrack files: %s", localPath);
+		db_set_action(action, ACTION_STATUS_ERROR, 0);
+		pcs_free(action);
+		db_prepare_destroy(&pre);
+		freeCompareList(&list);
+		PRINT_NOTICE("Compare - End");
+		return -1;
+	}
+	db_set_action(action, ACTION_STATUS_FINISHED, 0);
+	pcs_free(action);
+	db_prepare_destroy(&pre);
+	//PRINT_NOTICE("Not Equal File: %d, Same File: %d, Remove File: %d, Total File: %d", st.backupFiles, st.skipFiles, st.removeFiles, st.totalFiles);
+	printCompareList(&list);
+	freeCompareList(&list);
+	PRINT_NOTICE("Compare - End");
+	return 0;
+}
+
 static int task(int itemIndex)
 {
 	int rc;
@@ -2079,183 +2430,155 @@ static int task(int itemIndex)
 		rc = method_reset();
 		break;
 	case METHOD_COMBIN:
-		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 1);
+		rc = method_combin(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 1);
-		}
-		if (!rc) {
-			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 1);
-			if (rc) {
-				PRINT_NOTICE("Retry");
-				rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 1);
-			}
+			rc = method_combin(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
 		}
 		break;
 	}
 	return rc;
 }
 
-static int run()
+static void svc_loop()
 {
 	int i;
 	time_t now;
-	if (config.run_in_daemon) {
-		init_schedule();
-		while(config.run_in_daemon) {
-			time(&now);
-			for(i = 0; i < config.itemCount; i++) {
-				if (!config.items[i].enable) continue;
-				if (now >= config.items[i].next_run_time) {
-					task(i);
-					config.items[i].next_run_time += config.items[i].interval;
-				}
-			}
-			D_SLEEP(1000);
-		}
-	}
-	else {
+	init_schedule();
+	while(config.run_in_daemon) {
+		time(&now);
 		for(i = 0; i < config.itemCount; i++) {
 			if (!config.items[i].enable) continue;
-			if (task(i)) {
-				return -1;
+			if (now >= config.items[i].next_run_time) {
+				task(i);
+				config.items[i].next_run_time += config.items[i].interval;
 			}
 		}
+		D_SLEEP(1000);
 	}
-	return 0;
 }
 
-static int startup()
+static int run_svc(struct params *params)
 {
-	PcsRes pcsres;
+	config.run_in_daemon = 1;
+	config.printf_enabled = 0;
+	config.log_enabled = 1;
+	config.configFilePath = pcs_utils_strdup(params->config);
+	log_open(log_file_path());
 
+	PRINT_NOTICE("Application start up");
+	if (readConfigFile()) {
+		PRINT_FATAL("Read config file error. %s", config.configFilePath);
+		freeConfig(FALSE);
+		PRINT_NOTICE("Application end up");
+		return -1;
+	}
+	if (config.log_enabled) {
+		if (config.logFilePath && config.logFilePath[0] && strcmp(config.logFilePath, log_file_path())) {
+			PRINT_NOTICE("Log file changed to %s", config.logFilePath);
+			log_close();
+			log_open(config.logFilePath);
+			PRINT_NOTICE("Log file continue from %s", log_file_path());
+		}
+	}
+	if (db_open()) {
+		freeConfig(FALSE);
+		PRINT_NOTICE("Application end up");
+		return -1;
+	}
 	/* 创建一个Pcs对象 */
 	pcs = pcs_create(config.cookieFilePath);
-
-	if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {
+	if (pcs_islogin(pcs) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
 		pcs_destroy(pcs);
 		pcs = NULL;
+		freeConfig(FALSE);
+		db_close();
+		PRINT_NOTICE("Application end up");
 		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
 	if (config.itemCount == 0) {
 		pcs_destroy(pcs);
 		pcs = NULL;
+		freeConfig(FALSE);
+		db_close();
+		PRINT_NOTICE("Application end up");
 		return -1;
 	}
-	if (run()) {
+	svc_loop();
+	pcs_destroy(pcs);
+	pcs = NULL;
+	freeConfig(FALSE);
+	db_close();
+	PRINT_NOTICE("Application end up");
+	return 0;
+}
+
+static int run_shell(struct params *params)
+{
+	int rc = 0;
+	config.run_in_daemon = 0;
+	config.printf_enabled = 1;
+	config.log_enabled = 0;
+	config.configFilePath = NULL;
+	config.cookieFilePath = pcs_utils_strdup(params->cookie);
+	config.cacheFilePath = pcs_utils_strdup(params->cache);
+	config.logFilePath = NULL;
+
+	PRINT_NOTICE("Application start up");
+	if (db_open()) {
+		freeConfig(FALSE);
+		PRINT_NOTICE("Application end up");
+		return -1;
+	}
+	/* 创建一个Pcs对象 */
+	pcs = pcs_create(config.cookieFilePath);
+	if (pcs_islogin(pcs) != PCS_LOGIN) {
+		PRINT_FATAL("Not login or session time out");
 		pcs_destroy(pcs);
 		pcs = NULL;
+		freeConfig(FALSE);
+		db_close();
+		PRINT_NOTICE("Application end up");
 		return -1;
+	}
+	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
+	switch (params->action){
+	case ACTION_RESET:
+		rc = method_reset();
+		break;
+	case ACTION_UPDATE:
+		rc = method_update(params->args[0]);
+		break;
+	case ACTION_BACKUP:
+		rc = method_backup(params->args[0], params->args[1], 0);
+		break;
+	case ACTION_RESTORE:
+		rc = method_restore(params->args[0], params->args[1], 0);
+		break;
+	case ACTION_COMBIN:
+		rc = method_combin(params->args[0], params->args[1]);
+		break;
+	case ACTION_COMPARE:
+		rc = method_compare(params->args[0], params->args[1]);
+		break;
 	}
 	pcs_destroy(pcs);
 	pcs = NULL;
-	return 0;
-}
-
-int run_daemon(int argc, char *argv[])
-{
-	int len;
-	char *p, *src, *dst;
-
-	/*解析参数 - 开始*/
-	if (argc == 3 && pcs_utils_streq(argv[1], "daemon", 6) && pcs_utils_streq(argv[2], "--config=", 9)) {
-		p = argv[2];
-	}
-	else if (argc == 2 && pcs_utils_streq(argv[1], "--config=", 9)) {
-		p = argv[1];
-	}
-	else {
-		PRINT_FATAL("Wrong arguments!\n    Usage: pcs --config=<config file>\n    Sample: pcs --config=/etc/pcs/default.json");
-		return -1;
-	}
-	/*解析参数 - 结束*/
-
-	/*获取配置文件路径 - 开始*/
-	p += 9;
-	if (*p == '"') p++;
-	len = strlen(p);
-	config.configFilePath = (char *)pcs_malloc(len + 1);
-	memset(config.configFilePath, 0, len + 1);
-	src = p; dst = config.configFilePath;
-	while (*src) {
-		*dst = *src;
-		src++;
-		if (*dst == '"') {
-			if (*src == '\0') {
-				*dst = '\0';
-				break;
-			}
-			else {
-				PRINT_FATAL("Wrong path of the config file.");
-				pcs_free(config.configFilePath);
-				return -1;
-			}
-		}
-		dst++;
-	}
-	/*获取配置文件路径 - 结束*/
-
-	if (readConfigFile()) {
-		PRINT_FATAL("Read config file error. %s", config.configFilePath);
-		freeConfig(FALSE);
-		return -1;
-	}
-	if (config.logFilePath && config.logFilePath[0] && strcmp(config.logFilePath, log_file_path())) {
-		PRINT_NOTICE("Log file changed to %s", config.logFilePath);
-		log_close();
-		log_open(config.logFilePath);
-		PRINT_NOTICE("The original log file is %s", log_file_path());
-	}
-
-	if (db_open()) {
-		freeConfig(FALSE);
-		return -1;
-	}
-
-	if (startup()) {
-		freeConfig(FALSE);
-		db_close();
-		return -1;
-	}
 	freeConfig(FALSE);
 	db_close();
-	return 0;
+	PRINT_NOTICE("Application end up");
+	return rc;
 }
 
-int start_daemon(int argc, char *argv[])
+int start_daemon(struct params *params)
 {
-	int rc;
-
+	int rc = 0;
 	_pcs_mem_printf = &d_mem_printf;
-
-	log_close();
-	log_open(log_file_path());
-
-	config.log_enabled = 1;
-	config.printf_enabled = 1;
-
-	/*检查传入参数 - 开始*/
-	if (argc == 3 && pcs_utils_streq(argv[1], "svc", 6) && pcs_utils_streq(argv[2], "--config=", 9)) {
-		config.run_in_daemon = 1;
-		config.printf_enabled = 0;
-	}
-	else if (argc == 2 && pcs_utils_streq(argv[1], "--config=", 9)) {
-		config.run_in_daemon = 0;
-		config.log_enabled = 1;
-	}
-	else {
-		PRINT_FATAL("Wrong arguments!\n    Usage: pcs --config=<config file>\n    Sample: pcs --config=/etc/pcs/default.json");
-		return -1;
-	}
-	/*检查传入参数 - 结束*/
-
-	PRINT_NOTICE("Application start up");
-	PRINT_NOTICE("Log Enabled: %s", config.log_enabled ? "true" : "false");
-	PRINT_NOTICE("printf: %s", config.printf_enabled ? "true" : "false");
-	rc = run_daemon(argc, argv);
-	pcs_mem_print_leak();
-	PRINT_NOTICE("Application end up");
+	if (params->action == ACTION_SVC)
+		rc = run_svc(params);
+	else
+		rc = run_shell(params);
 	return rc;
 }
