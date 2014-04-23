@@ -33,6 +33,7 @@
 #define METHOD_BACKUP	2
 #define METHOD_RESTORE	3
 #define METHOD_RESET	4
+#define METHOD_COMBIN	5
 
 #define ACTION_STATUS_RUNNING	1
 #define ACTION_STATUS_FINISHED	2
@@ -330,6 +331,8 @@ static int readConfigFile()
 				config.items[i].method = METHOD_RESTORE;
 			else if (strcmp(value->valuestring, "reset") == 0)
 				config.items[i].method = METHOD_RESET;
+			else if (strcmp(value->valuestring, "combin") == 0)
+				config.items[i].method = METHOD_COMBIN;
 			else {
 				PRINT_FATAL("Wrong \"method\" option in items[%d], the method should be one of [\"update\", \"backup\", \"restore\"] (%s)", i, config.configFilePath);
 				cJSON_Delete(json);
@@ -1219,6 +1222,24 @@ static int method_reset()
 	return 0;
 }
 
+static int method_backup_check_quota()
+{
+	UInt64 usedByteSize, totalByteSize;
+	if (!quota(&usedByteSize, &totalByteSize)) {
+		char strTotal[32] = {0}, strUsed[32] = {0};
+		pcs_utils_readable_size((double)usedByteSize, strUsed, 30, NULL);
+		pcs_utils_readable_size((double)totalByteSize, strTotal, 30, NULL);
+		PRINT_NOTICE("Quota: %s/%s", strUsed, strTotal);
+		if (totalByteSize - usedByteSize < 10 * 1024 * 1024) {
+			PRINT_FATAL("The remaining space is insufficient 10M");
+			pcs_destroy(pcs);
+			pcs = NULL;
+			return -1;
+		}
+	}
+	return 0;
+}
+
 static int method_backup_progress(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
 {
 	struct ProgressState *state = (struct ProgressState *)clientp;
@@ -1506,25 +1527,7 @@ static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, 
 	return 0;
 }
 
-static int method_backup_check_quota()
-{
-	UInt64 usedByteSize, totalByteSize;
-	if (!quota(&usedByteSize, &totalByteSize)) {
-		char strTotal[32] = {0}, strUsed[32] = {0};
-		pcs_utils_readable_size((double)usedByteSize, strUsed, 30, NULL);
-		pcs_utils_readable_size((double)totalByteSize, strTotal, 30, NULL);
-		PRINT_NOTICE("Quota: %s/%s", strUsed, strTotal);
-		if (totalByteSize - usedByteSize < 10 * 1024 * 1024) {
-			PRINT_FATAL("The remaining space is insufficient 10M");
-			pcs_destroy(pcs);
-			pcs = NULL;
-			return -1;
-		}
-	}
-	return 0;
-}
-
-int method_backup(const char *localPath, const char *remotePath)
+int method_backup(const char *localPath, const char *remotePath, int isCombin)
 {
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
@@ -1681,7 +1684,7 @@ int method_backup(const char *localPath, const char *remotePath)
 	pcs_setopt(pcs, PCS_OPTION_PROGRESS, PcsFalse);
 	my_dirent_destroy(ent);
 	//移除服务器中，本地不存在的文件
-	if (method_backup_remove_untrack(remotePath, &pre, &st)) {
+	if (!isCombin && method_backup_remove_untrack(remotePath, &pre, &st)) {
 		//PRINT_FATAL("Can't remove untrack files from the server: %s", remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
@@ -1912,7 +1915,7 @@ static int method_restore_remove_untrack(const char *localPath, const char *remo
 	return 0;
 }
 
-static int method_restore(const char *localPath, const char *remotePath)
+static int method_restore(const char *localPath, const char *remotePath, int isCombin)
 {
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
@@ -2028,8 +2031,8 @@ static int method_restore(const char *localPath, const char *remotePath)
 	}
 	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 	freeCacheInfo(&rf);
-	//移除服务器中，本地不存在的文件
-	if (method_restore_remove_untrack(localPath ,remotePath, &pre, &st)) {
+	//移除本地文件系统中，在服务器中不存在的文件
+	if (!isCombin && method_restore_remove_untrack(localPath ,remotePath, &pre, &st)) {
 		//PRINT_FATAL("Can't remove untrack files: %s", localPath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
@@ -2059,21 +2062,36 @@ static int task(int itemIndex)
 		}
 		break;
 	case METHOD_BACKUP:
-		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
+		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 0);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
+			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 0);
 		}
 		break;
 	case METHOD_RESTORE:
-		rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
+		rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 0);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
+			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 0);
 		}
 		break;
 	case METHOD_RESET:
-		return method_reset();
+		rc = method_reset();
+		break;
+	case METHOD_COMBIN:
+		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 1);
+		if (rc) {
+			PRINT_NOTICE("Retry");
+			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 1);
+		}
+		if (!rc) {
+			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 1);
+			if (rc) {
+				PRINT_NOTICE("Retry");
+				rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 1);
+			}
+		}
+		break;
 	}
 	return rc;
 }
@@ -2219,7 +2237,7 @@ int start_daemon(int argc, char *argv[])
 	config.printf_enabled = 1;
 
 	/*检查传入参数 - 开始*/
-	if (argc == 3 && pcs_utils_streq(argv[1], "daemon", 6) && pcs_utils_streq(argv[2], "--config=", 9)) {
+	if (argc == 3 && pcs_utils_streq(argv[1], "svc", 6) && pcs_utils_streq(argv[2], "--config=", 9)) {
 		config.run_in_daemon = 1;
 		config.printf_enabled = 0;
 	}

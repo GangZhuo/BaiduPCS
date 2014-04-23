@@ -31,6 +31,13 @@ enum action {
 	ACTION_SEARCH = 11,
 	ACTION_COPY = 12,
 	ACTION_META = 13,
+	ACTION_SVC = 14,
+	ACTION_RESET = 15,
+	ACTION_UPDATE = 16,
+	ACTION_BACKUP = 17,
+	ACTION_RESTORE = 18,
+	ACTION_COMBIN = 19,
+	ACTION_COMPARE = 20,
 };
 
 /* Structure used to communicate with the parsing functions.  */
