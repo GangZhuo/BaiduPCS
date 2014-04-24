@@ -1,7 +1,6 @@
 #ifndef _SQL_H
 #define _SQL_H
 
-
 #define TABLE_NAME_CACHE		"pcs_cache"
 #define TABLE_NAME_ACTION		"pcs_action"
 #define TABLE_CACHE_CREATOR		"CREATE TABLE [pcs_cache] (" \
