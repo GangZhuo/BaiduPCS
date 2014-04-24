@@ -2572,7 +2572,7 @@ static int method_list_op()
 		return -1;
 	}
 	printf("\nAction:\n");
-	printf("rowid | action | status | start time | end time | create app | modify app\n");
+	printf("rowid | status | start time | end time | create app | modify app | action\n");
 	printf("------------------------------------------------\n");
 	while (1) {
 		rc = sqlite3_step(stmt);
@@ -2589,8 +2589,10 @@ static int method_list_op()
 		dst.end_time = sqlite3_column_int64(stmt, 4);
 		dst.create_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 5));
 		dst.modify_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 6));
-		printf("%d | %s | %d | %s", dst.rowid, dst.action, dst.status, format_time(dst.start_time));
-		printf(" | %s | %s | %s\n", format_time(dst.end_time), dst.create_app, dst.modify_app);
+		printf("%d | %s | %s", dst.rowid, 
+			dst.status == 3 ? "error  " : (dst.status == 2 ? "succ   " : (dst.status == 1 ? "running" : "-------")), 
+			format_time(dst.start_time));
+		printf(" | %s | %s | %s | %s\n", format_time(dst.end_time), dst.create_app, dst.modify_app, dst.action);
 		freeActionInfo(&dst);
 		row_num++;
 	}
