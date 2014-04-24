@@ -1,4 +1,4 @@
-#include <string.h>
+﻿#include <string.h>
 #ifdef WIN32
 # include <malloc.h>
 #else
@@ -8,6 +8,27 @@
 #include "pcs_mem.h"
 #include "pcs_pan_api_resinfo.h"
 
+PCS_API const char *pcs_pan_api_res_info_errmsg(int error)
+{
+	const char *errmsg = NULL;
+	switch (error) {
+	case 0: //处理成功
+		errmsg = "成功";
+		break;
+	case -8: //文件已存在于目标文件夹中
+		errmsg = "文件已存在于目标文件夹中";
+		break;
+	case -9: //文件不存在
+		errmsg = "文件不存在";
+		break;
+	case -10: //剩余空间不足
+		errmsg = "剩余空间不足";
+		break;
+	default:
+		errmsg = "未知错误";
+	}
+	return errmsg;
+}
 
 PCS_API PcsPanApiRes *pcs_pan_api_res_create()
 {

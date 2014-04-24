@@ -48,9 +48,8 @@ PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap)
 {
     int cnt, sz=0;
     char *buf;
-    char *res;
 
-    sz = 512;
+    sz = 128;
     buf = (char*)pcs_malloc(sz);
  try_print:
     cnt = vsnprintf(buf, sz, fmt, ap);
@@ -60,11 +59,8 @@ PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap)
         sz = cnt + 1;
         goto try_print;
     }
-	res = (char *)pcs_malloc(cnt + 1);
-	memcpy(res, buf, cnt);
-	res[cnt] = '\0';
-	pcs_free(buf);
-	return res;
+	buf[cnt] = '\0';
+	return buf;
 }
 
 PCS_API char *pcs_utils_sprintf(const char *fmt, ...)

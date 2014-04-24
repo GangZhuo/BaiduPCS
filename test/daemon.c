@@ -1156,7 +1156,7 @@ static int quota(UInt64 *usedByteSize, UInt64 *totalByteSize)
 	UInt64 total, used;
 	pcsres = pcs_quota(pcs, &total, &used);
 	if (pcsres != PCS_OK) {
-		PRINT_WARNING("Get quota failed: %s", pcs_strerror(pcs, pcsres));
+		PRINT_WARNING("Get quota failed: %s", pcs_strerror(pcs));
 		return -1;
 	}
 	*usedByteSize = used;
@@ -1177,8 +1177,8 @@ static int method_update_folder(const char *path, DbPrepare *pre, int *pFileCoun
 	while(1) {
 		list = pcs_list(pcs, path, page_index, page_size, "name", PcsFalse);
 		if (!list) {
-			if (pcs_strerror(pcs, PCS_NONE)) {
-				PRINT_FATAL("Cannot list the server directory %s: %s", path, pcs_strerror(pcs, PCS_NONE));
+			if (pcs_strerror(pcs)) {
+				PRINT_FATAL("Cannot list the server directory %s: %s", path, pcs_strerror(pcs));
 				return -1;
 			}
 			else {
@@ -1419,7 +1419,7 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 		PcsSList slist = { (char *)remotePath, NULL };
 		res = pcs_delete(pcs, &slist);
 		if (!res) {
-			PRINT_FATAL("Can't remove the dir %s: %s", remotePath, pcs_strerror(pcs, PCS_NONE));
+			PRINT_FATAL("Can't remove the dir %s: %s", remotePath, pcs_strerror(pcs));
 			freeCacheInfo(&dst);
 			return -1;
 		}
@@ -1457,7 +1457,7 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 				PCS_OPTION_END);
 		}
 		if (!rc) {
-			PRINT_FATAL("Can't backup %s to %s: %s   ", localFile->path, remotePath, pcs_strerror(pcs, PCS_NONE));
+			PRINT_FATAL("Can't backup %s to %s: %s   ", localFile->path, remotePath, pcs_strerror(pcs));
 			freeCacheInfo(&dst);
 			return -1;
 		}
@@ -1507,7 +1507,7 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 		PcsSList slist = { (char *)remotePath, NULL };
 		res = pcs_delete(pcs, &slist);
 		if (!res) {
-			PRINT_FATAL("Can't remove the remote file %s: %s", remotePath, pcs_strerror(pcs, PCS_NONE));
+			PRINT_FATAL("Can't remove the remote file %s: %s", remotePath, pcs_strerror(pcs));
 			freeCacheInfo(&dst);
 			return -1;
 		}
@@ -1528,7 +1528,7 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 		PcsFileInfo meta = { 0 }; time_t now;
 		pcsres = pcs_mkdir(pcs, remotePath);
 		if (pcsres != PCS_OK) {
-			PRINT_FATAL("Can't create the directory %s: %s\n", remotePath, pcs_strerror(pcs, PCS_NONE));
+			PRINT_FATAL("Can't create the directory %s: %s\n", remotePath, pcs_strerror(pcs));
 			return -1;
 		}
 		////创建成功后，获取其元数据并存入本地缓存
@@ -1663,7 +1663,7 @@ static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, 
 		PcsPanApiResInfoList *info;
 		res = pcs_delete(pcs, slist);
 		if (!res) {
-			PRINT_FATAL("Can't remove the remote file %s: %s", remotePath, pcs_strerror(pcs, PCS_NONE));
+			PRINT_FATAL("Can't remove the remote file %s: %s", remotePath, pcs_strerror(pcs));
 			pcs_free(val);
 			pcs_slist_destroy(slist);
 			sqlite3_reset(stmt);

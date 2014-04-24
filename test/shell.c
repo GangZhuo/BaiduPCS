@@ -500,8 +500,8 @@ static PcsFileInfoList *get_file_list(Pcs pcs, const char *dir, const char *sort
 			sort ? sort : "name", 
 			sort ? desc : PcsFalse);
 		if (!list) {
-			if (pcs_strerror(pcs, PCS_NONE))
-				printf("Cannot list %s: %s\n", dir, pcs_strerror(pcs, PCS_NONE));
+			if (pcs_strerror(pcs))
+				printf("Cannot list %s: %s\n", dir, pcs_strerror(pcs));
 			return NULL;
 		}
 		cnt = list->count;
@@ -604,7 +604,7 @@ static void exec_meta(Pcs pcs, struct params *params)
 	printf("\nGet meta %s\n", params->args[0]);
 	fi = pcs_meta(pcs, params->args[0]);
 	if (!fi) {
-		printf("Failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	print_fileinfo(fi, " ");
@@ -639,7 +639,7 @@ static void exec_rename(Pcs pcs, struct params *params)
 	printf("\nRename %s to %s\n", slist.string1, slist.string1);
 	res = pcs_rename(pcs, &slist);
 	if (!res) {
-		printf("Rename failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Rename failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	putchar('\n');
@@ -658,7 +658,7 @@ static void exec_move(Pcs pcs, struct params *params)
 	printf("\nMove %s to %s\n", slist.string1, slist.string2);
 	res = pcs_move(pcs, &slist);
 	if (!res) {
-		printf("Move failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Move failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	putchar('\n');
@@ -677,7 +677,7 @@ static void exec_copy(Pcs pcs, struct params *params)
 	printf("\nCopy %s to %s\n", slist.string1, slist.string2);
 	res = pcs_copy(pcs, &slist);
 	if (!res) {
-		printf("Copy failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Copy failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	putchar('\n');
@@ -692,7 +692,7 @@ static void exec_mkdir(Pcs pcs, struct params *params)
 	printf("\nCreate folder %s\n", params->args[0]);
 	res = pcs_mkdir(pcs, params->args[0]);
 	if (res != PCS_OK) {
-		printf("Create folder failed: %s\n", pcs_strerror(pcs, res));
+		printf("Create folder failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	printf("Create %s success.\n", params->args[0]);
@@ -725,7 +725,7 @@ static void exec_delete(Pcs pcs, struct params *params)
 	res = pcs_delete(pcs, slist);
 	pcs_slist_destroy(slist);
 	if (!res) {
-		printf("Delete failed. %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Delete failed. %s\n", pcs_strerror(pcs));
 		return;
 	}
 	putchar('\n');
@@ -741,7 +741,7 @@ static void exec_cat(Pcs pcs, struct params *params)
 	printf("\nCat %s\n", params->args[0]);
 	res = pcs_cat(pcs, params->args[0], &sz);
 	if (res == NULL) {
-		printf("Cat failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Cat failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	if (params->is_rc4) {
@@ -772,7 +772,7 @@ static void exec_echo_apend(Pcs pcs, struct params *params)
 	printf("\nApend text to %s\n", params->args[0]);
 	text = pcs_cat(pcs, params->args[0], &textsz);
 	if (text == NULL) {
-		printf("Apend failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Apend failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	if (params->is_rc4) {
@@ -975,7 +975,7 @@ static int exec_download_dir(Pcs pcs, const char *remote_path, const char *local
 	if (!remote_files) {
 		hashtable_destroy(ht);
 		my_dirent_destroy(ents);
-		if (pcs_strerror(pcs, PCS_NONE)) {
+		if (pcs_strerror(pcs)) {
 			printf("Cannot list the remote files.\n");
 			return -1;
 		}
@@ -1162,7 +1162,7 @@ static void exec_upload_file(Pcs pcs, struct params *params)
 	pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsFalse);
 	pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
 	if (!res) {
-		printf("Execute upload command failed: %s\n", pcs_strerror(pcs, PCS_NONE));
+		printf("Execute upload command failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	if (res->path[0]) {
@@ -1199,8 +1199,8 @@ exec_upload_dir_label_1:
 		pcs_fileinfo_destroy(meta);
 		meta = NULL;
 	}
-	else if (pcs_strerror(pcs, PCS_NONE)) {
-		printf("Cannot get the meta for %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+	else if (pcs_strerror(pcs)) {
+		printf("Cannot get the meta for %s: %s\n", remote_path, pcs_strerror(pcs));
 		ric = retry_cancel();
 		if (ric == 'r')
 			goto exec_upload_dir_label_1;
@@ -1217,7 +1217,7 @@ exec_upload_dir_label_1:
 exec_upload_dir_label_2:
 			pcsapires = pcs_delete(pcs, &slist);
 			if (!pcsapires) {
-				printf("[DELETE] [FAIL] - %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+				printf("[DELETE] [FAIL] - %s: %s\n", remote_path, pcs_strerror(pcs));
 				ric = retry_cancel();
 				if (ric == 'r')
 					goto exec_upload_dir_label_2;
@@ -1231,7 +1231,7 @@ exec_upload_dir_label_2:
 exec_upload_dir_label_3:
 			pcsres = pcs_mkdir(pcs, remote_path);
 			if (pcsres != PCS_OK) {
-				printf("[FAIL] Cannot create the directory %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+				printf("[FAIL] Cannot create the directory %s: %s\n", remote_path, pcs_strerror(pcs));
 				ric = retry_cancel();
 				if (ric == 'r')
 					goto exec_upload_dir_label_3;
@@ -1254,7 +1254,7 @@ exec_upload_dir_label_3:
 exec_upload_dir_label_4:
 		pcsres = pcs_mkdir(pcs, remote_path);
 		if (pcsres != PCS_OK) {
-			printf("[FAIL] Cannot create the directory %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+			printf("[FAIL] Cannot create the directory %s: %s\n", remote_path, pcs_strerror(pcs));
 			ric = retry_cancel();
 			if (ric == 'r')
 				goto exec_upload_dir_label_4;
@@ -1270,8 +1270,8 @@ exec_upload_dir_label_4:
 exec_upload_dir_label_5:
 	printf("Get remote file list %s.\n", remote_path);
 	remote_filelist = get_file_list(pcs, remote_path, NULL, PcsFalse, PcsFalse);
-	if (!remote_filelist && pcs_strerror(pcs, PCS_NONE)) {
-		printf("[FAIL] Cannot list the directory %s: %s\n", remote_path, pcs_strerror(pcs, PCS_NONE));
+	if (!remote_filelist && pcs_strerror(pcs)) {
+		printf("[FAIL] Cannot list the directory %s: %s\n", remote_path, pcs_strerror(pcs));
 		ric = retry_cancel();
 		if (ric == 'r')
 			goto exec_upload_dir_label_5;
@@ -1317,7 +1317,7 @@ exec_upload_dir_label_5:
 exec_upload_dir_label_6:
 					pcsres = pcs_mkdir(pcs, dest_path);
 					if (pcsres != PCS_OK) {
-						printf("[FAIL] d %s Cannot create the directory %s: %s\n", ent->path, dest_path, pcs_strerror(pcs, PCS_NONE));
+						printf("[FAIL] d %s Cannot create the directory %s: %s\n", ent->path, dest_path, pcs_strerror(pcs));
 						ric = retry_cancel();
 						if (ric == 'r') {
 							goto exec_upload_dir_label_6;
@@ -1343,7 +1343,7 @@ exec_upload_dir_label_7:
 				pcs_setopt(pcs, PCS_OPTION_PROGRESS, (void *)PcsFalse);
 				pcs_setopt(pcs, PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL);
 				if (!meta) {
-					printf("[FAIL] - %s Cannot upload the file: %s\n", ent->path, pcs_strerror(pcs, PCS_NONE));
+					printf("[FAIL] - %s Cannot upload the file: %s\n", ent->path, pcs_strerror(pcs));
 					ric = retry_cancel();
 					if (ric == 'r') {
 						goto exec_upload_dir_label_7;
@@ -1395,7 +1395,7 @@ exec_upload_dir_label_8:
 					printf("[DELETE] [FAIL] %s %s Cannot delete the %s: %s\n",
 						remote_file->isdir ? "d" : "-",
 						remote_file->path, 
-						remote_file->isdir ? "directory" : "fire", pcs_strerror(pcs, PCS_NONE));
+						remote_file->isdir ? "directory" : "fire", pcs_strerror(pcs));
 					ric = retry_cancel();
 					if (ric == 'r') {
 						goto exec_upload_dir_label_8;
@@ -1500,7 +1500,7 @@ static void show_quota(Pcs pcs)
 	char str[32] = {0};
 	pcsres = pcs_quota(pcs, &quota, &used);
 	if (pcsres != PCS_OK) {
-		printf("Get quota failed: %s\n", pcs_strerror(pcs, pcsres));
+		printf("Get quota failed: %s\n", pcs_strerror(pcs));
 		return;
 	}
 	printf("Quota: ");
@@ -1576,7 +1576,7 @@ int shell(struct params *params)
 			pcs_setopt(pcs, PCS_OPTION_PASSWORD, params->password);
 		}
 		if ((pcsres = pcs_login(pcs)) != PCS_OK) {
-			printf("Login Failed: %s\n", pcs_strerror(pcs, pcsres));
+			printf("Login Failed: %s\n", pcs_strerror(pcs));
 			pcs_destroy(pcs);
 			return -1;
 		}
