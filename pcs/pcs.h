@@ -98,14 +98,14 @@ PCS_API void pcs_destroy(Pcs handle);
 PCS_API const char *pcs_sysUID(Pcs handle);
 
 /*
- * 获取错误消息。如果函数返回值不为PcsRes，则error参数传入PCS_NONE，否则传入返回的值。
+ * 获取错误消息。
  * 如果程序中存在错误，则返回错误描述，否则返回NULL
  * 例：
  *    PcsRes res;
  *    const char *err;
  *    res = pcs_login(handle);
  *    if (res != PCS_LOGIN) {
- *        err = pcs_strerror(handle, res);
+ *        err = pcs_strerror(handle);
  *        printf("Error: %s\n", err);
  *    }
  *
@@ -115,7 +115,7 @@ PCS_API const char *pcs_sysUID(Pcs handle);
  *    UInt64 quota, used;
  *    res = pcs_quota(handle, &quota, &used);
  *    if (res != PCS_OK) {
- *        err = pcs_strerror(handle, res);
+ *        err = pcs_strerror(handle);
  *        printf("Error: %s\n", err);
  *    }
  *
@@ -124,7 +124,7 @@ PCS_API const char *pcs_sysUID(Pcs handle);
  *    const char *err;
  *    list = pcs_list(handle, "/", 1, 100, "name", PcsFalse);
  *    if (!list) {
- *        err = pcs_strerror(handle, res);
+ *        err = pcs_strerror(handle);
  *        if (err)
  *            printf("Error: %s\n", err);
  *        else
@@ -135,7 +135,7 @@ PCS_API const char *pcs_sysUID(Pcs handle);
  *    }
  * 
 */
-PCS_API const char *pcs_strerror(Pcs handle, PcsRes error);
+PCS_API const char *pcs_strerror(Pcs handle);
 
 /*
  * 设定单个选项，

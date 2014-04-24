@@ -17,6 +17,8 @@ typedef struct PcsPanApiRes {
 	PcsPanApiResInfoList	*info_list;
 } PcsPanApiRes;
 
+PCS_API const char *pcs_pan_api_res_info_errmsg(int error);
+
 PCS_API PcsPanApiRes *pcs_pan_api_res_create();
 PCS_API void pcs_pan_api_res_destroy(PcsPanApiRes *res);
 
