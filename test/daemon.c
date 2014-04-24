@@ -443,10 +443,13 @@ static void init_schedule()
 	ptm->tm_min = 0;
 	ptm->tm_sec = 0;
 	date = mktime(ptm);
-	for(i = 0; i < config.itemCount; i++) {
+	printf("now: %s\n", format_time(now));
+	printf("date: %s\n", format_time(date));
+	for (i = 0; i < config.itemCount; i++) {
 		config.items[i].next_run_time = config.items[i].schedule + date;
 		if (config.items[i].next_run_time <= now)
 			config.items[i].next_run_time += config.items[i].interval;
+		printf("[%d] next run at %s\n", i, format_time(config.items[i].next_run_time));
 	}
 }
 
