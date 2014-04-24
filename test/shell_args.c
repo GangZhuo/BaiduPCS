@@ -313,9 +313,9 @@ PcsBool shell_args_check_params(struct params *params)
 		break;
 
 	case ACTION_RESET:
-		if (params->args_count != 0 || (!params->config && (!params->cookie || !params->cache))) {
-			print_arg_err("usage: " program_name " reset --cookie=<cookie file> --cache=<cache file>\n"
-				"Sample: " program_name " reset --cookie=/etc/pcs/default.cookie --cache=/etc/pcs/cache.db\n"
+		if (params->args_count != 0 || (!params->config && (!params->cache))) {
+			print_arg_err("usage: " program_name " reset --cache=<cache file>\n"
+				"Sample: " program_name " reset --cache=/etc/pcs/cache.db\n"
 				"        " program_name " reset --config=/etc/pcs/default.json\n");
 			res = PcsFalse;
 			break;

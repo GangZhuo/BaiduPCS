@@ -2854,7 +2854,7 @@ static int run_svc(struct params *params)
 	return 0;
 }
 
-static int parse_run_shell_params(struct params *params)
+static int parse_run_shell_params(struct params *params, int requireCooki, int requireCache)
 {
 	//读参数 - 开始
 	if (params->config) {
@@ -2891,12 +2891,12 @@ static int parse_run_shell_params(struct params *params)
 		if (config.cacheFilePath) pcs_free(config.cacheFilePath);
 		config.cacheFilePath = pcs_utils_strdup(params->cache);
 	}
-	if (!config.cookieFilePath) {
+	if (requireCooki && !config.cookieFilePath) {
 		PRINT_FATAL("Do not specify the cookie file.");
 		freeConfig(FALSE);
 		return -1;
 	}
-	if (!config.cacheFilePath) {
+	if (requireCache && !config.cacheFilePath) {
 		PRINT_FATAL("Do not specify the cache file.");
 		freeConfig(FALSE);
 		return -1;
@@ -2913,7 +2913,7 @@ static int run_shell(struct params *params)
 	config.log_enabled = 0;
 	PRINT_NOTICE("Application start up");
 
-	if (parse_run_shell_params(params)) {
+	if (parse_run_shell_params(params, 1, 1)) {
 		PRINT_NOTICE("Application end up");
 		return -1;
 	}
@@ -2936,9 +2936,6 @@ static int run_shell(struct params *params)
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
 	switch (params->action){
-	case ACTION_RESET:
-		rc = method_reset();
-		break;
 	case ACTION_UPDATE:
 		rc = method_update(params->args[0]);
 		break;
@@ -2971,7 +2968,7 @@ static int run_shell_list_op(struct params *params)
 	config.log_enabled = 0;
 	printf("Application start up\n");
 
-	if (parse_run_shell_params(params)) {
+	if (parse_run_shell_params(params, 0, 1)) {
 		printf("Application end up\n");
 		return -1;
 	}
@@ -2988,6 +2985,31 @@ static int run_shell_list_op(struct params *params)
 	return rc;
 }
 
+static int run_shell_reset(struct params *params)
+{
+	int rc = 0;
+	config.run_in_daemon = 0;
+	config.printf_enabled = 1;
+	config.log_enabled = 0;
+	printf("Application start up\n");
+
+	if (parse_run_shell_params(params, 0, 1)) {
+		printf("Application end up\n");
+		return -1;
+	}
+
+	if (db_open()) {
+		freeConfig(FALSE);
+		printf("Application end up\n");
+		return -1;
+	}
+	rc = method_reset();
+	freeConfig(FALSE);
+	db_close();
+	printf("Application end up\n");
+	return rc;
+}
+
 int start_daemon(struct params *params)
 {
 	int rc = 0;
@@ -2996,6 +3018,8 @@ int start_daemon(struct params *params)
 		rc = method_time(params);
 	else if (params->action == ACTION_LIST_ACTION)
 		rc = run_shell_list_op(params);
+	else if (params->action == ACTION_RESET)
+		rc = run_shell_reset(params);
 	else if (params->action == ACTION_SVC)
 		rc = run_svc(params);
 	else
