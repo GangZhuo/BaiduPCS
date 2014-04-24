@@ -1857,7 +1857,7 @@ int method_backup(const char *localPath, const char *remotePath, int isCombin)
 	pcs_free(action);
 	db_prepare_destroy(&pre);
 	PRINT_NOTICE("Backup File: %d, Skip File: %d, Remove File: %d, Total File: %d", st.backupFiles, st.skipFiles, st.removeFiles, st.totalFiles);
-	PRINT_NOTICE("Backup Dir : %d, Skip Dirv: %d, Remove Dir : %d, Total Dir : %d", st.backupDir, st.skipDir, st.removeDir, st.totalDir);
+	PRINT_NOTICE("Backup Dir : %d, Skip Dir : %d, Remove Dir : %d, Total Dir : %d", st.backupDir, st.skipDir, st.removeDir, st.totalDir);
 	PRINT_NOTICE("Backup - End");
 	return 0;
 }

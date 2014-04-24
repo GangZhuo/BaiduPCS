@@ -11,7 +11,7 @@
 
 #include "dir.h"
 
-my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime);
+my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime, size_t size);
 
 time_t FileTimeToTime_t(FILETIME ft, time_t *t)  
 {  
@@ -37,12 +37,12 @@ int get_file_ent(my_dirent **pEnt, const char *path)
 	}
 	else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 		//判断是否为目录
-		if (pEnt) *pEnt = create_dirent(path, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL));
+		if (pEnt) *pEnt = create_dirent(path, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL), 0);
 		return 2;
 	}
 	else {
 		//判断为文件
-		if (pEnt) *pEnt = create_dirent(path, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL));
+		if (pEnt) *pEnt = create_dirent(path, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL), fd.nFileSizeLow);
 		return 1;
 	}
 }
@@ -79,7 +79,7 @@ void my_dirent_destroy(my_dirent *link)
 	}
 }
 
-my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime)
+my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime, size_t size)
 {
 	my_dirent *ent;
 	ent = (my_dirent *)pcs_malloc(sizeof(my_dirent));
@@ -109,6 +109,7 @@ my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir,
 	}
 	ent->is_dir = is_dir;
 	ent->mtime = mtime;
+	ent->size = size;
 	ent->user_flag = 0;
 	ent->next = NULL;
 	return ent;
@@ -133,7 +134,7 @@ int filesearch(const char *path, my_dirent *root, int recursion)
 		if(!strcmp(filefind.name, ".."))
 			continue;
 		if ((_A_SUBDIR == filefind.attrib)) {
-			ent = create_dirent(path, filefind.name, 1, filefind.time_write);
+			ent = create_dirent(path, filefind.name, 1, filefind.time_write, 0);
 			if (!ent) {
 				_findclose(handle);
 				return -1;
@@ -148,7 +149,7 @@ int filesearch(const char *path, my_dirent *root, int recursion)
 			}
 		}
 		else {
-			ent = create_dirent(path, filefind.name, 0, filefind.time_write);
+			ent = create_dirent(path, filefind.name, 0, filefind.time_write, filefind.size);
 			if (!ent) {
 				_findclose(handle);
 				return -1;
@@ -241,7 +242,7 @@ int my_dirent_utime(const char *path, time_t mtime)
 #include "../pcs/pcs_mem.h"
 #include "dir.h"
 
-my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime);
+my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime, size_t size);
 
 int get_file_ent(my_dirent **pEnt, const char *path)
 {
@@ -249,12 +250,12 @@ int get_file_ent(my_dirent **pEnt, const char *path)
 	stat(path, &st);
 	if (S_ISDIR(st.st_mode)) {
 		//为目录
-		if (pEnt) *pEnt = create_dirent(path, NULL, 1, st.st_mtime);
+		if (pEnt) *pEnt = create_dirent(path, NULL, 1, st.st_mtime, 0);
 		return 2;
 	}
 	else if (S_ISREG(st.st_mode)) {
 		//为文件
-		if (pEnt) *pEnt = create_dirent(path, NULL, 0, st.st_mtime);
+		if (pEnt) *pEnt = create_dirent(path, NULL, 0, st.st_mtime, st.st_size);
 		return 1;
 	}
 	return 0;
@@ -284,7 +285,7 @@ void my_dirent_destroy(my_dirent *link)
 	}
 }
 
-my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime)
+my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime, size_t size)
 {
 	my_dirent *ent;
 	ent = (my_dirent *)pcs_malloc(sizeof(my_dirent));
@@ -314,6 +315,7 @@ my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir,
 	}
 	ent->is_dir = is_dir;
 	ent->mtime = mtime;
+	ent->size = size;
 	ent->user_flag = 0;
 	ent->next = NULL;
 	return ent;
@@ -324,6 +326,7 @@ int filesearch(const char *path, my_dirent *root, int recursion)
     struct dirent* ent = NULL;
     DIR* pDir;
 	my_dirent *cusor, *p;
+	struct stat st;
 
 	pDir = opendir(path);
 	if (pDir == NULL)
@@ -333,7 +336,8 @@ int filesearch(const char *path, my_dirent *root, int recursion)
         if (ent->d_type == 4) {
 			if(!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
 				continue;
-			p = create_dirent(path, ent->d_name, 1, 0);
+			stat(path, &st);
+			p = create_dirent(path, ent->d_name, 1, st.st_mtime, 0);
             if (!ent)
 				return -1;
 			cusor->next = p;
@@ -344,7 +348,8 @@ int filesearch(const char *path, my_dirent *root, int recursion)
 			}
         }
         else if (ent->d_type == 8){
-			p = create_dirent(path, ent->d_name, 0, 0);
+			stat(path, &st);
+			p = create_dirent(path, ent->d_name, 0, st.st_mtime, st.st_size);
             if (!p)
 				return -1;
 			cusor->next = p;
