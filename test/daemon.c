@@ -20,7 +20,7 @@
 #include "dir.h"
 #include "shell_args.h"
 
-#define APP_NAME		(config.run_in_daemon ? "pcs daemon" : "pcs normal")
+#define APP_NAME		(config.run_in_daemon ? "pcs(svc)" : "pcs")
 
 #ifndef TRUE
 #  define TRUE 1
@@ -151,7 +151,7 @@ static Pcs pcs = NULL;
 //#endif
 //
 //}
-//
+
 /*返回日志文件的路径*/
 static const char *log_file_path()
 {
@@ -435,16 +435,18 @@ static int readConfigFile()
 static void init_schedule()
 {
 	int i;
-	time_t now;
+	time_t now, date;
 	struct tm* ptm;
 	time(&now);
 	ptm = localtime(&now);  
 	ptm->tm_hour = 0;
 	ptm->tm_min = 0;
 	ptm->tm_sec = 0;
-	now = mktime(ptm);
+	date = mktime(ptm);
 	for(i = 0; i < config.itemCount; i++) {
-		config.items[i].next_run_time = config.items[i].schedule + now;
+		config.items[i].next_run_time = config.items[i].schedule + date;
+		if (config.items[i].next_run_time <= now)
+			config.items[i].next_run_time += config.items[i].interval;
 	}
 }
 
@@ -1275,15 +1277,21 @@ static int method_reset()
 {
 	int rc;
 	PRINT_NOTICE("Reset - Start");
-	rc = sqlite3_exec(db, "DELETE FROM pcs_action", NULL, NULL, NULL);
+	//rc = sqlite3_exec(db, "DELETE FROM pcs_action", NULL, NULL, NULL);
+	//if (rc) {
+	//	PRINT_FATAL("Can't clear pcs_action data: %s", sqlite3_errmsg(db));
+	//	PRINT_NOTICE("Reset - End");
+	//	return -1;
+	//}
+	//rc = sqlite3_exec(db, "DELETE FROM pcs_cache", NULL, NULL, NULL);
+	//if (rc) {
+	//	PRINT_FATAL("Can't clear pcs_cache data: %s", sqlite3_errmsg(db));
+	//	PRINT_NOTICE("Reset - End");
+	//	return -1;
+	//}
+	rc = sqlite3_exec(db, "UPDATE pcs_action SET status = 3 WHERE status = 1", NULL, NULL, NULL);
 	if (rc) {
-		PRINT_FATAL("Can't clear pcs_action data: %s", sqlite3_errmsg(db));
-		PRINT_NOTICE("Reset - End");
-		return -1;
-	}
-	rc = sqlite3_exec(db, "DELETE FROM pcs_cache", NULL, NULL, NULL);
-	if (rc) {
-		PRINT_FATAL("Can't clear pcs_cache data: %s", sqlite3_errmsg(db));
+		PRINT_FATAL("Can't update pcs_action data: %s", sqlite3_errmsg(db));
 		PRINT_NOTICE("Reset - End");
 		return -1;
 	}
@@ -2516,7 +2524,10 @@ static void svc_loop()
 			if (!config.items[i].enable) continue;
 			if (now >= config.items[i].next_run_time) {
 				task(i);
-				config.items[i].next_run_time += config.items[i].interval;
+				if (config.items[i].interval)
+					config.items[i].next_run_time += config.items[i].interval;
+				else
+					config.items[i].enable = 0;
 			}
 		}
 		D_SLEEP(1000);
