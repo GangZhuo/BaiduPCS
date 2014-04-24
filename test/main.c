@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
 	case ACTION_COMBIN:
 	case ACTION_COMPARE:
 	case ACTION_TIME:
+	case ACTION_LIST_ACTION:
 		rc = start_daemon(params);
 		break;
 	default:

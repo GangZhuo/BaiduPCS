@@ -2491,6 +2491,60 @@ static int method_time()
 	return 0;
 }
 
+static int method_list_op()
+{
+	int rc;
+	sqlite3_stmt *stmt = NULL;
+	ActionInfo dst = { 0 };
+	int row_num = 0;
+	rc = sqlite3_prepare_v2(db, SQL_ACTION_SELECT_ALL, -1, &stmt, NULL);
+	if (rc) {
+		printf("Can't build the sql %s: %s\n", SQL_ACTION_SELECT_ALL, sqlite3_errmsg(db));
+		return -1;
+	}
+	printf("List OP:\n");
+	printf("rowid | action | status | start time | end time | create app | modify app\n");
+	printf("------------------------------------------------\n");
+	while (1) {
+		rc = sqlite3_step(stmt);
+		if (rc == SQLITE_DONE) break;
+		if (rc != SQLITE_ROW) {
+			printf("Can't execute the statement %s: %s\n", SQL_ACTION_SELECT_ALL, sqlite3_errmsg(db));
+			sqlite3_finalize(stmt);
+			return -1;
+		}
+		dst.rowid = sqlite3_column_int(stmt, 0);
+		dst.action = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 1));
+		dst.status = sqlite3_column_int(stmt, 2);
+		dst.start_time = sqlite3_column_int64(stmt, 3);
+		dst.end_time = sqlite3_column_int64(stmt, 4);
+		dst.create_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 5));
+		dst.modify_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 6));
+		printf("%d | %s | %d | %s", dst.rowid, dst.action, dst.status, format_time(dst.start_time));
+		printf(" | %s | %s | %s\n", format_time(dst.end_time), dst.create_app, dst.modify_app);
+		freeActionInfo(&dst);
+		row_num++;
+	}
+	sqlite3_finalize(stmt);
+	printf("------------------------------------------------\n");
+	printf("Row Number: %d\n", row_num);
+
+	rc = sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM pcs_cache", -1, &stmt, NULL);
+	if (rc) {
+		printf("Can't build the sql SELECT COUNT(*) FROM pcs_cache: %s\n", sqlite3_errmsg(db));
+		return -1;
+	}
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW) {
+		printf("Can't execute the statement SELECT COUNT(*) FROM pcs_cache: %s\n", sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return -1;
+	}
+	printf("Cache Row Number: %d\n", sqlite3_column_int(stmt, 0));
+	sqlite3_finalize(stmt);
+	return 0;
+}
+
 static int task(int itemIndex)
 {
 	int rc;
@@ -2727,12 +2781,39 @@ static int run_shell(struct params *params)
 	return rc;
 }
 
+static int run_shell_list_op(struct params *params)
+{
+	int rc = 0;
+	config.run_in_daemon = 0;
+	config.printf_enabled = 1;
+	config.log_enabled = 0;
+	printf("Application start up\n");
+
+	if (parse_run_shell_params(params)) {
+		printf("Application end up\n");
+		return -1;
+	}
+
+	if (db_open()) {
+		freeConfig(FALSE);
+		printf("Application end up\n");
+		return -1;
+	}
+	rc = method_list_op();
+	freeConfig(FALSE);
+	db_close();
+	printf("Application end up\n");
+	return rc;
+}
+
 int start_daemon(struct params *params)
 {
 	int rc = 0;
 	_pcs_mem_printf = &d_mem_printf;
 	if (params->action == ACTION_TIME)
 		rc = method_time(params);
+	else if (params->action == ACTION_LIST_ACTION)
+		rc = run_shell_list_op(params);
 	else if (params->action == ACTION_SVC)
 		rc = run_svc(params);
 	else
