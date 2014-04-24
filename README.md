@@ -26,7 +26,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
             "cookieFilePath": "/var/local/pcs/default.cookie", /*执行任务时，使用的cookie文件路径*/
             "cacheFilePath": "/var/local/pcs/cache.db", /*本地缓存文件的路径*/
             "logFilePath": "/var/log/pcs.log", /*日志文件路径*/
-            "items": [{
+            "items": [{ /*items为数组，定义了一些在服务模式下执行的任务。此项只有在服务模式下运行才会起作用。*/
+                        /*服务模式，见 “命令” 节中的 “以服务模式运行”*/
               "enable": 1, /* 0 - 不启用该项；1 - 启用该项。 */
               "localPath": "/var/www", /*备份本地 /var/www 目录*/
               "remotePath": "/backup/www", /*备份到网盘 /backup/www 目录*/
@@ -184,6 +185,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     pcs --help
 ### 以服务模式运行
     pcs svc --config=<config file path>
+    以服务模式运行时，程序不会退出，而是不停的循环检查配置文件中的任务，当任务的执行时间到达后，
+    将执行该任务。任务见编译安装中第5节的配置文件。配置文件中的items设置，只有在服务模式下起作用。
 ### 重置本地缓存（只有reset, update, backup, restore, combin, compare, ls-op 7个命令使用本地缓存）
     pcs reset --cache=<cache file path>
     or
