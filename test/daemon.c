@@ -2589,12 +2589,9 @@ static void svc_loop()
 {
 	int i;
 	time_t now;
-	struct tm* ptm;
 	init_schedule();
 	while(config.run_in_daemon) {
 		time(&now);
-		ptm = localtime(&now);
-		now = mktime(ptm);
 		for (i = 0; i < config.itemCount; i++) {
 			if (!config.items[i].enable) continue;
 			if (now >= config.items[i].next_run_time) {
