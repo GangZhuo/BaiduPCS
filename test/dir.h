@@ -13,6 +13,7 @@ struct my_dirent
    char		 *filename;
    int		 is_dir; /* File type */
    time_t	 mtime;
+   size_t	 size;
    int		user_flag;
    my_dirent *next;
 };
