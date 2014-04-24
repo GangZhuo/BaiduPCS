@@ -101,6 +101,7 @@ void log_writev(int level, const char *file,
         perror("write error");
         exit(1);
     }
+	fflush(log_fp);
 }
 
 void log_add_info(const char *info)
