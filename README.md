@@ -32,7 +32,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
               "remotePath": "/backup/www", /*备份到网盘 /backup/www 目录*/
               "method": "backup", /*执行的操作。
                                      reset   - 重置本地缓存。
-                                     update  - 更新本地缓存。
+                                               注意：只清理因为程序Crash导致的，提示另一个程序在运行的错误
+                                     update  - 更新 /backup/www 的本地缓存。
                                      backup  - 备份 /var/www 到 /backup/www。
                                                如果网盘中存在的文件或目录在本地不存在，将删除网盘中文件和目录，
                                                即一切以本地为准（备份完成后，网盘和本地的目录结构一模一样）。
@@ -171,10 +172,12 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     pcs reset --cache=<cache file path>
     or
     pcs reset --config=<config file path>
+    行为见编译安装中第5节的配置文件
 ### 更新<remote path>的本地缓存
     pcs update --cookie=<cookie file> --cache=<cache file> <remote path>
     or
     pcs update --config=<config file path> <remote path>
+    行为见编译安装中第5节的配置文件
 ### 备份本地文件或目录<local path>到网盘文件或目录<remote path>
     pcs backup --cookie=<cookie file> --cache=<cache file> <local path> <remote path>
     or
