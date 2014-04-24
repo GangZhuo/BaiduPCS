@@ -162,10 +162,10 @@ static const char *log_file_path()
 	strcat(filename, "\\.baidupcs");
 	mkdir(filename);
 	strcat(filename, "\\");
-	strcat(filename, "baidupcs.log");
+	strcat(filename, "pcs.log");
 	return filename;
 #else
-	return "/var/log/baidupcs.log";
+	return "/var/log/pcs.log";
 #endif
 
 }
