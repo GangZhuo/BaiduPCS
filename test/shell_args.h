@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 #define program_name	"pcs"
-#define program_version "0.0.1"
+#define program_version "0.1.0"
 #if defined(DEBUG) || defined(_DEBUG)
 #  define program_full_name program_name "(debug) v" program_version
 #else
