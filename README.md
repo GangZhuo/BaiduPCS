@@ -26,7 +26,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
             "cookieFilePath": "/var/local/pcs/default.cookie", /*执行任务时，使用的cookie文件路径*/
             "cacheFilePath": "/var/local/pcs/cache.db", /*本地缓存文件的路径*/
             "logFilePath": "/var/log/pcs.log", /*日志文件路径*/
-            "items": [{
+            "items": [{ /*items为数组，定义了一些在服务模式下执行的任务。此项只有在服务模式下运行才会起作用。*/
+                        /*服务模式，见 “命令” 节中的 “以服务模式运行”*/
               "enable": 1, /* 0 - 不启用该项；1 - 启用该项。 */
               "localPath": "/var/www", /*备份本地 /var/www 目录*/
               "remotePath": "/backup/www", /*备份到网盘 /backup/www 目录*/
@@ -51,7 +52,16 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
                                                再执行restore把网盘中的新文件或改动时间比本地后的文件目录还原到本地
                                                （执行combin时不会删除本地文件）。
                                                注意：合并时，如果本地存在文件或目录A，网盘存在同名目录或文件A，
-                                                     则网盘中目录或文件A的内容将丢失（丢失内容可在网盘回收站中找到）。*/
+                                                     则网盘中目录或文件A的内容将丢失
+                                                     （丢失内容可在网盘回收站中找到）。
+                                                     例：本地存在一个文件/var/www/data.bak，而网盘中存在一个
+                                                         目录/backup/www/data.bak，当执行合并时，
+                                                         将使用本地文件覆盖网盘中的data.bak目录，此时网盘中的
+                                                         data.bak目录被移入网盘回收站。
+                                                     例2：本地存在一个目录/var/www/upload.bak，而网盘中存在一个
+                                                          文件/backup/www/upload.bak，当执行合并时，
+                                                          将使用本地目录覆盖网盘中文件，此时网盘中文件将
+                                                          移入到网盘回收站。*/
               "schedule": "01:20:00", /*任务开始时间。格式：hh:mm:ss。01:20:00表示：任务开始于凌晨1点20分。 */
               "interval": "01:00:00:00" /*任务完成后，到下次执行间的间隔。格式：dd:hh:mm:ss。
                                           01:00:00:00表示，任务完成后，间隔1天将再次执行*/
@@ -175,6 +185,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     pcs --help
 ### 以服务模式运行
     pcs svc --config=<config file path>
+    以服务模式运行时，程序不会退出，而是不停的循环检查配置文件中的任务，当任务的执行时间到达后，
+    将执行该任务。任务见编译安装中第5节的配置文件。配置文件中的items设置，只有在服务模式下起作用。
 ### 重置本地缓存（只有reset, update, backup, restore, combin, compare, ls-op 7个命令使用本地缓存）
     pcs reset --cache=<cache file path>
     or
