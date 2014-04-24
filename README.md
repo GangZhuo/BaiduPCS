@@ -12,10 +12,53 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     cd baidupcs
     mkdir bin
     make ver=release
-### 4. 安装到 /usr/bin 下 
-    cp ./bin/pcs /usr/bin/
-    chmod a+x /usr/bin/pcs
-
+### 4. 安装到 /usr/local/bin 下 
+    cp ./bin/pcs /usr/local/bin/
+    chmod a+x /usr/local/bin/pcs
+### 5. 配置自动执行备份(Debian为例)
+    a) 创建配置文件
+        mkdir /etc/default/pcs /*创建存储配置文件的目录*/
+        mkdir /var/local/pcs /*创建存储cookie和本地缓存文件的目录*/
+        vim /etc/default/pcs/default.json 
+        default.json 内容如下：
+          /*配置文件 - 开始*/
+          {
+            "cookieFilePath": "/var/local/pcs/default.cookie", /*执行任务时，使用的cookie文件路径*/
+            "cacheFilePath": "/var/local/pcs/cache.db", /*本地缓存文件的路径*/
+            "logFilePath": "/var/log/pcs.log", /*日志文件路径*/
+            "items": [{
+              "enable": 1, /* 0 - 不启用该项；1 - 启用该项。 */
+              "localPath": "/var/www", /*备份本地 /var/www 目录*/
+              "remotePath": "/backup/www", /*备份到网盘 /backup/www 目录*/
+              "method": "backup", /*执行的操作。
+                                     reset - 重置本地缓存；
+                                     update - 更新本地缓存；
+                                     backup - 备份 /var/www 到 /backup/www；
+                                     restore - 还原 /backup/www 到 /var/www。*/
+              "schedule": "01:20:00", /*任务开始时间。格式：hh:mm:ss。01:20:00表示：任务开始于凌晨1点20分。 */
+              "interval": "01:00:00:00" /*任务完成后，到下次执行间的间隔。格式：dd:hh:mm:ss。
+                                          01:00:00:00表示，任务完成后，间隔1天将再次执行*/
+            }]
+          }
+          /*配置文件 - 结束*/
+          
+     b) 登录一次，产生cookie文件
+        pcs -u<account> quota --urlc --cookie=/var/local/pcs/default.cookie
+     c) 使用 screen 启动服务
+        screen -S backup
+        pcs svc --config=/etc/default/pcs/default.json
+        按下 ctrl+a 然后按下d来分离screen。
+     d) 查看任务
+        pcs ls-op --config=/etc/default/pcs/default.json
+        查看 [SVC TASK] 节下的任务计划情况。
+     e) 查看日志
+        tail -20 /var/log/pcs.log
+     f) 比较本地文件和网盘文件
+        pcs compare --config=/etc/default/pcs/default.json /var/www /backup/www
+     g) 如果出现类似"There have another * thread running, which is start by..." 的错误，执行一次以下命令来重置缓存状态
+        pcs reset --config=/etc/default/pcs/default.json
+        
+    
 使用方法：
 ===================================
 如果出现中文乱码，请检查操作系统的当前编码是否为UTF8。
