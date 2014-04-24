@@ -2557,6 +2557,12 @@ static int run_svc(struct params *params)
 			PRINT_NOTICE("Log file continue from %s", log_file_path());
 		}
 	}
+	printf("Run in Daemon: %s\n", config.run_in_daemon ? "yes" : "no");
+	printf("Log Enabled: %s\n", config.log_enabled ? "yes" : "no");
+	printf("Printf Enabled: %s\n", config.printf_enabled ? "yes" : "no");
+	printf("Config: %s\n", config.configFilePath);
+	printf("Cookie: %s\n", config.cookieFilePath);
+	printf("Log: %s\n", config.logFilePath);
 	PRINT_NOTICE("Run in Daemon: %s", config.run_in_daemon ? "yes" : "no");
 	PRINT_NOTICE("Log Enabled: %s", config.log_enabled ? "yes" : "no");
 	PRINT_NOTICE("Printf Enabled: %s", config.printf_enabled ? "yes" : "no");
