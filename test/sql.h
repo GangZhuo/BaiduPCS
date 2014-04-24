@@ -42,6 +42,7 @@
 #define SQL_ACTION_UPDATE_START	"UPDATE pcs_action SET status=?2,start_time=?3,end_time=?3,capp=?4,mapp=?4 WHERE action=?1"
 #define SQL_ACTION_UPDATE_END	"UPDATE pcs_action SET status=?2,end_time=?3,mapp=?4 WHERE action=?1"
 #define SQL_ACTION_DELETE		"DELETE FROM pcs_action WHERE action=?1"
+#define SQL_ACTION_SELECT_ALL	"SELECT ROWID, action,status,start_time,end_time,capp,mapp FROM pcs_action"
 
 #define SQL_CACHE_SELECT		"SELECT server_fs_id, server_path, server_filename, server_ctime, server_mtime, "\
 								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\

@@ -87,6 +87,7 @@ static const char doc[] = "\nProvide some commands that can access the baidu net
 	"  combin                   Combin\n"
 	"  compare                  Compare\n"
 	"  time                     Print time\n"
+	"  ls-op                    List OP\n"
 
 	"\v\n"
 	"If you are first use the program, or you session is time out, "
@@ -380,6 +381,16 @@ PcsBool shell_args_check_params(struct params *params)
 		}
 		break;
 
+	case ACTION_LIST_ACTION:
+		if (params->args_count != 0 || (!params->config && (!params->cache))) {
+			print_arg_err("usage: " program_name " ls-op --cache=<cache file>\n"
+				"Sample: " program_name " ls-op --cache=/etc/pcs/cache.db\n"
+				"        " program_name " ls-op --config=/etc/pcs/default.json\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
 	default:
 			print_arg_err("wrong arguments\n");
 		res = PcsFalse;
@@ -475,6 +486,8 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 				params->action = ACTION_COMPARE;
 			else if (strcmp(arg, "time") == 0)
 				params->action = ACTION_TIME;
+			else if (strcmp(arg, "ls-op") == 0)
+				params->action = ACTION_LIST_ACTION;
 			else {
 				print_arg_err("unknown command\n");
 				return EINVAL;
