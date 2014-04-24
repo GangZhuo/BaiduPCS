@@ -134,8 +134,12 @@ PCS_API void pcs_filist_remove(PcsFileInfoList *list, PcsFileInfoListItem *item,
 		list->link = item->next;
 	if (list->link_tail == item)
 		list->link_tail = item->prev;
-	if (iterater && iterater->cursor == item)
-		iterater->cursor = item->prev;
+	if (iterater && iterater->cursor == item) {
+		if (iterater->invert)
+			iterater->cursor = item->next;
+		else
+			iterater->cursor = item->prev;
+	}
 	item->prev = item->next = 0;
 	list->count--;
 }
@@ -162,9 +166,10 @@ PCS_API void pcs_filist_combin(PcsFileInfoList *list, PcsFileInfoList *src)
 }
 
 
-PCS_API void pcs_filist_iterater_init(PcsFileInfoList *list, PcsFileInfoListIterater *iterater)
+PCS_API void pcs_filist_iterater_init(PcsFileInfoList *list, PcsFileInfoListIterater *iterater, PcsBool invert)
 {
 	memset(iterater, 0, sizeof(PcsFileInfoListIterater));
+	iterater->invert = invert;
 	iterater->list = list;
 }
 
@@ -172,15 +177,29 @@ PCS_API PcsBool pcs_filist_iterater_next(PcsFileInfoListIterater *iterater)
 {
 	if (!iterater->list->link)
 		return PcsFalse;
-	if (!iterater->cursor) {
-		iterater->cursor = iterater->list->link;
-		iterater->current = iterater->cursor->info;
-		return PcsTrue;
+	if (iterater->invert) {
+		if (!iterater->cursor) {
+			iterater->cursor = iterater->list->link_tail;
+			iterater->current = iterater->cursor->info;
+			return PcsTrue;
+		}
+		else if (iterater->cursor->prev) {
+			iterater->cursor = iterater->cursor->prev;
+			iterater->current = iterater->cursor->info;
+			return PcsTrue;
+		}
 	}
-	else if (iterater->cursor->next) {
-		iterater->cursor = iterater->cursor->next;
-		iterater->current = iterater->cursor->info;
-		return PcsTrue;
+	else {
+		if (!iterater->cursor) {
+			iterater->cursor = iterater->list->link;
+			iterater->current = iterater->cursor->info;
+			return PcsTrue;
+		}
+		else if (iterater->cursor->next) {
+			iterater->cursor = iterater->cursor->next;
+			iterater->current = iterater->cursor->info;
+			return PcsTrue;
+		}
 	}
 	return PcsFalse;
 }

@@ -54,7 +54,7 @@ int log_open(const char* filename)
     return 1;
 }
 
-void log_close()
+void log_close(void)
 {
     if (log_opened) {
         FM_LOG_NOTICE("log_close\n");

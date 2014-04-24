@@ -269,9 +269,11 @@ static int readFileContent(const char *file, char **pBuffer)
 
 static int convert_to_time_t(char *str)
 {
-	int rc;
-	char *s[3], *p;
+	int rc = 0;
+	char *s[3] = { 0 },
+		*p;
 	int i = 0;
+	if (!str) return 0;
 	p = str;
 	s[i++] = p;
 	while (*p) {
@@ -282,17 +284,19 @@ static int convert_to_time_t(char *str)
 		}
 		p++;
 	}
-	rc = atoi(s[0]) * 60 * 60;
-	rc += atoi(s[1]) * 60;
-	rc += atoi(s[2]);
+	if (s[0]) rc += atoi(s[0]) * 60 * 60;
+	if (s[1]) rc += atoi(s[1]) * 60;
+	if (s[2]) rc += atoi(s[2]);
 	return rc;
 }
 
 static int convert_to_time_t_2(char *str)
 {
-	int rc;
-	char *s[4], *p;
+	int rc = 0;
+	char *s[4] = { 0 },
+		*p;
 	int i = 0;
+	if (!str) return 0;
 	p = str;
 	s[i++] = p;
 	while (*p) {
@@ -303,10 +307,10 @@ static int convert_to_time_t_2(char *str)
 		}
 		p++;
 	}
-	rc = atoi(s[0]) * 24 * 60 * 60;
-	rc += atoi(s[1]) * 60 * 60;
-	rc += atoi(s[2]) * 60;
-	rc += atoi(s[3]);
+	if (s[0]) rc += atoi(s[0]) * 24 * 60 * 60;
+	if (s[1]) rc += atoi(s[1]) * 60 * 60;
+	if (s[2]) rc += atoi(s[2]) * 60;
+	if (s[3]) rc += atoi(s[3]);
 	return rc;
 }
 
@@ -1088,6 +1092,7 @@ static int method_update_folder(const char *path, DbPrepare *pre, int *pFileCoun
 {
 	PcsFileInfoList *list = NULL;
 	PcsFileInfoListIterater iterater;
+	PcsFileInfoListItem *listitem;
 	PcsFileInfo *info = NULL;
 	int page_index = 1,
 		page_size = 100;
@@ -1113,19 +1118,24 @@ static int method_update_folder(const char *path, DbPrepare *pre, int *pFileCoun
 		}
 		if (pDirectFileCount) *pDirectFileCount += cnt;
 
-		pcs_filist_iterater_init(list, &iterater);
+		pcs_filist_iterater_init(list, &iterater, PcsTrue);
 		while(pcs_filist_iterater_next(&iterater)) {
 			info = iterater.current;
+			listitem = iterater.cursor;
+			pcs_filist_remove(list, listitem, &iterater);
 			if (db_add_cache(info, pre)) {
+				pcs_filistitem_destroy(listitem);
 				pcs_filist_destroy(list);
 				return -1;
 			}
 			if (info->isdir) {
 				if (method_update_folder(info->path, pre, pFileCount, NULL)) {
+					pcs_filistitem_destroy(listitem);
 					pcs_filist_destroy(list);
 					return -1;
 				}
 			}
+			pcs_filistitem_destroy(listitem);
 		}
 		pcs_filist_destroy(list);
 		if (cnt < page_size) {
@@ -1144,10 +1154,10 @@ static int method_update(const char *remotePath)
 	PcsFileInfo *meta = NULL;
 	ActionInfo actionInfo = {0};
 
-	PRINT_NOTICE("Update meta data - Start");
+	PRINT_NOTICE("Update Local Cache - Start");
 	if (pcs_islogin(pcs) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
-		PRINT_NOTICE("Update meta data - End");
+		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
@@ -1157,7 +1167,7 @@ static int method_update(const char *remotePath)
 	//获取当前的ACTION
 	if (db_get_action(&actionInfo, action)) {
 		pcs_free(action);
-		PRINT_NOTICE("Update meta data - End");
+		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
 	//检查ACTION状态
@@ -1165,21 +1175,21 @@ static int method_update(const char *remotePath)
 		PRINT_FATAL("There have another update thread running, which is start by %s at %s", actionInfo.create_app, format_time(actionInfo.start_time));
 		pcs_free(action);
 		freeActionInfo(&actionInfo);
-		PRINT_NOTICE("Update meta data - End");
+		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
 	freeActionInfo(&actionInfo);
 	//设置ACTION为RUNNING状态
 	if (db_set_action(action, ACTION_STATUS_RUNNING, 1)) {
 		pcs_free(action);
-		PRINT_NOTICE("Update meta data - End");
+		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
 	//删除当前目录的本地缓存
 	if (db_remove_cache(remotePath)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
-		PRINT_NOTICE("Update meta data - End");
+		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
 	//获取当前目录的元数据
@@ -1188,7 +1198,7 @@ static int method_update(const char *remotePath)
 		PRINT_FATAL("The remote path not exist: %s", remotePath);
 		db_set_action(action, ACTION_STATUS_FINISHED, 0);
 		pcs_free(action);
-		PRINT_NOTICE("Update meta data - End");
+		PRINT_NOTICE("Update Local Cache - End");
 		return 0;
 	}
 	//准备插入数据到缓存表格中的SQL过程
@@ -1196,7 +1206,7 @@ static int method_update(const char *remotePath)
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		pcs_fileinfo_destroy(meta);
-		PRINT_NOTICE("Update meta data - End");
+		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
 	//缓存当前目录的元数据
@@ -1205,7 +1215,7 @@ static int method_update(const char *remotePath)
 		pcs_free(action);
 		pcs_fileinfo_destroy(meta);
 		db_prepare_destroy(&pre);
-		PRINT_NOTICE("Update meta data - End");
+		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
 	if (meta->isdir) {
@@ -1215,7 +1225,7 @@ static int method_update(const char *remotePath)
 			pcs_free(action);
 			pcs_fileinfo_destroy(meta);
 			db_prepare_destroy(&pre);
-			PRINT_NOTICE("Update meta data - End");
+			PRINT_NOTICE("Update Local Cache - End");
 			return -1;
 		}
 		//递归更新子目录
@@ -1224,10 +1234,10 @@ static int method_update(const char *remotePath)
 			pcs_free(action);
 			pcs_fileinfo_destroy(meta);
 			db_prepare_destroy(&pre);
-			PRINT_NOTICE("Update meta data - End");
+			PRINT_NOTICE("Update Local Cache - End");
 			return -1;
 		}
-		PRINT_NOTICE("%d direct, %d direct and indirect", directFileCount, fileCount);
+		PRINT_NOTICE("Direct: %d, Total: %d", directFileCount, fileCount);
 	}
 	else {
 		PRINT_NOTICE("The remote path is file: %s", remotePath);
@@ -1236,7 +1246,7 @@ static int method_update(const char *remotePath)
 	pcs_free(action);
 	pcs_fileinfo_destroy(meta);
 	db_prepare_destroy(&pre);
-	PRINT_NOTICE("Update meta data - End");
+	PRINT_NOTICE("Update Local Cache - End");
 	return 0;
 }
 

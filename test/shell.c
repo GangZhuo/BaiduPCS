@@ -367,7 +367,7 @@ static void print_filelist(PcsFileInfoList *list)
 	size_t total = 0;
 	PcsFileInfoListIterater iterater;
 
-	pcs_filist_iterater_init(list, &iterater);
+	pcs_filist_iterater_init(list, &iterater, PcsFalse);
 	while(pcs_filist_iterater_next(&iterater)) {
 		file = iterater.current;
 		w = -1;
@@ -386,7 +386,7 @@ static void print_filelist(PcsFileInfoList *list)
 	putchar('\n');
 	print_filelist_head(size_width);
 	puts("------------------------------------------------------------------------------");
-	pcs_filist_iterater_init(list, &iterater);
+	pcs_filist_iterater_init(list, &iterater, PcsFalse);
 	while(pcs_filist_iterater_next(&iterater)) {
 		file = iterater.current;
 		print_filelist_row(file, size_width);
@@ -515,7 +515,7 @@ static PcsFileInfoList *get_file_list(Pcs pcs, const char *dir, const char *sort
 				pcs_filist_destroy(list);
 				return NULL;
 			}
-			pcs_filist_iterater_init(list, &iterater);
+			pcs_filist_iterater_init(list, &iterater, PcsFalse);
 			while(pcs_filist_iterater_next(&iterater)) {
 				info = iterater.current;
 				listitem = iterater.cursor;
@@ -982,7 +982,7 @@ static int exec_download_dir(Pcs pcs, const char *remote_path, const char *local
 		return 0;
 	}
 
-	pcs_filist_iterater_init(remote_files, &iterater);
+	pcs_filist_iterater_init(remote_files, &iterater, PcsFalse);
 	while(pcs_filist_iterater_next(&iterater)) {
 		file = iterater.current;
 		dest_path = combin_local_path(local_path, file->server_filename);
@@ -1063,7 +1063,7 @@ static int exec_download_dir(Pcs pcs, const char *remote_path, const char *local
 		pcs_free(dest_path);
 	}
 	if (recursion) {
-		pcs_filist_iterater_init(remote_files, &iterater);
+		pcs_filist_iterater_init(remote_files, &iterater, PcsFalse);
 		while(pcs_filist_iterater_next(&iterater)) {
 			file = iterater.current;
 			dest_path = combin_local_path(local_path, file->server_filename);
@@ -1284,7 +1284,7 @@ exec_upload_dir_label_5:
 			printf("Cannot create hashtable.\n");
 			goto exec_upload_dir_label_00;
 		}
-		pcs_filist_iterater_init(remote_filelist, &iterater);
+		pcs_filist_iterater_init(remote_filelist, &iterater, PcsFalse);
 		while(pcs_filist_iterater_next(&iterater)) {
 			remote_file = iterater.current;
 			if (hashtable_add(ht, remote_file->path, remote_file)) {
