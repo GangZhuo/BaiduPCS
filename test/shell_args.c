@@ -79,13 +79,14 @@ static const char doc[] = "\nProvide some commands that can access the baidu net
 	"  search                   Search the baidu network disk\n"
 	"  download                 Download the file\n"
 	"  upload                   Upload the file\n"
-	"  svc                      Upload the file\n"
-	"  reset                    Upload the file\n"
-	"  update                   Upload the file\n"
-	"  backup                   Upload the file\n"
-	"  restore                  Upload the file\n"
-	"  combin                   Upload the file\n"
-	"  compare                  Upload the file\n"
+	"  svc                      Run in service mode\n"
+	"  reset                    Reset status for local cache\n"
+	"  update                   Update local cache\n"
+	"  backup                   Backup\n"
+	"  restore                  Restore\n"
+	"  combin                   Combin\n"
+	"  compare                  Compare\n"
+	"  time                     Print time\n"
 
 	"\v\n"
 	"If you are first use the program, or you session is time out, "
@@ -370,6 +371,15 @@ PcsBool shell_args_check_params(struct params *params)
 		}
 		break;
 
+	case ACTION_TIME:
+		if (params->args_count != 0) {
+			print_arg_err("usage: " program_name " time\n"
+				"Sample: " program_name " time\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
 	default:
 			print_arg_err("wrong arguments\n");
 		res = PcsFalse;
@@ -463,6 +473,8 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 				params->action = ACTION_COMBIN;
 			else if (strcmp(arg, "compare") == 0)
 				params->action = ACTION_COMPARE;
+			else if (strcmp(arg, "time") == 0)
+				params->action = ACTION_TIME;
 			else {
 				print_arg_err("unknown command\n");
 				return EINVAL;
