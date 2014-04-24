@@ -38,6 +38,7 @@ enum action {
 	ACTION_RESTORE = 18,
 	ACTION_COMBIN = 19,
 	ACTION_COMPARE = 20,
+	ACTION_TIME = 21,
 };
 
 /* Structure used to communicate with the parsing functions.  */

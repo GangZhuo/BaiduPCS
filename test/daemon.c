@@ -2476,6 +2476,21 @@ static int method_compare(const char *localPath, const char *remotePath)
 	return 0;
 }
 
+static int method_time()
+{
+	time_t now, date;
+	struct tm* ptm;
+	time(&now);
+	ptm = localtime(&now);
+	ptm->tm_hour = 0;
+	ptm->tm_min = 0;
+	ptm->tm_sec = 0;
+	date = mktime(ptm);
+	printf("now: %s\n", format_time(now));
+	printf("date: %s\n", format_time(date));
+	return 0;
+}
+
 static int task(int itemIndex)
 {
 	int rc;
@@ -2716,7 +2731,9 @@ int start_daemon(struct params *params)
 {
 	int rc = 0;
 	_pcs_mem_printf = &d_mem_printf;
-	if (params->action == ACTION_SVC)
+	if (params->action == ACTION_TIME)
+		rc = method_time(params);
+	else if (params->action == ACTION_SVC)
 		rc = run_svc(params);
 	else
 		rc = run_shell(params);
