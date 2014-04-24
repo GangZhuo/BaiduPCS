@@ -165,5 +165,41 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     pcs download /backup/data.20140118.tar.gz ~/download/data.20140118.tar.gz
 ### 查看帮助
     pcs --help
-
-
+### 以服务模式运行
+    pcs svc --config=<config file path>
+### 重置本地缓存（只有reset, update, backup, restore, combin, compare, ls-op 7个命令使用本地缓存）
+    pcs reset --cache=<cache file path>
+    or
+    pcs reset --config=<config file path>
+### 更新<remote path>的本地缓存
+    pcs update --cookie=<cookie file> --cache=<cache file> <remote path>
+    or
+    pcs update --config=<config file path> <remote path>
+### 备份本地文件或目录<local path>到网盘文件或目录<remote path>
+    pcs backup --cookie=<cookie file> --cache=<cache file> <local path> <remote path>
+    or
+    pcs backup --config=<config file path> <local path> <remote path>
+    行为见编译安装中第5节的配置文件
+### 还原网盘文件或目录<remote path>到本地文件或目录<local path>
+    pcs restore --cookie=<cookie file> --cache=<cache file> <local path> <remote path>
+    or
+    pcs restore --config=<config file path> <local path> <remote path>
+    行为见编译安装中第5节的配置文件
+### 合并本地文件或目录<local path>和网盘文件或目录<remote path>
+    pcs combin --cookie=<cookie file> --cache=<cache file> <local path> <remote path>
+    or
+    pcs combin --config=<config file path> <local path> <remote path>
+    行为见编译安装中第5节的配置文件
+### 比较本地文件或目录<local path>和网盘文件或目录<remote path>的异同
+    pcs compare --cookie=<cookie file> --cache=<cache file> <local path> <remote path>
+    or
+    pcs compare --config=<config file path> <local path> <remote path>
+    行为见编译安装中第5节的配置文件
+### 打印服务器的本地日期和时间
+    pcs time
+### 列出svc模式下各任务的情况
+    pcs ls-op --cache=<cache file>
+    or
+    pcs ls-op --config=<config file path>
+    
+    
