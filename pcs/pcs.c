@@ -1145,7 +1145,7 @@ PCS_API PcsFileInfo *pcs_meta(Pcs handle, const char *path)
 	pcs_free(key);
 	if (!filist)
 		return NULL;
-	pcs_filist_iterater_init(filist, &iterater);
+	pcs_filist_iterater_init(filist, &iterater, PcsFalse);
 	while(pcs_filist_iterater_next(&iterater)) {
 		if (pcs_utils_strcmpi(path, iterater.current->path) == 0) {
 			meta = iterater.current;

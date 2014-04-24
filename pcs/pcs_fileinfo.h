@@ -41,6 +41,7 @@ typedef struct PcsFileInfoList {
 
 /*网盘文件元数据列表的迭代器*/
 typedef struct PcsFileInfoListIterater {
+	PcsBool				invert;
 	PcsFileInfoList		*list;
 	PcsFileInfoListItem	*cursor;
 	PcsFileInfo			*current;
@@ -60,7 +61,10 @@ PCS_API void pcs_filist_add(PcsFileInfoList *list, PcsFileInfoListItem *item);
 PCS_API void pcs_filist_remove(PcsFileInfoList *list, PcsFileInfoListItem *item, PcsFileInfoListIterater *iterater);
 PCS_API void pcs_filist_combin(PcsFileInfoList *list, PcsFileInfoList *src);
 
-PCS_API void pcs_filist_iterater_init(PcsFileInfoList *list, PcsFileInfoListIterater *iterater);
+/*
+ * invert - 是否从后向前迭代
+ */
+PCS_API void pcs_filist_iterater_init(PcsFileInfoList *list, PcsFileInfoListIterater *iterater, PcsBool invert);
 PCS_API PcsBool pcs_filist_iterater_next(PcsFileInfoListIterater *iterater);
 
 

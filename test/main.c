@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../pcs/pcs_mem.h"
 #include "../pcs/pcs_utils.h"
 #include "shell_args.h"
 #include "shell.h"
