@@ -1,11 +1,11 @@
 /*
-  print the output of command `pcs ls-op --config=/etc/pcs/default.json` to the browser.
+  execute `pcs ls-op` on browser.
 */
 <?php
-header('Content-type: text/plain');
-header('Cache-Control: no-cache, no-store, max-age=0, must-revalidate');
-header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
-header('Pragma: no-cache');
+require_once(__DIR__.DIRECTORY_SEPARATOR.'common.php');
+require_once(APP_ROOT.'config.php');
 
-system("pcs ls-op --config=/etc/pcs/default.json");
+show_as_text();
+
+system("pcs ls-op --config=$pcs_config_file");
 
