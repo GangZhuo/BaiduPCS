@@ -2545,18 +2545,27 @@ static int method_compare(const char *localPath, const char *remotePath)
 	return 0;
 }
 
-static int method_time()
+static void print_datetime(const char *timeDesc, const char *dateDesc)
 {
 	time_t now, date;
 	struct tm* ptm;
 	time(&now);
-	ptm = localtime(&now);
-	ptm->tm_hour = 0;
-	ptm->tm_min = 0;
-	ptm->tm_sec = 0;
-	date = mktime(ptm);
-	printf("Local Time: %s\n", format_time(now));
-	printf("Local Date: %s\n", format_time(date));
+	if (timeDesc) {
+		printf(timeDesc, format_time(now));
+	}
+	if (dateDesc) {
+		ptm = localtime(&now);
+		ptm->tm_hour = 0;
+		ptm->tm_min = 0;
+		ptm->tm_sec = 0;
+		date = mktime(ptm);
+		printf(dateDesc, format_time(date));
+	}
+}
+
+static int method_time()
+{
+	print_datetime("%s\n", NULL);
 	return 0;
 }
 
@@ -2616,9 +2625,8 @@ static int method_list_op()
 	sqlite3_finalize(stmt);
 
 	printf("\nTask:\n");
-	method_time();
 	print_taks();
-
+	print_datetime("now is %s \n", NULL);
 	return 0;
 }
 
@@ -2666,11 +2674,12 @@ static void print_taks()
 	printf("id | method | enabled | last run time | next run time | schedule | interval | local path | remote path\n");
 	printf("------------------------------------------------\n");
 	for (i = 0; i < config.itemCount; i++) {
-		printf("%03d | %s | %s | %s | %s | %d | %d | %s | %s\n",
+		printf("%03d | %s | %s | %s ",
 			i + 1,
 			get_method_name(config.items[i].method),
 			config.items[i].enable ? "yes" : "no ",
-			format_time(config.items[i].last_run_time),
+			format_time(config.items[i].last_run_time));
+		printf("| %s | %d | %d | %s | %s\n",
 			format_time(config.items[i].next_run_time),
 			config.items[i].schedule,
 			config.items[i].interval,
@@ -2700,11 +2709,12 @@ static void print_taks()
 		}
 		status = sqlite3_column_int(stmt, 9);
 		elapsed = sqlite3_column_int64(stmt, 13);
-		printf("%03d | %s | %s | %s | %s | %d | %d | %s | %d | %s | %s\n",
+		printf("%03d | %s | %s | %s ",
 			sqlite3_column_int(stmt, 0),
 			get_method_name(sqlite3_column_int(stmt, 1)),
 			sqlite3_column_int(stmt, 2) ? "yes" : "no ",
-			format_time(sqlite3_column_int64(stmt, 3)),
+			format_time(sqlite3_column_int64(stmt, 3)));
+		printf("| %s | %d | %d | %s | %d | %s | %s\n", 
 			format_time(sqlite3_column_int64(stmt, 4)),
 			sqlite3_column_int(stmt, 5),
 			sqlite3_column_int(stmt, 6),
@@ -2841,7 +2851,6 @@ static int run_svc(struct params *params)
 		PRINT_NOTICE("Application end up");
 		return -1;
 	}
-	method_time();
 	init_schedule();
 	log_task();
 	printf("\nTask:\n");
@@ -3017,14 +3026,17 @@ int start_daemon(struct params *params)
 	int rc = 0;
 	_pcs_mem_printf = &d_mem_printf;
 	if (params->action == ACTION_TIME)
-		rc = method_time(params);
-	else if (params->action == ACTION_LIST_ACTION)
-		rc = run_shell_list_op(params);
-	else if (params->action == ACTION_RESET)
-		rc = run_shell_reset(params);
-	else if (params->action == ACTION_SVC)
-		rc = run_svc(params);
-	else
-		rc = run_shell(params);
+		rc = method_time();
+	else {
+		print_datetime("start at %s\n", NULL);
+		if (params->action == ACTION_LIST_ACTION)
+			rc = run_shell_list_op(params);
+		else if (params->action == ACTION_RESET)
+			rc = run_shell_reset(params);
+		else if (params->action == ACTION_SVC)
+			rc = run_svc(params);
+		else
+			rc = run_shell(params);
+	}
 	return rc;
 }
