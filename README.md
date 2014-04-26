@@ -12,7 +12,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     cd baidupcs
     mkdir bin
     make clean
-    make ver=release
+    make
+    make install #将安装到/usr/local/bin下
 ### 4. 安装到 /usr/local/bin 下 
     cp ./bin/pcs /usr/local/bin/
     chmod a+x /usr/local/bin/pcs
