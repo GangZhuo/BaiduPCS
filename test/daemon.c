@@ -2542,22 +2542,23 @@ static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPre
 	}
 	if (ent == NULL) {
 		addCompareItem(list, '+', 'F', 'L', localPath, elem_count); /*创建本地新文件*/
+		return 0;
 	}
-	else {
-		int same_md5 = 0;
+	if (md5Enabled) {
 		const char *md5;
-		if (md5Enabled && remote->md5) {
-			md5 = md5_file((char *)ent->path);
-			if (!md5) {
-				PRINT_FATAL("Can't calculate md5 for %s.", ent->path);
-				my_dirent_destroy(ent);
-				return -1;
-			}
-			else
-				same_md5 = pcs_utils_strcmpi(md5, remote->md5);
+		if (!remote->md5 || !remote->md5[0]) {
+			PRINT_FATAL("The remote file have no md5: %s.", remote->path);
+			my_dirent_destroy(ent);
+			return -1;
 		}
-		if (!same_md5) {
-			if (md5Enabled && ent->mtime == ((time_t)remote->server_mtime)) {
+		md5 = md5_file((char *)ent->path);
+		if (!md5) {
+			PRINT_FATAL("Can't calculate md5 for %s.", ent->path);
+			my_dirent_destroy(ent);
+			return -1;
+		}
+		if (pcs_utils_strcmpi(md5, remote->md5)) {
+			if (ent->mtime == ((time_t)remote->server_mtime)) {
 				PRINT_FATAL("Unable to determine which file is newer: "
 					"The local file %s and remote file %s have different md5 (%s : %s), "
 					"they also have same last modify time %s.",
@@ -2571,6 +2572,14 @@ static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPre
 			else if (ent->mtime >((time_t)remote->server_mtime)) {
 				addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath, elem_count); /*上传本地文件*/
 			}
+		}
+	}
+	else {
+		if (ent->mtime < ((time_t)remote->server_mtime)) {
+			addCompareItem(list, OP_ARROW_DOWN, 'F', 'R', remote->path, elem_count); /*下载网盘文件*/
+		}
+		else if (ent->mtime > ((time_t)remote->server_mtime)) {
+			addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath, elem_count); /*上传本地文件*/
 		}
 	}
 	my_dirent_destroy(ent);
