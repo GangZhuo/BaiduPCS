@@ -2416,7 +2416,7 @@ static int method_combin(const char *localPath, const char *remotePath, int md5E
 	return rc;
 }
 
-static void addCompareItem(CompareItem *list, char op, char type, char position, const char *path, int *elem_count)
+static void addCompareItem(CompareItem *list, char op, char type, char position, const char *path)
 {
 	CompareItem *item;
 	item = (CompareItem *)pcs_malloc(sizeof(CompareItem));
@@ -2432,7 +2432,6 @@ static void addCompareItem(CompareItem *list, char op, char type, char position,
 	item->next = list;
 	list->prev->next = item;
 	list->prev = item;
-	if (elem_count) (*elem_count)++;
 }
 
 static void freeCompareList(CompareItem *list)
@@ -2444,6 +2443,34 @@ static void freeCompareList(CompareItem *list)
 		if (tmp->path) pcs_free(tmp->path);
 		pcs_free(tmp);
 	}
+}
+
+static void printCompareSample()
+{
+	printf(
+		"The output should be like below:\n"
+		"        | L R Local Path\n"
+		"--------------------------------------------------------------\n"
+		"       1| + D L:/var/www/upload\n"
+		"       2| + D R:/backup/www/upload\n"
+		"       3| - F L:/var/www/upload/001.jpg\n"
+		"       4| + F R:/backup/www/upload/001.jpg\n"
+		"       5| A F L:/var/www/upload/001.jpg\n"
+		"       6| V F R:/backup/www/upload/001.jpg\n"
+		"--------------------------------------------------------------\n"
+		"  Create 0 Local File, Create 1 Remote File\n"
+		"  Create 1 Local Dir , Create 1 Remote Dir\n"
+		"  Remove 1 Local File, Remove 0 Remote File\n"
+		"  Remove 0 Local Dir , Remove 0 Remote Dir\n"
+		"  Upload 1 Local File, Download 1 Remote File.\n"
+		"\nMeans: \n"
+		" Row 1: Create new directory \"/var/www/upload\" into local file system\n"
+		" Row 2: Create new directory \"/var/backup/upload\" into network disk\n"
+		" Row 3: Delete the \"/var/www/upload/001.jpg\" from local file system\n"
+		" Row 4: Add new file \"/backup/www/upload/001.jpg\" into network disk\n"
+		" Row 5: Upload the local file \"/var/www/upload/001.jpg\" into network disk\n"
+		" Row 6: Download the network file \"/backup/www/upload/001.jpg\" into local file system\n"
+		);
 }
 
 static void printCompareList(CompareItem *list)
@@ -2460,10 +2487,11 @@ static void printCompareList(CompareItem *list)
 		upload = 0, 
 		download = 0;
 	CompareItem *p = list->next;
-	printf("  L R Local Path\n");
-	printf("----------------------------------\n");
+	printf("        | L R Local Path\n");
+	printf("--------------------------------------------------------------\n");
 	while (p != list) {
-		printf("%c %c %c:%s\n", p->op, p->type, p->position, p->path);
+		elem_count++;
+		printf("%8d| %c %c %c:%s\n", elem_count, p->op, p->type, p->position, p->path);
 		switch (p->op){
 		case '+':
 			if (p->type == 'F') {
@@ -2493,20 +2521,14 @@ static void printCompareList(CompareItem *list)
 			break;
 		}
 		p = p->next;
-		elem_count++;
 	}
-	printf("----------------------------------\n");
+	printf("--------------------------------------------------------------\n");
 	printf(
-		"Will create %d new files into local file system, \n"
-		"Will create %d new files into network disk, \n"
-		"Will create %d new directories into local file system, \n"
-		"Will create %d new directories into network disk, \n"
-		"Will remove %d new files from local file system, \n"
-		"Will remove %d new files from network disk, \n"
-		"Will remove %d new directories from local file system, \n"
-		"Will remove %d new directories from network disk, \n"
-		"Will upload %d local files into network disk, \n"
-		"Will download %d network disk files into local file system.\n",
+		"  Create %d Local File, Create %d Remote File\n"
+		"  Create %d Local Dir , Create %d Remote Dir\n"
+		"  Remove %d Local File, Remove %d Remote File\n"
+		"  Remove %d Local Dir , Remove %d Remote Dir\n"
+		"  Upload %d Local File, Download %d Remote File.\n",
 		new_local_file,
 		new_remote_file,
 		new_local_dir,
@@ -2517,16 +2539,7 @@ static void printCompareList(CompareItem *list)
 		removed_remote_dir,
 		upload,
 		download);
-	printf("Total: %d\n", elem_count);
-	printf(
-		"Sample:\n"
-		"    \"+ D L:/var/www/upload\"            - Create new directory \"/var/www/upload\" into local file system\n"
-		"    \"+ D R:/backup/www/upload\"         - Create new directory \"/var/backup/upload\" into network disk\n"
-		"    \"- F L:/var/www/upload/001.jpg\"    - Delete the \"/var/www/upload/001.jpg\" from local file system\n"
-		"    \"+ F R:/backup/www/upload/001.jpg\" - Add new file \"/backup/www/upload/001.jpg\" into network disk\n"
-		"    \"A F L:/var/www/upload/001.jpg\"    - Upload the local file \"/var/www/upload/001.jpg\" into network disk\n"
-		"    \"V F R:/backup/www/upload/001.jpg\" - Download the network file \"/backup/www/upload/001.jpg\" into local file system\n"
-		);
+	printf(" Total: %d\n", elem_count);
 }
 
 /*根据remote信息判断本地文件是否需要更新，或者本地文件是否需要上传*/
@@ -2536,12 +2549,12 @@ static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPre
 	int rc;
 	rc = get_file_ent(&ent, localPath);
 	if (rc == 2) { //是目录
-		addCompareItem(list, '-', 'D', 'L', localPath, elem_count); /*删除本地目录*/
+		addCompareItem(list, '-', 'D', 'L', localPath); /*删除本地目录*/
 		my_dirent_destroy(ent);
 		ent = NULL;
 	}
 	if (ent == NULL) {
-		addCompareItem(list, '+', 'F', 'L', localPath, elem_count); /*创建本地新文件*/
+		addCompareItem(list, '+', 'F', 'L', localPath); /*创建本地新文件*/
 		return 0;
 	}
 	if (md5Enabled) {
@@ -2567,22 +2580,23 @@ static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPre
 				return -1;
 			}
 			if (ent->mtime < ((time_t)remote->server_mtime)) {
-				addCompareItem(list, OP_ARROW_DOWN, 'F', 'R', remote->path, elem_count); /*下载网盘文件*/
+				addCompareItem(list, OP_ARROW_DOWN, 'F', 'R', remote->path); /*下载网盘文件*/
 			}
 			else if (ent->mtime >((time_t)remote->server_mtime)) {
-				addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath, elem_count); /*上传本地文件*/
+				addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath); /*上传本地文件*/
 			}
 		}
 	}
 	else {
 		if (ent->mtime < ((time_t)remote->server_mtime)) {
-			addCompareItem(list, OP_ARROW_DOWN, 'F', 'R', remote->path, elem_count); /*下载网盘文件*/
+			addCompareItem(list, OP_ARROW_DOWN, 'F', 'R', remote->path); /*下载网盘文件*/
 		}
 		else if (ent->mtime > ((time_t)remote->server_mtime)) {
-			addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath, elem_count); /*上传本地文件*/
+			addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath); /*上传本地文件*/
 		}
 	}
 	my_dirent_destroy(ent);
+	if (elem_count) (*elem_count)++;
 	return 0;
 }
 
@@ -2597,16 +2611,17 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 	rc = get_file_ent(NULL, localPath);
 	switch (rc){
 	case 1: //本地是文件
-		addCompareItem(list, '-', 'F', 'L', localPath, elem_count); /*删除本地文件*/
+		addCompareItem(list, '-', 'F', 'L', localPath); /*删除本地文件*/
 		break;
 	case 2: //本地是目录
 		break;
 	case 0: //本地不存在
-		addCompareItem(list, '+', 'D', 'L', localPath, elem_count); /*创建本地新目录*/
+		addCompareItem(list, '+', 'D', 'L', localPath); /*创建本地新目录*/
 		break;
 	default:
 		break;
 	}
+	if (elem_count) (*elem_count)++;
 	rc = sqlite3_prepare_v2(db, SQL_CACHE_SELECT_SUB, -1, &stmt, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SELECT_SUB, sqlite3_errmsg(db));
@@ -2642,13 +2657,27 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 		db_fill_cache(&ri, stmt);
 		dstPath = get_local_path(ri.path, localPath, remotePath);
 		if (ri.isdir) {
-			if (method_compare_folder(dstPath, ri.path, pre, md5Enabled, list, elem_count)) {
-				pcs_free(val);
-				pcs_free(dstPath);
-				freeCacheInfo(&ri);
-				sqlite3_finalize(stmt);
-				return -1;
+			//if (method_compare_folder(dstPath, ri.path, pre, md5Enabled, list, elem_count)) {
+			//	pcs_free(val);
+			//	pcs_free(dstPath);
+			//	freeCacheInfo(&ri);
+			//	sqlite3_finalize(stmt);
+			//	return -1;
+			//}
+			rc = get_file_ent(NULL, localPath);
+			switch (rc){
+			case 1: //本地是文件
+				addCompareItem(list, '-', 'F', 'L', localPath); /*删除本地文件*/
+				break;
+			case 2: //本地是目录
+				break;
+			case 0: //本地不存在
+				addCompareItem(list, '+', 'D', 'L', localPath); /*创建本地新目录*/
+				break;
+			default:
+				break;
 			}
+			if (elem_count) (*elem_count)++; 
 		}
 		else {
 			if (method_compare_file(dstPath, &ri, pre, md5Enabled, list, elem_count)) {
@@ -2661,13 +2690,13 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 		}
 		pcs_free(dstPath);
 		freeCacheInfo(&ri);
+		if (elem_count && config.printf_enabled) {
+			printf("Process: %d        \r", *elem_count);
+			fflush(stdout);
+		}
 	}
 	pcs_free(val);
 	sqlite3_finalize(stmt);
-	if (elem_count && config.printf_enabled) {
-		printf("Process: %d        \r", *elem_count);
-		fflush(stdout);
-	}
 	return 0;
 }
 
@@ -2686,7 +2715,7 @@ static int method_compare_untrack(const char *localPath, const char *remotePath,
 			return -1;
 		}
 		if (!rf.fs_id) {
-			addCompareItem(list, '+', 'D', 'R', remotePath, elem_count); /*创建新网盘目录*/
+			addCompareItem(list, '+', 'D', 'R', remotePath); /*创建新网盘目录*/
 		}
 		freeCacheInfo(&rf);
 		ents = list_dir(localPath, 0);
@@ -2710,13 +2739,16 @@ static int method_compare_untrack(const char *localPath, const char *remotePath,
 			return -1;
 		}
 		if (!rf.fs_id) {
-			addCompareItem(list, '+', 'F', 'R', remotePath, elem_count); /*创建新网盘文件*/
+			addCompareItem(list, '+', 'F', 'R', remotePath); /*创建新网盘文件*/
 		}
 		freeCacheInfo(&rf);
 	}
-	if (elem_count && config.printf_enabled) {
-		printf("Process: %d        \r", *elem_count);
-		fflush(stdout);
+	if (elem_count) {
+		(*elem_count)++;
+		if (config.printf_enabled) {
+			printf("Process: %d        \r", *elem_count);
+			fflush(stdout);
+		}
 	}
 	return 0;
 }
@@ -2815,6 +2847,7 @@ static int method_compare(const char *localPath, const char *remotePath, int md5
 		PRINT_NOTICE("Compare - End");
 		return -1;
 	}
+	printCompareSample();
 	if (rf.isdir) { //类型为目录
 		if (method_compare_folder(localPath, remotePath, &pre, md5Enabled, &list, &elem_count)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
