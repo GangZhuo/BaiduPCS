@@ -11,6 +11,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
 ### 3. 编译源代码
     cd baidupcs
     mkdir bin
+    make clean
     make ver=release
 ### 4. 安装到 /usr/local/bin 下 
     cp ./bin/pcs /usr/local/bin/
@@ -63,8 +64,10 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
                                                           将使用本地目录覆盖网盘中文件，此时网盘中文件将
                                                           移入到网盘回收站。*/
               "schedule": "01:20:00", /*任务开始时间。格式：hh:mm:ss。01:20:00表示：任务开始于凌晨1点20分。 */
-              "interval": "01:00:00:00" /*任务完成后，到下次执行间的间隔。格式：dd:hh:mm:ss。
+              "interval": "01:00:00:00", /*任务完成后，到下次执行间的间隔。格式：dd:hh:mm:ss。
                                           01:00:00:00表示，任务完成后，间隔1天将再次执行*/
+              "md5": 1 /*执行backup,restore和combin时，是否先使用MD5判断文件内容不同后，
+                         再比较时间。0 - 不使用MD5； 1 - 使用MD5。*/
             }, {
                 "enable": 1,
                 "localPath": "/var/data/data.db",
