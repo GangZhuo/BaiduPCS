@@ -2852,12 +2852,39 @@ static int method_time()
 	return 0;
 }
 
+#define MAX_DIGITIS_INT 10
+static char *IntToStr(int num, char str[])
+{
+	int i = 0, j = 0, isNeg = 0;
+	char temp[MAX_DIGITIS_INT + 2];
+
+	if (num<0) {
+		num *= -1;
+		isNeg = 1;
+	}
+
+	do {
+		temp[i++] = (num % 10) + '0';
+		num /= 10;
+	} while (num);
+
+	if (isNeg)
+		temp[i++] = '-';
+
+	while (i>0)
+		str[j++] = temp[--i];
+
+	str[j] = '\0';
+	return str;
+}
+
 static int method_list_op()
 {
 	int rc;
 	sqlite3_stmt *stmt = NULL;
 	ActionInfo dst = { 0 };
 	int row_num = 0;
+	char buf[32] = { 0 };
 	rc = sqlite3_prepare_v2(db, SQL_ACTION_SELECT_ALL, -1, &stmt, NULL);
 	if (rc) {
 		printf("Can't build the sql %s: %s\n", SQL_ACTION_SELECT_ALL, sqlite3_errmsg(db));
@@ -2882,7 +2909,7 @@ static int method_list_op()
 		dst.create_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 5));
 		dst.modify_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 6));
 		printf("%d | %s | %s", dst.rowid, 
-			dst.status == 3 ? "error  " : (dst.status == 2 ? "succ   " : (dst.status == 1 ? "running" : "-------")), 
+			strcmp(dst.action, DB_VERSION_KEY) == 0 ? IntToStr(dst.status, buf) : (dst.status == 3 ? "error  " : (dst.status == 2 ? "succ   " : (dst.status == 1 ? "running" : "-------"))),
 			format_time(dst.start_time));
 		printf(" | %s | %s | %s | %s\n", format_time(dst.end_time), dst.create_app, dst.modify_app, dst.action);
 		freeActionInfo(&dst);
