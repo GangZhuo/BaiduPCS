@@ -1,7 +1,7 @@
 #ifndef _SQL_H
 #define _SQL_H
 
-#define DB_VERSION				1
+#define DB_VERSION				3
 #define DB_VERSION_KEY			"DB_VERSION"
 
 #define TABLE_NAME_CACHE		"pcs_cache"
