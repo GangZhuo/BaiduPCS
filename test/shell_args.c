@@ -403,7 +403,7 @@ PcsBool shell_args_check_params(struct params *params)
 		break;
 
 	default:
-			print_arg_err("wrong arguments\n");
+		//print_arg_err("wrong arguments\n");
 		res = PcsFalse;
 	}
 	return res;
@@ -645,3 +645,6 @@ void shell_args_destroy_params(struct params *params)
 	pcs_free(params);
 }
 
+void shell_print_version() {
+	printf("%s\n", argp_program_version);
+}

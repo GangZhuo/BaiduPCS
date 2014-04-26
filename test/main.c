@@ -13,7 +13,6 @@ int main(int argc, char *argv[])
 	int rc;
 	struct params *params = shell_args_create_params();
 
-	printf("%s\n", program_full_name);
 	shell_args_parse(argc, argv, params);
 
 	if (params->is_fail) {
