@@ -1424,7 +1424,7 @@ static int method_reset()
 	//	PRINT_NOTICE("Reset - End");
 	//	return -1;
 	//}
-	rc = sqlite3_exec(db, "UPDATE pcs_action SET status = 3 WHERE status = 1", NULL, NULL, NULL);
+	rc = sqlite3_exec(db, "UPDATE pcs_action SET status = 3 WHERE status = 1 AND action <> '" DB_VERSION_KEY "'", NULL, NULL, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't update pcs_action data: %s", sqlite3_errmsg(db));
 		PRINT_NOTICE("Reset - End");
