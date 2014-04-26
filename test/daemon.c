@@ -2971,9 +2971,27 @@ static int method_list_op()
 		dst.end_time = sqlite3_column_int64(stmt, 4);
 		dst.create_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 5));
 		dst.modify_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 6));
-		printf("%d | %s | %s", dst.rowid, 
-			strcmp(dst.action, DB_VERSION_KEY) == 0 ? IntToStr(dst.status, buf) : (dst.status == 3 ? "error  " : (dst.status == 2 ? "succ   " : (dst.status == 1 ? "running" : "-------"))),
-			format_time(dst.start_time));
+		printf("%d ", dst.rowid);
+		if (strcmp(dst.action, DB_VERSION_KEY) == 0) {
+			printf("| %7d ", dst.status);
+		}
+		else {
+			switch (dst.status){
+			case 1:
+				printf("| running ");
+				break;
+			case 2:
+				printf("| success ");
+				break;
+			case 3:
+				printf("|   error ");
+				break;
+			default:
+				printf("|  unknow ");
+				break;
+			}
+		}
+		printf("| %s", format_time(dst.start_time));
 		printf(" | %s | %s | %s | %s\n", format_time(dst.end_time), dst.create_app, dst.modify_app, dst.action);
 		freeActionInfo(&dst);
 		row_num++;
