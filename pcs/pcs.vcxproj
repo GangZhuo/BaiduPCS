@@ -90,7 +90,6 @@
     <ClCompile Include="..\test\hashtable.c" />
     <ClCompile Include="..\test\logger.c" />
     <ClCompile Include="..\test\main.c" />
-    <ClCompile Include="..\test\md5.c" />
     <ClCompile Include="..\test\pcs_io.c" />
     <ClCompile Include="..\test\rc4.c" />
     <ClCompile Include="..\test\shell.c" />
@@ -112,7 +111,6 @@
     <ClInclude Include="..\test\dir.h" />
     <ClInclude Include="..\test\hashtable.h" />
     <ClInclude Include="..\test\logger.h" />
-    <ClInclude Include="..\test\md5.h" />
     <ClInclude Include="..\test\pcs_io.h" />
     <ClInclude Include="..\test\rc4.h" />
     <ClInclude Include="..\test\shell.h" />
@@ -120,6 +118,7 @@
     <ClInclude Include="..\test\sql.h" />
     <ClInclude Include="..\test\utf8.h" />
     <ClInclude Include="cJSON.h" />
+    <ClInclude Include="openssl_md5.h" />
     <ClInclude Include="pcs.h" />
     <ClInclude Include="pcs_defs.h" />
     <ClInclude Include="pcs_fileinfo.h" />

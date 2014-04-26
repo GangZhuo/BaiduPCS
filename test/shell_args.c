@@ -29,28 +29,30 @@ const char *argp_program_version = program_full_name;
 #define OPT_RC4		3
 #define OPT_CONFIG	4
 #define OPT_CACHE	5
+#define OPT_MD5		6
 
 struct argp_option options[] = {
-	{ 0,			0,	 0,				0,							"Options:", 0},
-	{ "username",	'u', "<username>",	OPTION_ARG_OPTIONAL,		"Specify the account.", 0},
-	{ "password",	'p', "<password>",	OPTION_ARG_OPTIONAL,		"Specify the password.", 0},
-	{ "recursion",	'r', 0,				OPTION_ARG_OPTIONAL,		"Recursive execute the command.", 0},
-	{ "force",		'f', 0,				OPTION_ARG_OPTIONAL,		"Force delete the files that not exists in source when download or upload.", 0},
+	{ 0,			0,	 0,						0,							"Options:", 0},
+	{ "username",	'u', "<username>",			OPTION_ARG_OPTIONAL,		"Specify the account.", 0},
+	{ "password",	'p', "<password>",			OPTION_ARG_OPTIONAL,		"Specify the password.", 0},
+	{ "recursion",	'r', 0,						OPTION_ARG_OPTIONAL,		"Recursive execute the command.", 0},
+	{ "force",		'f', 0,						OPTION_ARG_OPTIONAL,		"Force delete the files that not exists in source when download or upload.", 0},
 	{ "sort",		's', "<field>",
-										OPTION_ARG_OPTIONAL,		"Sort the result when list files. ", 0},
-	{ "inverte",	'i', 0,				OPTION_ARG_OPTIONAL,		"Inverte the result when list files, if have no -s the -i option will be ignored.", 0},
-	{ "append",		'a', 0,				OPTION_ARG_OPTIONAL,		"Append the text at the end of the file instead of override the file when execute echo command.", 0},
-	{ 0,			0,	 0,				0,							"More Options:", 0},
-	{ "synch",		OPT_SYNCH, 0,		OPTION_ARG_OPTIONAL,		"Synch the tree. "
-																	"Delete the files or directories that not exists in the local file system when upload, "
-																	"Delete the files or directories that not exists in the net disk when download.", 0},
-	{ "urlc",		'U', 0,				OPTION_ARG_OPTIONAL,		"Use http://urlc.cn/g/ to hold the verify code image. "
-																	"The default behavior write the image into ~/.baidupcs/ .", 0},
-	{ "verbose",	'v', 0,				OPTION_ARG_OPTIONAL,		"Show the response text.", 0},
-	{ "cookie",		OPT_COOKIE, "<cookiefile>", OPTION_ARG_OPTIONAL,"Specify the cookie file.", 0},
-	{ "rc4",		OPT_RC4, "<rc4-key>", OPTION_ARG_OPTIONAL,		"Specify that use rc4 to encode/decode the content.", 0},
-	{ "config",     OPT_CONFIG, "<config>", OPTION_ARG_OPTIONAL,    "Specify the config file.", 0 },
-	{ "cache",     OPT_CACHE, "<cache>", OPTION_ARG_OPTIONAL,       "Specify the cache file.", 0 },
+												OPTION_ARG_OPTIONAL,		"Sort the result when list files. ", 0},
+	{ "inverte",	'i', 0,						OPTION_ARG_OPTIONAL,		"Inverte the result when list files, if have no -s the -i option will be ignored.", 0},
+	{ "append",		'a', 0,						OPTION_ARG_OPTIONAL,		"Append the text at the end of the file instead of override the file when execute echo command.", 0},
+	{ 0,			0,	 0,						0,							"More Options:", 0},
+	{ "synch",		OPT_SYNCH, 0,				OPTION_ARG_OPTIONAL,		"Synch the tree. "
+																			"Delete the files or directories that not exists in the local file system when upload, "
+																			"Delete the files or directories that not exists in the net disk when download.", 0},
+	{ "urlc",		'U', 0,						OPTION_ARG_OPTIONAL,		"Use http://urlc.cn/g/ to hold the verify code image. "
+																			"The default behavior write the image into ~/.baidupcs/ .", 0},
+	{ "verbose",	'v', 0,						OPTION_ARG_OPTIONAL,		"Show the response text.", 0},
+	{ "cookie",		OPT_COOKIE, "<cookiefile>", OPTION_ARG_OPTIONAL,		"Specify the cookie file.", 0},
+	{ "rc4",		OPT_RC4, "<rc4-key>",		OPTION_ARG_OPTIONAL,		"Specify that use rc4 to encode/decode the content.", 0},
+	{ "config",     OPT_CONFIG, "<config>",		OPTION_ARG_OPTIONAL,		"Specify the config file.", 0 },
+	{ "cache",      OPT_CACHE, "<cache>",		OPTION_ARG_OPTIONAL,		"Specify the cache file.", 0 },
+	{ "md5",		OPT_MD5, 0,					OPTION_ARG_OPTIONAL,		"Specify that whether use md5 when execute backup, restore, combin, compare.", 0 },
 
 	{0, 0, 0, 0, 0, 0}
 };
@@ -391,6 +393,15 @@ PcsBool shell_args_check_params(struct params *params)
 		}
 		break;
 
+	case ACTION_MD5:
+		if (params->args_count != 1) {
+			print_arg_err("usage: " program_name " md5 <file>\n"
+				"Sample: " program_name " md5 /etc/pcs/cache.db\n");
+			res = PcsFalse;
+			break;
+		}
+		break;
+
 	default:
 			print_arg_err("wrong arguments\n");
 		res = PcsFalse;
@@ -437,6 +448,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		params->args_count = 0;
 		params->config = NULL;
 		params->cache = NULL;
+		params->md5 = PcsFalse;
 		break;
 
 	case ARGP_KEY_NO_ARGS:
@@ -488,6 +500,8 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 				params->action = ACTION_TIME;
 			else if (strcmp(arg, "ls-op") == 0)
 				params->action = ACTION_LIST_ACTION;
+			else if (strcmp(arg, "md5") == 0)
+				params->action = ACTION_MD5;
 			else {
 				print_arg_err("unknown command\n");
 				return EINVAL;
@@ -571,6 +585,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		if (arg && arg[0]) {
 			params->cache = pcs_utils_strdup(arg);
 		}
+		break;
+
+	case OPT_MD5:
+		params->md5 = PcsTrue;
 		break;
 
 	case ARGP_KEY_END:

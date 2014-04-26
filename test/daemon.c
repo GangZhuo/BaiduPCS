@@ -5,6 +5,7 @@
 #if defined(WIN32)
 #  include <direct.h>
 #  define mkdir _mkdir
+#  define chdir _chdir
 #  define D_SLEEP(ms) Sleep(ms)
 #  define snprintf _snprintf
 #else
@@ -70,6 +71,7 @@ typedef struct BackupItem {
 	int		method;
 	int		schedule;  /*几点几分开始执行任务，值为一天从零点零分零秒开始到执行时间的秒数。例：6小时 = 6 * 60 * 60 = 21600秒，此处设置值为21600则表示，于凌晨6点开启任务。 */
 	int		interval;  /*任务执行完成后，当前执行时间加上interval则为下次执行时间。86400秒 = 24小时，即：当凌晨6点执行完任务后，加上24小时的时间作为任务下次执行时间。*/
+	int		md5; /*是否启用MD5*/
 	time_t	next_run_time; /* 下次执行时间 */
 	time_t	last_run_time;
 } BackupItem;
@@ -88,21 +90,25 @@ typedef struct Config {
 
 } Config;
 
+/*Sqlite编译后的语句对象数组*/
 typedef struct DbPrepare {
 	sqlite3_stmt **stmts;
 	int			 count;
 } DbPrepare;
 
+/*Sqlite编译后的语句对象链表*/
 typedef struct DbPrepareList {
 	sqlite3_stmt *stmt;
 	struct DbPrepareList *next;
 } DbPrepareList;
 
+/*上传进度条的用户自定义数据结构，用于传入数据到进度条函数中*/
 struct ProgressState {
 	const char *localPath;
 	const char *remotePath;
 };
 
+/*统计备份时，各情况的文件数量*/
 typedef struct BackupState {
 	int backupFiles;
 	int skipFiles;
@@ -115,18 +121,29 @@ typedef struct BackupState {
 	int totalDir;
 } BackupState;
 
+/*下载时的用户自定义数据结构，用于传入数据到下载的写入函数中*/
 typedef struct DownloadState {
 	FILE *pf;
 	char *msg;
 	size_t size;
 } DownloadState;
 
+/*记录比较结果的链表
+例：用类似于"+ D L:/var/www/upload"的字符串表示一个CompareItem对象
+（该字符串可通过printf("%c %c %c:%s\n", p->op, p->type, p->position, p->path)来获得），
+则有:
+"+ D L:/var/www/upload" - 表示本地将创建一个新目录/var/www/upload
+"+ D R:/var/www/upload" - 表示网盘中将创建一个新目录/var/www/upload
+"- F L:/var/www/upload/001.jpg" - 表示本地将删除一个文件/var/www/upload/001.jpg
+"+ F R:/var/www/upload/001.jpg" - 表示网盘中将新加一个文件/var/www/upload/001.jpg
+"A F L:/var/www/upload/001.jpg" - 表示将把本地文件/var/www/upload/001.jpg上传并覆盖到网盘中
+"V F R:/var/www/upload/001.jpg" - 表示将把网盘文件/var/www/upload/001.jpg下载并覆盖到本地
+*/
 typedef struct CompareItem {
-	char	leftType;
-	char	rightType;
-	char	*left;
-	char	op;
-	char	*right;
+	char	op; /*值可为A,V,+,-. A表示文件需上传，V表示文件需下载，-标识文件需删除，+表示文件需添加*/
+	char	type; /*文件类型：D - 标识目录；F - 表示文件*/
+	char	position; /*文件或目录的位置：R - 表示操作的文件path存储于网盘；L - 标识操作的文件是本地文件*/
+	char	*path; /*文件路径。*/
 	struct CompareItem *next;
 	struct CompareItem *prev;
 } CompareItem;
@@ -1407,9 +1424,10 @@ static int method_backup_progress(void *clientp, double dltotal, double dlnow, d
 }
 
 /*备份文件*/
-static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre, BackupState *st)
+static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre, int md5Enabled, BackupState *st)
 {
 	PcsFileInfo dst = {0};
+	int need_backup = 0;
 
 	if (db_get_cache(&dst, pre, remotePath)) {
 		return -1;
@@ -1434,7 +1452,31 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 			st->removeDir++;
 		}
 	}
-	if (localFile->mtime > ((time_t)dst.server_mtime)) {
+	if (md5Enabled) {
+		if (dst.fs_id) {
+			const char *md5 = md5_file(localFile->path);
+			if (pcs_utils_strcmpi(md5, dst.md5)) {
+				if (localFile->mtime == ((time_t)dst.server_mtime)) {
+					PRINT_WARNING("Unable to determine which file is newer: "
+						"The local file %s and remote file %s have different md5 (%s : %s), "
+						"they also have same last modify time %s. Force backup the file.", 
+						localFile->path, remotePath, md5, dst.md5, format_time(localFile->mtime));
+					//freeCacheInfo(&dst);
+					//return -1;
+					need_backup = 1;
+				}
+				else
+					need_backup = localFile->mtime > ((time_t)dst.server_mtime);
+			}
+		}
+		else {
+			need_backup = 1;
+		}
+	}
+	else {
+		need_backup = localFile->mtime > ((time_t)dst.server_mtime);
+	}
+	if (need_backup) {
 		PcsFileInfo *rc;
 		struct ProgressState state = { localFile->path, remotePath };
 		int cacheRC;
@@ -1573,7 +1615,7 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 }
 
 /*备份目录*/
-static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre, BackupState *st)
+static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre, int md5Enabled, BackupState *st)
 {
 	my_dirent *ents = NULL,
 		*ent = NULL;
@@ -1590,14 +1632,14 @@ static int method_backup_folder(const char *localPath, const char *remotePath, D
 	while(ent) {
 		dstPath = get_remote_path(ent->path, localPath, remotePath);
 		if (ent->is_dir) {
-			if (method_backup_folder(ent->path, dstPath, pre, st)) {
+			if (method_backup_folder(ent->path, dstPath, pre, md5Enabled, st)) {
 				pcs_free(dstPath);
 				my_dirent_destroy(ents);
 				return -1;
 			}
 		}
 		else {
-			if (method_backup_file(ent, dstPath, pre, st)) {
+			if (method_backup_file(ent, dstPath, pre, md5Enabled, st)) {
 				pcs_free(dstPath);
 				my_dirent_destroy(ents);
 				return -1;
@@ -1605,8 +1647,44 @@ static int method_backup_folder(const char *localPath, const char *remotePath, D
 		}
 		ent = ent->next;
 		pcs_free(dstPath);
+		if (st && config.printf_enabled) {
+			printf("Process: %d        \r", st->totalDir + st->totalFiles);
+			fflush(stdout);
+		}
 	}
 	my_dirent_destroy(ents);
+	return 0;
+}
+
+static int method_backup_remove_files(PcsSList *slist, DbPrepare *pre, const char *remotePath)
+{
+	PcsPanApiRes *res;
+	PcsPanApiResInfoList *info;
+	if (!slist) return 0;
+	res = pcs_delete(pcs, slist);
+	if (!res) {
+		PRINT_FATAL("Can't remove the remote file %s: %s", remotePath, pcs_strerror(pcs));
+		return -1;
+	}
+
+	info = res->info_list;
+	while (info) {
+		if (info->info.error) {
+			PRINT_FATAL("Can't remove the remote file %s", info->info.path);
+			pcs_pan_api_res_destroy(res);
+			return -1;
+		}
+		else {
+			if (db_remove_cache_by_pre(pre, info->info.path)) {
+				PRINT_FATAL("Can't remove the local cache. %s", info->info.path);
+				pcs_pan_api_res_destroy(res);
+				return -1;
+			}
+			PRINT_NOTICE("Remove %s", info->info.path);
+		}
+		info = info->next;
+	}
+	pcs_pan_api_res_destroy(res);
 	return 0;
 }
 
@@ -1635,6 +1713,7 @@ static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, 
 		sqlite3_reset(stmt);
 		return -1;
 	}
+	sz = 0;
 	while (1) {
 		rc = sqlite3_step(stmt);
 		if (rc == SQLITE_DONE) break;
@@ -1649,6 +1728,7 @@ static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, 
 		is_dir = sqlite3_column_int(stmt, 7);
 		it->next = slist;
 		slist = it;
+		sz++;
 		if (st) {
 			if (is_dir) {
 				st->removeDir++;
@@ -1657,43 +1737,29 @@ static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, 
 				st->removeFiles++;
 			}
 		}
+		if (sz >= 10) {
+			if (method_backup_remove_files(slist, pre, remotePath)) {
+				pcs_free(val);
+				pcs_slist_destroy(slist);
+				sqlite3_reset(stmt);
+				return -1;
+			}
+			pcs_slist_destroy(slist);
+			slist = NULL;
+			sz = 0;
+		}
+		if (st && config.printf_enabled) {
+			printf("Process: %d        \r", st->totalDir + st->totalFiles);
+			fflush(stdout);
+		}
 	}
 	if (slist) {
-		PcsPanApiRes *res;
-		PcsPanApiResInfoList *info;
-		res = pcs_delete(pcs, slist);
-		if (!res) {
-			PRINT_FATAL("Can't remove the remote file %s: %s", remotePath, pcs_strerror(pcs));
+		if (method_backup_remove_files(slist, pre, remotePath)) {
 			pcs_free(val);
 			pcs_slist_destroy(slist);
 			sqlite3_reset(stmt);
 			return -1;
 		}
-	
-		info = res->info_list;
-		while(info) {
-			if (info->info.error) {
-				PRINT_FATAL("Can't remove the remote file %s", info->info.path);
-				pcs_free(val);
-				pcs_slist_destroy(slist);
-				pcs_pan_api_res_destroy(res);
-				sqlite3_reset(stmt);
-				return -1;
-			}
-			else {
-				if (db_remove_cache_by_pre(pre, info->info.path)) {
-					PRINT_FATAL("Can't remove the local cache. %s", info->info.path);
-					pcs_free(val);
-					pcs_slist_destroy(slist);
-					pcs_pan_api_res_destroy(res);
-					sqlite3_reset(stmt);
-					return -1;
-				}
-				PRINT_NOTICE("Remove %s", info->info.path);
-			}
-			info = info->next;
-		}
-		pcs_pan_api_res_destroy(res);
 		pcs_slist_destroy(slist);
 	}
 	pcs_free(val);
@@ -1701,7 +1767,7 @@ static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, 
 	return 0;
 }
 
-int method_backup(const char *localPath, const char *remotePath, int isCombin)
+int method_backup(const char *localPath, const char *remotePath, int md5Enabled, int isCombin)
 {
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
@@ -1815,7 +1881,7 @@ int method_backup(const char *localPath, const char *remotePath, int isCombin)
 		return -1;
 	}
 	if (rc == 2) { //类型为目录
-		if (method_backup_folder(localPath, remotePath, &pre, &st)) {
+		if (method_backup_folder(localPath, remotePath, &pre, md5Enabled, &st)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			my_dirent_destroy(ent);
@@ -1825,7 +1891,7 @@ int method_backup(const char *localPath, const char *remotePath, int isCombin)
 		}
 	}
 	else if (rc == 1) { //类型为文件
-		if (method_backup_file(ent, remotePath, &pre, &st)) {
+		if (method_backup_file(ent, remotePath, &pre, md5Enabled, &st)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			my_dirent_destroy(ent);
@@ -1880,10 +1946,11 @@ static int method_restore_write(char *ptr, size_t size, size_t contentlength, vo
 	return i;
 }
 
-static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPrepare *pre, BackupState *st)
+static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPrepare *pre, int md5Enabled, BackupState *st)
 {
 	my_dirent *ent = NULL;
 	int rc;
+	int need_backup = 0;
 	rc = get_file_ent(&ent, localPath);
 	if (rc == 2) { //是目录
 		if (my_dirent_remove(localPath)) {
@@ -1896,7 +1963,31 @@ static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPre
 			st->removeDir++;
 		}
 	}
-	if (ent == NULL || ent->mtime < ((time_t)remote->server_mtime)) {
+	if (md5Enabled) {
+		if (ent) {
+			const char *md5 = md5_file((char *)localPath);
+			if (pcs_utils_strcmpi(md5, remote->md5)) {
+				if (ent->mtime == ((time_t)remote->server_mtime)) {
+					PRINT_WARNING("Unable to determine which file is newer: "
+						"The local file %s and remote file %s have different md5 (%s : %s), "
+						"they also have same last modify time %s. Force restore the file.",
+						ent->path, remote->path, md5, remote->md5, format_time(ent->mtime));
+					//my_dirent_destroy(ent);
+					//ent = NULL;
+					need_backup = 1;
+				}
+				else
+					need_backup = ent->mtime < ((time_t)remote->server_mtime);
+			}
+		}
+		else {
+			need_backup = 1;
+		}
+	}
+	else {
+		need_backup = ent == NULL || ent->mtime < ((time_t)remote->server_mtime);
+	}
+	if (need_backup) {
 		DownloadState ds = {0};
 		PcsRes res;
 		ds.pf = fopen(localPath, "wb");
@@ -1957,7 +2048,39 @@ static char *get_local_path(const char *remotePath, const char *localBasePath, c
 	return rc;
 }
 
-static int method_restore_folder(const char *localPath, const char *remotePath, DbPrepare *pre, BackupState *st)
+static void mkdirs(const char *dir)
+{
+	char *tmp;
+	char *p;
+	tmp = (char *)alloca(strlen(dir) + 1);
+	memset(tmp, '\0', sizeof(tmp));
+	strncpy(tmp, dir, strlen(dir));
+	if (tmp[0] == '/')
+		p = strchr(tmp + 1, '/');
+	else
+		p = strchr(tmp, '/');
+	if (p) {
+		*p = '\0';
+#ifdef WIN32
+		mkdir(tmp);
+#else
+		mkdir(tmp, 0700);
+#endif
+		chdir(tmp);
+	}
+	else {
+#ifdef WIN32
+		mkdir(tmp);
+#else
+		mkdir(tmp, 0700);
+#endif
+		chdir(tmp);
+		return;
+	}
+	mkdirs(p + 1);
+}
+
+static int method_restore_folder(const char *localPath, const char *remotePath, DbPrepare *pre, int md5Enabled, BackupState *st)
 {
 	int rc;
 	sqlite3_stmt *stmt;
@@ -1965,16 +2088,12 @@ static int method_restore_folder(const char *localPath, const char *remotePath, 
 	char *val;
 	char *dstPath;
 	PcsFileInfo ri = {0};
-	rc = sqlite3_prepare_v2(db, SQL_CACHE_SELECT_SUB, -1, &stmt, NULL);
+	rc = sqlite3_prepare_v2(db, SQL_CACHE_SELECT_SUB_DIR_FIRST, -1, &stmt, NULL);
 	if (rc) {
-		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SELECT_SUB, sqlite3_errmsg(db));
+		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SELECT_SUB_DIR_FIRST, sqlite3_errmsg(db));
 		return -1;
 	}
-#ifdef WIN32
-	mkdir(localPath);
-#else
-	mkdir(localPath, 0700);
-#endif
+	mkdirs(localPath);
 	sz = strlen(remotePath);
 	val = (char *)pcs_malloc(sz + 3);
 	memcpy(val, remotePath, sz + 1);
@@ -2005,18 +2124,24 @@ static int method_restore_folder(const char *localPath, const char *remotePath, 
 		db_fill_cache(&ri, stmt);
 		dstPath = get_local_path(ri.path, localPath, remotePath);
 		if (ri.isdir) {
-			if (method_restore_folder(dstPath, ri.path, pre, st)) {
-				PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
-				pcs_free(val);
-				pcs_free(dstPath);
-				freeCacheInfo(&ri);
-				sqlite3_finalize(stmt);
-				return -1;
-			}
+			//if (method_restore_folder(dstPath, ri.path, pre, md5Enabled, st)) {
+			//	PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+			//	pcs_free(val);
+			//	pcs_free(dstPath);
+			//	freeCacheInfo(&ri);
+			//	sqlite3_finalize(stmt);
+			//	return -1;
+			//}
+
+			/*因为其子文件夹已经全部查询出来了，因此无需递归处理文件夹。只需要创建即可*/
+#ifdef WIN32
+			mkdir(dstPath);
+#else
+			mkdir(dstPath, 0700);
+#endif
 		}
 		else {
-			if (method_restore_file(dstPath, &ri, pre, st)) {
-				PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+			if (method_restore_file(dstPath, &ri, pre, md5Enabled, st)) {
 				pcs_free(val);
 				pcs_free(dstPath);
 				freeCacheInfo(&ri);
@@ -2026,13 +2151,17 @@ static int method_restore_folder(const char *localPath, const char *remotePath, 
 		}
 		pcs_free(dstPath);
 		freeCacheInfo(&ri);
+		if (st && config.printf_enabled) {
+			printf("Process: %d        \r", st->totalDir + st->totalFiles);
+			fflush(stdout);
+		}
 	}
 	pcs_free(val);
 	sqlite3_finalize(stmt);
 	return 0;
 }
 
-static int method_restore_remove_untrack(const char *localPath, const char *remotePath, DbPrepare *pre, BackupState *st) 
+static int method_restore_remove_untrack(my_dirent *local, const char *remotePath, DbPrepare *pre, BackupState *st)
 {
 	my_dirent *ents = NULL,
 		*ent = NULL;
@@ -2043,24 +2172,24 @@ static int method_restore_remove_untrack(const char *localPath, const char *remo
 		return -1;
 	}
 	if (!cache.fs_id) {
-		if (my_dirent_remove(localPath)) {
-			PRINT_FATAL("Can't remove the local dir: %s", localPath);
+		if (my_dirent_remove(local->path)) {
+			PRINT_FATAL("Can't remove the local dir: %s", local->path);
 			freeCacheInfo(&cache);
 			return -1;
 		}
-		PRINT_NOTICE("Remove %s", localPath);
+		PRINT_NOTICE("Remove %s", local->path);
 		if (st) {
 			st->removeFiles++;
 		}
 		return 0;
 	}
-	if (cache.isdir) {
-		ents = list_dir(localPath, 0);
+	if (local->is_dir) { //是目录的话
+		ents = list_dir(local->path, 0);
 		if (ents) {
 			ent = ents;
 			while(ent) {
-				dstPath = get_remote_path(ent->path, localPath, remotePath);
-				if (method_restore_remove_untrack(ent->path, dstPath, pre, st)) {
+				dstPath = get_remote_path(ent->path, local->path, remotePath);
+				if (method_restore_remove_untrack(ent, dstPath, pre, st)) {
 					pcs_free(dstPath);
 					my_dirent_destroy(ents);
 					freeCacheInfo(&cache);
@@ -2073,10 +2202,14 @@ static int method_restore_remove_untrack(const char *localPath, const char *remo
 		}
 	}
 	freeCacheInfo(&cache);
+	if (st && config.printf_enabled) {
+		printf("Process: %d        \r", st->totalDir + st->totalFiles);
+		fflush(stdout);
+	}
 	return 0;
 }
 
-static int method_restore(const char *localPath, const char *remotePath, int isCombin)
+static int method_restore(const char *localPath, const char *remotePath, int md5Enabled, int isCombin)
 {
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
@@ -2169,7 +2302,7 @@ static int method_restore(const char *localPath, const char *remotePath, int isC
 	}
 	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &method_restore_write);
 	if (rf.isdir) { //类型为目录
-		if (method_restore_folder(localPath, remotePath, &pre, &st)) {
+		if (method_restore_folder(localPath, remotePath, &pre, md5Enabled, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -2180,7 +2313,7 @@ static int method_restore(const char *localPath, const char *remotePath, int isC
 		}
 	}
 	else { //类型为文件
-		if (method_restore_file(localPath, &rf, &pre, &st)) {
+		if (method_restore_file(localPath, &rf, &pre, md5Enabled, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -2193,13 +2326,21 @@ static int method_restore(const char *localPath, const char *remotePath, int isC
 	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 	freeCacheInfo(&rf);
 	//移除本地文件系统中，在服务器中不存在的文件
-	if (!isCombin && method_restore_remove_untrack(localPath ,remotePath, &pre, &st)) {
-		//PRINT_FATAL("Can't remove untrack files: %s", localPath);
-		db_set_action(action, ACTION_STATUS_ERROR, 0);
-		pcs_free(action);
-		db_prepare_destroy(&pre);
-		PRINT_NOTICE("Restore - End");
-		return -1;
+	if (!isCombin) {
+		my_dirent *local;
+		get_file_ent(&local, localPath);
+		if (local) {
+			if (method_restore_remove_untrack(local, remotePath, &pre, &st)) {
+				//PRINT_FATAL("Can't remove untrack files: %s", localPath);
+				db_set_action(action, ACTION_STATUS_ERROR, 0);
+				pcs_free(action);
+				db_prepare_destroy(&pre);
+				my_dirent_destroy(local);
+				PRINT_NOTICE("Restore - End");
+				return -1;
+			}
+			my_dirent_destroy(local);
+		}
 	}
 	db_set_action(action, ACTION_STATUS_FINISHED, 0);
 	pcs_free(action);
@@ -2210,30 +2351,30 @@ static int method_restore(const char *localPath, const char *remotePath, int isC
 	return 0;
 }
 
-static int method_combin(const char *localPath, const char *remotePath)
+static int method_combin(const char *localPath, const char *remotePath, int md5Enabled)
 {
 	int rc;
-	rc = method_backup(localPath, remotePath, 1);
-	if (rc) {
-		rc = method_restore(localPath, remotePath, 1);
+	rc = method_backup(localPath, remotePath, md5Enabled, 1);
+	if (!rc) {
+		rc = method_restore(localPath, remotePath, md5Enabled, 1);
 	}
 	return rc;
 }
 
-static void addCompareItem(CompareItem *list, const char *left, char leftType, char op, const char *right, char rightType)
+static void addCompareItem(CompareItem *list, char op, char type, char position, const char *path, int *elem_count)
 {
 	CompareItem *item;
 	item = (CompareItem *)pcs_malloc(sizeof(CompareItem));
 	memset(item, 0, sizeof(CompareItem));
-	item->leftType = leftType;
-	item->rightType = rightType;
-	if (left) item->left = pcs_utils_strdup(left);
-	if (right) item->right = pcs_utils_strdup(right);
 	item->op = op;
+	item->type = type;
+	item->position = position;
+	if (path) item->path = pcs_utils_strdup(path);
 	item->prev = list->prev;
 	item->next = list;
 	list->prev->next = item;
 	list->prev = item;
+	if (elem_count) (*elem_count)++;
 }
 
 static void freeCompareList(CompareItem *list)
@@ -2242,26 +2383,49 @@ static void freeCompareList(CompareItem *list)
 	while (p != list) {
 		tmp = p;
 		p = p->next;
-		if (tmp->left) pcs_free(tmp->left);
-		if (tmp->right) pcs_free(tmp->right);
+		if (tmp->path) pcs_free(tmp->path);
 		pcs_free(tmp);
 	}
 }
 
 static void printCompareList(CompareItem *list)
 {
-	int new_file = 0, remove = 0, upload = 0, download = 0;
+	int elem_count = 0;
+	int new_local_file = 0,
+		new_remote_file = 0,
+		new_local_dir = 0,
+		new_remote_dir = 0,
+		removed_local_file = 0,
+		removed_remote_file = 0,
+		removed_local_dir = 0,
+		removed_remote_dir = 0,
+		upload = 0, 
+		download = 0;
 	CompareItem *p = list->next;
-	printf("  L R Local Path\n", p->op, p->leftType, p->rightType, p->left);
+	printf("  L R Local Path\n");
 	printf("----------------------------------\n");
 	while (p != list) {
-		printf("%c %c %c %s\n", p->op, p->leftType, p->rightType, p->left);
+		printf("%c %c %c:%s\n", p->op, p->type, p->position, p->path);
 		switch (p->op){
 		case '+':
-			new_file++;
+			if (p->type == 'F') {
+				if (p->position == 'L') new_local_file++;
+				else new_remote_file++;
+			}
+			else {
+				if (p->position == 'L') new_local_dir++;
+				else new_remote_dir++;
+			}
 			break;
 		case '-':
-			remove++;
+			if (p->type == 'F') {
+				if (p->position == 'L') removed_local_file++;
+				else removed_remote_file++;
+			}
+			else {
+				if (p->position == 'L') removed_local_dir++;
+				else removed_remote_dir++;
+			}
 			break;
 		case OP_ARROW_UP:
 			upload++;
@@ -2271,36 +2435,85 @@ static void printCompareList(CompareItem *list)
 			break;
 		}
 		p = p->next;
+		elem_count++;
 	}
 	printf("----------------------------------\n");
-	printf("%d new files need download, \n%d local directories need delete, \n%d local files need upload, \n%d local files need update.\n",
-		new_file, remove, upload, download);
+	printf(
+		"Will create %d new files into local file system, \n"
+		"Will create %d new files into network disk, \n"
+		"Will create %d new directories into local file system, \n"
+		"Will create %d new directories into network disk, \n"
+		"Will remove %d new files from local file system, \n"
+		"Will remove %d new files from network disk, \n"
+		"Will remove %d new directories from local file system, \n"
+		"Will remove %d new directories from network disk, \n"
+		"Will upload %d local files into network disk, \n"
+		"Will download %d network disk files into local file system.\n",
+		new_local_file,
+		new_remote_file,
+		new_local_dir,
+		new_remote_dir,
+		removed_local_file,
+		removed_remote_file,
+		removed_local_dir,
+		removed_remote_dir,
+		upload,
+		download);
+	printf("Total: %d\n", elem_count);
+	printf(
+		"Sample:\n"
+		"    \"+ D L:/var/www/upload\" - 表示本地将创建一个新目录/var/www/upload\n"
+		"    \"+ D R:/var/www/upload\" - 表示网盘中将创建一个新目录 / var / www / upload\n"
+		"    \"- F L:/var/www/upload/001.jpg\" - 表示本地将删除一个文件 / var / www / upload / 001.jpg\n"
+		"    \"+ F R:/var/www/upload/001.jpg\" - 表示网盘中将新加一个文件 / var / www / upload / 001.jpg\n"
+		"    \"A F L:/var/www/upload/001.jpg\" - 表示将把本地文件 / var / www / upload / 001.jpg上传并覆盖到网盘中\n"
+		"    \"V F R:/var/www/upload/001.jpg\" - 表示将把网盘文件 / var / www / upload / 001.jpg下载并覆盖到本地\n"
+		);
 }
 
-static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPrepare *pre, CompareItem *list)
+/*根据remote信息判断本地文件是否需要更新，或者本地文件是否需要上传*/
+static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPrepare *pre, int md5Enabled, CompareItem *list, int *elem_count)
 {
 	my_dirent *ent = NULL;
 	int rc;
 	rc = get_file_ent(&ent, localPath);
 	if (rc == 2) { //是目录
-		addCompareItem(list, localPath, 'D', '-', remote->path, ' ');
+		addCompareItem(list, '-', 'D', 'L', localPath, elem_count); /*删除本地目录*/
 		my_dirent_destroy(ent);
 		ent = NULL;
 	}
 	if (ent == NULL) {
-		addCompareItem(list, localPath, '-', '+', remote->path, 'F');
+		addCompareItem(list, '+', 'F', 'L', localPath, elem_count); /*创建本地新文件*/
 	}
-	else if (ent->mtime < ((time_t)remote->server_mtime)) {
-		addCompareItem(list, localPath, 'F', OP_ARROW_DOWN, remote->path, 'F');
-	}
-	else if (ent->mtime > ((time_t)remote->server_mtime)) {
-		addCompareItem(list, localPath, 'F', OP_ARROW_UP, remote->path, 'F');
+	else {
+		int same_md5 = 0;
+		const char *md5;
+		if (md5Enabled) {
+			md5 = md5_file((char *)localPath);
+			same_md5 = pcs_utils_strcmpi(md5, remote->md5);
+		}
+		if (!same_md5) {
+			if (md5Enabled && ent->mtime == ((time_t)remote->server_mtime)) {
+				PRINT_FATAL("Unable to determine which file is newer: "
+					"The local file %s and remote file %s have different md5 (%s : %s), "
+					"they also have same last modify time %s.",
+					ent->path, remote->path, md5, remote->md5, format_time(ent->mtime));
+				my_dirent_destroy(ent);
+				return -1;
+			}
+			if (ent->mtime < ((time_t)remote->server_mtime)) {
+				addCompareItem(list, OP_ARROW_DOWN, 'F', 'R', remote->path, elem_count); /*下载网盘文件*/
+			}
+			else if (ent->mtime >((time_t)remote->server_mtime)) {
+				addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath, elem_count); /*上传本地文件*/
+			}
+		}
 	}
 	my_dirent_destroy(ent);
 	return 0;
 }
 
-static int method_compare_folder(const char *localPath, const char *remotePath, DbPrepare *pre, CompareItem *list)
+static int method_compare_folder(const char *localPath, const char *remotePath, DbPrepare *pre, int md5Enabled, CompareItem *list, int *elem_count)
 {
 	int rc;
 	sqlite3_stmt *stmt;
@@ -2308,6 +2521,19 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 	char *val;
 	char *dstPath;
 	PcsFileInfo ri = { 0 };
+	rc = get_file_ent(NULL, localPath);
+	switch (rc){
+	case 1: //本地是文件
+		addCompareItem(list, '-', 'F', 'L', localPath, elem_count); /*删除本地文件*/
+		break;
+	case 2: //本地是目录
+		break;
+	case 0: //本地不存在
+		addCompareItem(list, '+', 'D', 'L', localPath, elem_count); /*创建本地新目录*/
+		break;
+	default:
+		break;
+	}
 	rc = sqlite3_prepare_v2(db, SQL_CACHE_SELECT_SUB, -1, &stmt, NULL);
 	if (rc) {
 		PRINT_FATAL("Can't build the sql %s: %s", SQL_CACHE_SELECT_SUB, sqlite3_errmsg(db));
@@ -2343,8 +2569,7 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 		db_fill_cache(&ri, stmt);
 		dstPath = get_local_path(ri.path, localPath, remotePath);
 		if (ri.isdir) {
-			if (method_compare_folder(dstPath, ri.path, pre, list)) {
-				PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+			if (method_compare_folder(dstPath, ri.path, pre, md5Enabled, list, elem_count)) {
 				pcs_free(val);
 				pcs_free(dstPath);
 				freeCacheInfo(&ri);
@@ -2353,8 +2578,7 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 			}
 		}
 		else {
-			if (method_compare_file(dstPath, &ri, pre, list)) {
-				PRINT_FATAL("Can't execute the statement: %s", sqlite3_errmsg(db));
+			if (method_compare_file(dstPath, &ri, pre, md5Enabled, list, elem_count)) {
 				pcs_free(val);
 				pcs_free(dstPath);
 				freeCacheInfo(&ri);
@@ -2367,24 +2591,37 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 	}
 	pcs_free(val);
 	sqlite3_finalize(stmt);
+	if (elem_count && config.printf_enabled) {
+		printf("Process: %d        \r", *elem_count);
+		fflush(stdout);
+	}
 	return 0;
 }
 
-static int method_compare_untrack(const char *localPath, const char *remotePath, DbPrepare *pre, CompareItem *list)
+/*寻找到所有本地存在，但是网盘不存在的文件，即找到需要添加到网盘的本地文件*/
+static int method_compare_untrack(const char *localPath, const char *remotePath, DbPrepare *pre, CompareItem *list, int *elem_count)
 {
 	int rc;
 	my_dirent *ents = NULL,
 		*ent = NULL;
+	PcsFileInfo rf = { 0 };
 	char *dstPath;
 
 	rc = get_file_ent(NULL, localPath);
 	if (rc == 2) { //目录
+		if (db_get_cache(&rf, pre, remotePath)) {
+			return -1;
+		}
+		if (!rf.fs_id) {
+			addCompareItem(list, '+', 'D', 'R', remotePath, elem_count); /*创建新网盘目录*/
+		}
+		freeCacheInfo(&rf);
 		ents = list_dir(localPath, 0);
 		if (ents) {
 			ent = ents;
 			while (ent) {
 				dstPath = get_remote_path(ent->path, localPath, remotePath);
-				if (method_compare_untrack(ent->path, dstPath, pre, list)) {
+				if (method_compare_untrack(ent->path, dstPath, pre, list, elem_count)) {
 					pcs_free(dstPath);
 					my_dirent_destroy(ents);
 					return -1;
@@ -2395,27 +2632,30 @@ static int method_compare_untrack(const char *localPath, const char *remotePath,
 			my_dirent_destroy(ents);
 		}
 	}
-	else if (rc == 1) {
-		PcsFileInfo cache = { 0 };
-		if (db_get_cache(&cache, pre, remotePath)) {
+	else if (rc == 1) { //本地是文件
+		if (db_get_cache(&rf, pre, remotePath)) {
 			return -1;
 		}
-		if (!cache.fs_id) {
-			addCompareItem(list, localPath, 'F', OP_ARROW_UP, remotePath, 'F');
+		if (!rf.fs_id) {
+			addCompareItem(list, '+', 'F', 'R', remotePath, elem_count); /*创建新网盘文件*/
 		}
-		freeCacheInfo(&cache);
+		freeCacheInfo(&rf);
+	}
+	if (elem_count && config.printf_enabled) {
+		printf("Process: %d        \r", *elem_count);
+		fflush(stdout);
 	}
 	return 0;
 }
 
-static int method_compare(const char *localPath, const char *remotePath)
+static int method_compare(const char *localPath, const char *remotePath, int md5Enabled)
 {
 	CompareItem list = { 0 };
 	ActionInfo ai = { 0 };
 	DbPrepare pre = { 0 };
 	char *action = NULL, *updateAction = NULL;
 	PcsFileInfo rf = { 0 };
-
+	int elem_count = 0;
 	list.next = &list;
 	list.prev = &list;
 
@@ -2503,7 +2743,7 @@ static int method_compare(const char *localPath, const char *remotePath)
 		return -1;
 	}
 	if (rf.isdir) { //类型为目录
-		if (method_compare_folder(localPath, remotePath, &pre, &list)) {
+		if (method_compare_folder(localPath, remotePath, &pre, md5Enabled, &list, &elem_count)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			db_prepare_destroy(&pre);
@@ -2514,7 +2754,7 @@ static int method_compare(const char *localPath, const char *remotePath)
 		}
 	}
 	else { //类型为文件
-		if (method_compare_file(localPath, &rf, &pre, &list)) {
+		if (method_compare_file(localPath, &rf, &pre, md5Enabled, &list, &elem_count)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			db_prepare_destroy(&pre);
@@ -2525,8 +2765,8 @@ static int method_compare(const char *localPath, const char *remotePath)
 		}
 	}
 	freeCacheInfo(&rf);
-	//移除本地文件系统中，在服务器中不存在的文件
-	if (method_compare_untrack(localPath, remotePath, &pre, &list)) {
+	//寻找本地文件系统中，需要添加到服务器的文件或目录
+	if (method_compare_untrack(localPath, remotePath, &pre, &list, &elem_count)) {
 		//PRINT_FATAL("Can't remove untrack files: %s", localPath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
@@ -2627,6 +2867,20 @@ static int method_list_op()
 	printf("\nTask:\n");
 	print_taks();
 	print_datetime("now is %s \n", NULL);
+	return 0;
+}
+
+static int method_md5(const char *path)
+{
+	const char *md5;
+	int rc;
+	rc = get_file_ent(NULL, path);
+	if (rc == 1) {
+		md5 = md5_file((char *)path);
+		printf("File: %s\nMD5: %s\n", path, md5);
+	}
+	md5 = md5_string(path);
+	printf("String: %s\nMD5: %s\n", path, md5);
 	return 0;
 }
 
@@ -2741,27 +2995,27 @@ static int task(int itemIndex)
 		}
 		break;
 	case METHOD_BACKUP:
-		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 0);
+		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 0);
+			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0);
 		}
 		break;
 	case METHOD_RESTORE:
-		rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 0);
+		rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, 0);
+			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0);
 		}
 		break;
 	case METHOD_RESET:
 		rc = method_reset();
 		break;
 	case METHOD_COMBIN:
-		rc = method_combin(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
+		rc = method_combin(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_combin(config.items[itemIndex].localPath, config.items[itemIndex].remotePath);
+			rc = method_combin(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5);
 		}
 		break;
 	}
@@ -2951,16 +3205,16 @@ static int run_shell(struct params *params)
 		rc = method_update(params->args[0]);
 		break;
 	case ACTION_BACKUP:
-		rc = method_backup(params->args[0], params->args[1], 0);
+		rc = method_backup(params->args[0], params->args[1], params->md5, 0);
 		break;
 	case ACTION_RESTORE:
-		rc = method_restore(params->args[0], params->args[1], 0);
+		rc = method_restore(params->args[0], params->args[1], params->md5, 0);
 		break;
 	case ACTION_COMBIN:
-		rc = method_combin(params->args[0], params->args[1]);
+		rc = method_combin(params->args[0], params->args[1], params->md5);
 		break;
 	case ACTION_COMPARE:
-		rc = method_compare(params->args[0], params->args[1]);
+		rc = method_compare(params->args[0], params->args[1], params->md5);
 		break;
 	}
 	pcs_destroy(pcs);
@@ -3033,6 +3287,8 @@ int start_daemon(struct params *params)
 			rc = run_shell_list_op(params);
 		else if (params->action == ACTION_RESET)
 			rc = run_shell_reset(params);
+		else if (params->action == ACTION_MD5)
+			rc = method_md5(params->args[0]);
 		else if (params->action == ACTION_SVC)
 			rc = run_svc(params);
 		else

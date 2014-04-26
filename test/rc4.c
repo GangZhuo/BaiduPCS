@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include "../pcs/pcs_mem.h"
-#include "md5.h"
+#include "../pcs/pcs_utils.h"
 #include "rc4.h"
 
 void RC4_set_key(RC4_CTX *c, size_t keybytes, const unsigned char *key)
@@ -45,8 +45,8 @@ void RC4(RC4_CTX *c, size_t n, const unsigned char *in, unsigned char *out)
 /* Assumes you have not yet initialized the context, but have allocated it. */
 void secure_rc4_setup(RC4_CTX *ctx, const char *key)
 {
-	char res[33]; /* 32 is the size in bytes of the resulting MD5 digest. */
+	const char *res; /* 32 is the size in bytes of the resulting MD5 digest. */
    
-	MDString(key, res);
+	res = md5_string(key);
 	RC4_set_key(ctx, 32, (unsigned char *)res);
 }
