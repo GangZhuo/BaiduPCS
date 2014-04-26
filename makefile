@@ -20,7 +20,7 @@ else
 CC = gcc
 endif
 
-all: bin/libpcs.a bin/pcs
+all: test/version.h bin/libpcs.a bin/pcs
 
 bin/pcs : bin/main.o bin/libpcs.a $(SHELL_OBJS)
 	$(CC) -o $@ bin/main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto
