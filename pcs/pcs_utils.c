@@ -186,7 +186,7 @@ PCS_API const char *md5_string(const char *str)
 	int i;
 	MD5((const unsigned char*)str, strlen(str), md);
 	for (i = 0; i<16; i++){
-		sprintf(&tmp[i * 2], "%02x", md[i]);
+		sprintf(&tmp[i * 2], "%02x", 0xFF & md[i]);
 	}
 	return tmp;
 }
@@ -212,7 +212,7 @@ PCS_API const char *md5_file(const char *file_name)
 		MD5_Update(&md5, buffer, length);
 	MD5_Final(md, &md5);
 	for (i = 0; i<16; i++){
-		sprintf(&tmp[i * 2], "%02x", md[i]);
+		sprintf(&tmp[i * 2], "%02x", 0xFF & md[i]);
 	}
 	return tmp;
 }
