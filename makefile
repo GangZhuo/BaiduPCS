@@ -14,7 +14,7 @@ CYGWIN_CCFLAGS =
 endif
 
 ifneq ($(ver), debug)
-$(warning "Use `make clean & make ver=debug' to build for gdb debug.")
+$(warning "Use `make ver=debug' to build for gdb debug.")
 CC = gcc -g -DDEBUG -D_DEBUG
 else
 CC = gcc
