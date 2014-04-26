@@ -1,8 +1,9 @@
 #ifndef _VERSION_H
 #define _VERSION_H
 
-#define program_name	"pcs"
 #define program_version "$GIT_VERSION"
+
+#define program_name	"pcs"
 #ifdef PCS_API_VERSION
 #  define program_api_version " (API " PCS_API_VERSION ")"
 #else
