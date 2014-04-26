@@ -75,4 +75,5 @@ bin/pcs_utils.o: pcs/pcs_utils.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pc
 
 .PHONY : clean
 clean :
-	-rm bin/*.o bin/libpcs.a bin/pcs
+	-rm bin/*.o bin/libpcs.a bin/pcs test/version.h
+
