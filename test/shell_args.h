@@ -2,6 +2,7 @@
 #define _SHELL_ARGS_H
 
 #include "../pcs/pcs_defs.h"
+#include "../pcs/pcs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +66,8 @@ void shell_args_destroy_params(struct params *params);
 
 PcsBool shell_args_check_params(struct params *params);
 void shell_args_parse(int argc, char *argv[], struct params *params);
+
+void shell_print_version();
 
 #ifdef __cplusplus
 }

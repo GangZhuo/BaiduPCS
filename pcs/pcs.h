@@ -9,6 +9,8 @@
 #include "pcs_slist.h"
 #include "pcs_utils.h"
 
+#define PCS_API_VERSION "v1.0.0"
+
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
 	/* 值为以0结尾的C格式字符串 */
@@ -79,6 +81,9 @@ typedef enum PcsRes {
 typedef PcsBool (*PcsGetCaptchaFunction)(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state);
 
 typedef void *Pcs;
+
+/*输出PCS API的版本号*/
+PCS_API const char *pcs_version();
 
 /*
  * 创建Pcs。

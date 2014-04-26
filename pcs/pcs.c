@@ -1359,6 +1359,11 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 	return meta;
 }
 
+PCS_API const char *pcs_version()
+{
+	return PCS_API_VERSION;
+}
+
 PCS_API Pcs pcs_create(const char *cookie_file)
 {
 	struct pcs *pcs;
