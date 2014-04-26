@@ -23,7 +23,7 @@ endif
 all: bin/libpcs.a bin/pcs
 
 bin/pcs : bin/main.o bin/libpcs.a $(SHELL_OBJS)
-	$(CC) -o $@ bin/main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl
+	$(CC) -o $@ bin/main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto
 
 bin/main.o: test/main.c test/shell.h
 	$(CC) -o $@ -c test/main.c $(PCS_CCFLAGS)

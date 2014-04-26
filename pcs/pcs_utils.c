@@ -11,6 +11,7 @@
 
 #include "pcs_mem.h"
 #include "pcs_utils.h"
+#include "openssl_md5.h"
 
 PCS_API PcsBool pcs_isLittleEndian()
 {
@@ -174,3 +175,44 @@ PCS_API PcsBool pcs_utils_streq(const char *str1, const char *str2, int len)
 	return PcsTrue;
 }
 
+
+/**
+* ×Ö·û´®md5
+*/
+PCS_API const char *md5_string(const char *str)
+{
+	static char tmp[33] = { '\0' };
+	unsigned char md[16];
+	int i;
+	MD5((const unsigned char*)str, strlen(str), md);
+	for (i = 0; i<16; i++){
+		sprintf(&tmp[i * 2], "%02x", md[i]);
+	}
+	return tmp;
+}
+
+/**
+* ÎÄ¼þ md5
+*/
+PCS_API const char *md5_file(const char *file_name)
+{
+	static char tmp[33] = { '\0' };
+	MD5_CTX md5;
+	unsigned char md[16];
+	int length, i;
+	char buffer[1024];
+	FILE *file;
+	MD5_Init(&md5);
+	file = fopen(file_name, "rb");
+	if (!file) {
+		printf("%s can't be openedn", file_name);
+		return 0;
+	}
+	while (length = fread(buffer, 1, 1024, file))
+		MD5_Update(&md5, buffer, length);
+	MD5_Final(md, &md5);
+	for (i = 0; i<16; i++){
+		sprintf(&tmp[i * 2], "%02x", md[i]);
+	}
+	return tmp;
+}

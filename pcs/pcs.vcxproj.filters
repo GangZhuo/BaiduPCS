@@ -60,9 +60,6 @@
     <ClCompile Include="..\test\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\test\md5.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\test\pcs_io.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -122,9 +119,6 @@
     <ClInclude Include="..\test\hashtable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\test\md5.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\test\pcs_io.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -154,6 +148,9 @@
     </ClInclude>
     <ClInclude Include="..\test\sql.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="openssl_md5.h">
+      <Filter>Header Files\pcs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

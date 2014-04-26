@@ -86,6 +86,7 @@
 								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp, flag "\
 								"FROM pcs_cache "\
 								"WHERE server_path LIKE ?1"
+#define SQL_CACHE_SELECT_SUB_DIR_FIRST SQL_CACHE_SELECT_SUB " ORDER BY server_isdir DESC"
 #define SQL_CACHE_INSERT		"INSERT INTO pcs_cache (server_fs_id, server_path, server_filename, server_ctime, server_mtime, " \
 								"server_size, server_category, server_isdir, server_dir_empty, server_empty, "\
 								"server_md5, server_dlink, server_if_has_sub_dir, ctime, mtime, capp, mapp, flag) " \

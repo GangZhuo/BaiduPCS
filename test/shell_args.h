@@ -7,14 +7,7 @@
 extern "C" {
 #endif
 
-#define program_name	"pcs"
-#define program_version "0.1.0"
-#if defined(DEBUG) || defined(_DEBUG)
-#  define program_full_name program_name "(debug) v" program_version
-#else
-#  define program_full_name program_name " v" program_version
-#endif
-
+#include "version.h"
 
 enum action {
 	ACTION_NONE = 0,
@@ -40,6 +33,7 @@ enum action {
 	ACTION_COMPARE = 20,
 	ACTION_TIME = 21,
 	ACTION_LIST_ACTION = 22,
+	ACTION_MD5 = 23,
 };
 
 /* Structure used to communicate with the parsing functions.  */
@@ -60,6 +54,7 @@ struct params {
 	PcsBool		is_verbose;
 	PcsBool		is_synch;
 	PcsBool		is_rc4;
+	PcsBool		md5;
 	enum action action;
 	char		**args;
 	int			args_count;
