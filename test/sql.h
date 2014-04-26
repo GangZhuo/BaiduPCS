@@ -1,6 +1,9 @@
 #ifndef _SQL_H
 #define _SQL_H
 
+#define DB_VERSION				1
+#define DB_VERSION_KEY			"DB_VERSION"
+
 #define TABLE_NAME_CACHE		"pcs_cache"
 #define TABLE_NAME_ACTION		"pcs_action"
 #define TABLE_CACHE_CREATOR		"CREATE TABLE [pcs_cache] (" \
@@ -33,6 +36,7 @@
 								"  [capp]					NVARCHAR, " \
 								"  [mapp]					NVARCHAR)"
 #define TABLE_ACTION_INDEX_CREATOR "CREATE INDEX [ix_pcs_action_action] ON [pcs_action] ([action])"
+#define SQL_ADD_DB_VERSION			"INSERT INTO pcs_action (action,status,start_time,end_time,capp,mapp) VALUES ('DB_VERSION',1,0,0,'SYSTEM','SYSTEM')"
 
 #define TABLE_NAME_TASK			"pcs_task"
 #define TABLE_TASK_CREATOR		"CREATE TABLE [pcs_task] (" \
@@ -49,15 +53,18 @@
 	"  [result]				    INTEGER, " \
 	"  [start_time]				INTEGER, " \
 	"  [end_time]				INTEGER, " \
-	"  [elapsed]				INTEGER) "
+	"  [elapsed]				INTEGER, " \
+	"  [md5]					INTEGER) "
+
+#define SQL_UPDATE_DB_FROM_VER0	"alter table pcs_task add md5 INTEGER"
 
 #define SQL_TABLE_EXISTS		"SELECT name FROM sqlite_master WHERE type = 'table' AND name=?"
 
-#define SQL_TASK_SELECT_ALL		"SELECT id,method,enabled,last_run_time,next_run_time,schedule,interval,local_path,remote_path,status,result,start_time,end_time,elapsed FROM pcs_task"
+#define SQL_TASK_SELECT_ALL		"SELECT id,method,enabled,last_run_time,next_run_time,schedule,interval,local_path,remote_path,status,result,start_time,end_time,elapsed,md5 FROM pcs_task"
 #define SQL_TASK_DELETE_ALL		"DELETE FROM pcs_task"
 #define SQL_TASK_INSERT			"INSERT INTO pcs_task (id,method,enabled,last_run_time,next_run_time,schedule,interval,local_path,remote_path," \
-								"status,result,start_time,end_time,elapsed) " \
-								"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,  0, 0, 0, 0, 0)"
+								"status,result,start_time,end_time,elapsed,md5) " \
+								"VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,  0, 0, 0, 0, 0,?10)"
 #define SQL_TASK_UPDATE_STATUS	"UPDATE pcs_task SET status=?2, result=?3, start_time=?4, end_time=0, elapsed=0 WHERE id=?1"
 #define SQL_TASK_UPDATE_STATUS2	"UPDATE pcs_task SET enabled=?2, last_run_time=?3, next_run_time=?4, status=?5, " \
 								"result=?6, start_time=?7, end_time=?8, elapsed=?9 " \
