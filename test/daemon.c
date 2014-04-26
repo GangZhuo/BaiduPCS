@@ -1,4 +1,4 @@
-#include <stdio.h>
+ï»¿#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -69,19 +69,19 @@ typedef struct BackupItem {
 	char	*localPath;
 	char	*remotePath;
 	int		method;
-	int		schedule;  /*¼¸µã¼¸·Ö¿ªÊ¼Ö´ĞĞÈÎÎñ£¬ÖµÎªÒ»Ìì´ÓÁãµãÁã·ÖÁãÃë¿ªÊ¼µ½Ö´ĞĞÊ±¼äµÄÃëÊı¡£Àı£º6Ğ¡Ê± = 6 * 60 * 60 = 21600Ãë£¬´Ë´¦ÉèÖÃÖµÎª21600Ôò±íÊ¾£¬ÓÚÁè³¿6µã¿ªÆôÈÎÎñ¡£ */
-	int		interval;  /*ÈÎÎñÖ´ĞĞÍê³Éºó£¬µ±Ç°Ö´ĞĞÊ±¼ä¼ÓÉÏintervalÔòÎªÏÂ´ÎÖ´ĞĞÊ±¼ä¡£86400Ãë = 24Ğ¡Ê±£¬¼´£ºµ±Áè³¿6µãÖ´ĞĞÍêÈÎÎñºó£¬¼ÓÉÏ24Ğ¡Ê±µÄÊ±¼ä×÷ÎªÈÎÎñÏÂ´ÎÖ´ĞĞÊ±¼ä¡£*/
-	int		md5; /*ÊÇ·ñÆôÓÃMD5*/
-	time_t	next_run_time; /* ÏÂ´ÎÖ´ĞĞÊ±¼ä */
+	int		schedule;  /*å‡ ç‚¹å‡ åˆ†å¼€å§‹æ‰§è¡Œä»»åŠ¡ï¼Œå€¼ä¸ºä¸€å¤©ä»é›¶ç‚¹é›¶åˆ†é›¶ç§’å¼€å§‹åˆ°æ‰§è¡Œæ—¶é—´çš„ç§’æ•°ã€‚ä¾‹ï¼š6å°æ—¶ = 6 * 60 * 60 = 21600ç§’ï¼Œæ­¤å¤„è®¾ç½®å€¼ä¸º21600åˆ™è¡¨ç¤ºï¼Œäºå‡Œæ™¨6ç‚¹å¼€å¯ä»»åŠ¡ã€‚ */
+	int		interval;  /*ä»»åŠ¡æ‰§è¡Œå®Œæˆåï¼Œå½“å‰æ‰§è¡Œæ—¶é—´åŠ ä¸Šintervalåˆ™ä¸ºä¸‹æ¬¡æ‰§è¡Œæ—¶é—´ã€‚86400ç§’ = 24å°æ—¶ï¼Œå³ï¼šå½“å‡Œæ™¨6ç‚¹æ‰§è¡Œå®Œä»»åŠ¡åï¼ŒåŠ ä¸Š24å°æ—¶çš„æ—¶é—´ä½œä¸ºä»»åŠ¡ä¸‹æ¬¡æ‰§è¡Œæ—¶é—´ã€‚*/
+	int		md5; /*æ˜¯å¦å¯ç”¨MD5*/
+	time_t	next_run_time; /* ä¸‹æ¬¡æ‰§è¡Œæ—¶é—´ */
 	time_t	last_run_time;
 } BackupItem;
 
 typedef struct Config {
-	char		*configFilePath; /*ÅäÖÃÎÄ¼şÂ·¾¶*/
-	char		*cookieFilePath; /*´ÓÅäÖÃÎÄ¼şÖĞ¶ÁÈëµÄCookieÅäÖÃÏî£¬¼´Ê¹ÓÃµÄcookieÎÄ¼şÂ·¾¶*/
-	char		*cacheFilePath; /*»º´æÎÄ¼şµÄÂ·¾¶*/
-	char		*logFilePath; /*ÈÕÖ¾ÎÄ¼şµÄÂ·¾¶*/
-	BackupItem	*items; /*ĞèÒª±¸·İ|»¹Ô­µÄÏî*/
+	char		*configFilePath; /*é…ç½®æ–‡ä»¶è·¯å¾„*/
+	char		*cookieFilePath; /*ä»é…ç½®æ–‡ä»¶ä¸­è¯»å…¥çš„Cookieé…ç½®é¡¹ï¼Œå³ä½¿ç”¨çš„cookieæ–‡ä»¶è·¯å¾„*/
+	char		*cacheFilePath; /*ç¼“å­˜æ–‡ä»¶çš„è·¯å¾„*/
+	char		*logFilePath; /*æ—¥å¿—æ–‡ä»¶çš„è·¯å¾„*/
+	BackupItem	*items; /*éœ€è¦å¤‡ä»½|è¿˜åŸçš„é¡¹*/
 	int			itemCount;
 
 	int			run_in_daemon;
@@ -90,25 +90,25 @@ typedef struct Config {
 
 } Config;
 
-/*Sqlite±àÒëºóµÄÓï¾ä¶ÔÏóÊı×é*/
+/*Sqliteç¼–è¯‘åçš„è¯­å¥å¯¹è±¡æ•°ç»„*/
 typedef struct DbPrepare {
 	sqlite3_stmt **stmts;
 	int			 count;
 } DbPrepare;
 
-/*Sqlite±àÒëºóµÄÓï¾ä¶ÔÏóÁ´±í*/
+/*Sqliteç¼–è¯‘åçš„è¯­å¥å¯¹è±¡é“¾è¡¨*/
 typedef struct DbPrepareList {
 	sqlite3_stmt *stmt;
 	struct DbPrepareList *next;
 } DbPrepareList;
 
-/*ÉÏ´«½ø¶ÈÌõµÄÓÃ»§×Ô¶¨ÒåÊı¾İ½á¹¹£¬ÓÃÓÚ´«ÈëÊı¾İµ½½ø¶ÈÌõº¯ÊıÖĞ*/
+/*ä¸Šä¼ è¿›åº¦æ¡çš„ç”¨æˆ·è‡ªå®šä¹‰æ•°æ®ç»“æ„ï¼Œç”¨äºä¼ å…¥æ•°æ®åˆ°è¿›åº¦æ¡å‡½æ•°ä¸­*/
 struct ProgressState {
 	const char *localPath;
 	const char *remotePath;
 };
 
-/*Í³¼Æ±¸·İÊ±£¬¸÷Çé¿öµÄÎÄ¼şÊıÁ¿*/
+/*ç»Ÿè®¡å¤‡ä»½æ—¶ï¼Œå„æƒ…å†µçš„æ–‡ä»¶æ•°é‡*/
 typedef struct BackupState {
 	int backupFiles;
 	int skipFiles;
@@ -121,29 +121,29 @@ typedef struct BackupState {
 	int totalDir;
 } BackupState;
 
-/*ÏÂÔØÊ±µÄÓÃ»§×Ô¶¨ÒåÊı¾İ½á¹¹£¬ÓÃÓÚ´«ÈëÊı¾İµ½ÏÂÔØµÄĞ´Èëº¯ÊıÖĞ*/
+/*ä¸‹è½½æ—¶çš„ç”¨æˆ·è‡ªå®šä¹‰æ•°æ®ç»“æ„ï¼Œç”¨äºä¼ å…¥æ•°æ®åˆ°ä¸‹è½½çš„å†™å…¥å‡½æ•°ä¸­*/
 typedef struct DownloadState {
 	FILE *pf;
 	char *msg;
 	size_t size;
 } DownloadState;
 
-/*¼ÇÂ¼±È½Ï½á¹ûµÄÁ´±í
-Àı£ºÓÃÀàËÆÓÚ"+ D L:/var/www/upload"µÄ×Ö·û´®±íÊ¾Ò»¸öCompareItem¶ÔÏó
-£¨¸Ã×Ö·û´®¿ÉÍ¨¹ıprintf("%c %c %c:%s\n", p->op, p->type, p->position, p->path)À´»ñµÃ£©£¬
-ÔòÓĞ:
-"+ D L:/var/www/upload" - ±íÊ¾±¾µØ½«´´½¨Ò»¸öĞÂÄ¿Â¼/var/www/upload
-"+ D R:/var/www/upload" - ±íÊ¾ÍøÅÌÖĞ½«´´½¨Ò»¸öĞÂÄ¿Â¼/var/www/upload
-"- F L:/var/www/upload/001.jpg" - ±íÊ¾±¾µØ½«É¾³ıÒ»¸öÎÄ¼ş/var/www/upload/001.jpg
-"+ F R:/var/www/upload/001.jpg" - ±íÊ¾ÍøÅÌÖĞ½«ĞÂ¼ÓÒ»¸öÎÄ¼ş/var/www/upload/001.jpg
-"A F L:/var/www/upload/001.jpg" - ±íÊ¾½«°Ñ±¾µØÎÄ¼ş/var/www/upload/001.jpgÉÏ´«²¢¸²¸Çµ½ÍøÅÌÖĞ
-"V F R:/var/www/upload/001.jpg" - ±íÊ¾½«°ÑÍøÅÌÎÄ¼ş/var/www/upload/001.jpgÏÂÔØ²¢¸²¸Çµ½±¾µØ
+/*è®°å½•æ¯”è¾ƒç»“æœçš„é“¾è¡¨
+ä¾‹ï¼šç”¨ç±»ä¼¼äº"+ D L:/var/www/upload"çš„å­—ç¬¦ä¸²è¡¨ç¤ºä¸€ä¸ªCompareItemå¯¹è±¡
+ï¼ˆè¯¥å­—ç¬¦ä¸²å¯é€šè¿‡printf("%c %c %c:%s\n", p->op, p->type, p->position, p->path)æ¥è·å¾—ï¼‰ï¼Œ
+åˆ™æœ‰:
+"+ D L:/var/www/upload" - è¡¨ç¤ºæœ¬åœ°å°†åˆ›å»ºä¸€ä¸ªæ–°ç›®å½•/var/www/upload
+"+ D R:/var/www/upload" - è¡¨ç¤ºç½‘ç›˜ä¸­å°†åˆ›å»ºä¸€ä¸ªæ–°ç›®å½•/var/www/upload
+"- F L:/var/www/upload/001.jpg" - è¡¨ç¤ºæœ¬åœ°å°†åˆ é™¤ä¸€ä¸ªæ–‡ä»¶/var/www/upload/001.jpg
+"+ F R:/var/www/upload/001.jpg" - è¡¨ç¤ºç½‘ç›˜ä¸­å°†æ–°åŠ ä¸€ä¸ªæ–‡ä»¶/var/www/upload/001.jpg
+"A F L:/var/www/upload/001.jpg" - è¡¨ç¤ºå°†æŠŠæœ¬åœ°æ–‡ä»¶/var/www/upload/001.jpgä¸Šä¼ å¹¶è¦†ç›–åˆ°ç½‘ç›˜ä¸­
+"V F R:/var/www/upload/001.jpg" - è¡¨ç¤ºå°†æŠŠç½‘ç›˜æ–‡ä»¶/var/www/upload/001.jpgä¸‹è½½å¹¶è¦†ç›–åˆ°æœ¬åœ°
 */
 typedef struct CompareItem {
-	char	op; /*Öµ¿ÉÎªA,V,+,-. A±íÊ¾ÎÄ¼şĞèÉÏ´«£¬V±íÊ¾ÎÄ¼şĞèÏÂÔØ£¬-±êÊ¶ÎÄ¼şĞèÉ¾³ı£¬+±íÊ¾ÎÄ¼şĞèÌí¼Ó*/
-	char	type; /*ÎÄ¼şÀàĞÍ£ºD - ±êÊ¶Ä¿Â¼£»F - ±íÊ¾ÎÄ¼ş*/
-	char	position; /*ÎÄ¼ş»òÄ¿Â¼µÄÎ»ÖÃ£ºR - ±íÊ¾²Ù×÷µÄÎÄ¼şpath´æ´¢ÓÚÍøÅÌ£»L - ±êÊ¶²Ù×÷µÄÎÄ¼şÊÇ±¾µØÎÄ¼ş*/
-	char	*path; /*ÎÄ¼şÂ·¾¶¡£*/
+	char	op; /*å€¼å¯ä¸ºA,V,+,-. Aè¡¨ç¤ºæ–‡ä»¶éœ€ä¸Šä¼ ï¼ŒVè¡¨ç¤ºæ–‡ä»¶éœ€ä¸‹è½½ï¼Œ-æ ‡è¯†æ–‡ä»¶éœ€åˆ é™¤ï¼Œ+è¡¨ç¤ºæ–‡ä»¶éœ€æ·»åŠ */
+	char	type; /*æ–‡ä»¶ç±»å‹ï¼šD - æ ‡è¯†ç›®å½•ï¼›F - è¡¨ç¤ºæ–‡ä»¶*/
+	char	position; /*æ–‡ä»¶æˆ–ç›®å½•çš„ä½ç½®ï¼šR - è¡¨ç¤ºæ“ä½œçš„æ–‡ä»¶pathå­˜å‚¨äºç½‘ç›˜ï¼›L - æ ‡è¯†æ“ä½œçš„æ–‡ä»¶æ˜¯æœ¬åœ°æ–‡ä»¶*/
+	char	*path; /*æ–‡ä»¶è·¯å¾„ã€‚*/
 	struct CompareItem *next;
 	struct CompareItem *prev;
 } CompareItem;
@@ -154,7 +154,7 @@ static Pcs pcs = NULL;
 
 static void print_taks();
 
-/*·µ»ØÊı¾İ¿âÎÄ¼şµÄÂ·¾¶*/
+/*è¿”å›æ•°æ®åº“æ–‡ä»¶çš„è·¯å¾„*/
 //static const char *db_file_path()
 //{
 //
@@ -175,7 +175,7 @@ static void print_taks();
 //
 //}
 
-/*·µ»ØÈÕÖ¾ÎÄ¼şµÄÂ·¾¶*/
+/*è¿”å›æ—¥å¿—æ–‡ä»¶çš„è·¯å¾„*/
 static const char *log_file_path()
 {
 
@@ -265,7 +265,7 @@ static void freeConfig(int keepGlobal)
 	}
 }
 
-/*¶ÁÈ¡ÎÄ¼şÄÚÈİ*/
+/*è¯»å–æ–‡ä»¶å†…å®¹*/
 static int readFileContent(const char *file, char **pBuffer)
 {
 	FILE *fp;
@@ -357,7 +357,7 @@ static int convert_to_time_t_2(char *str)
 	return rc;
 }
 
-/*¶ÁÈ¡²¢½âÎöÅäÖÃÎÄ¼ş*/
+/*è¯»å–å¹¶è§£æé…ç½®æ–‡ä»¶*/
 static int readConfigFile()
 {
     long size_of_file;
@@ -748,7 +748,7 @@ static int db_update_task_status2(int id, int enabled, time_t last_run_time, tim
 	return 0;
 }
 
-/*isStart - ±êÊ¶ÊÇ·ñ¸üĞÂstart_timeºÍcappÁ½¸ö×Ö¶Î*/
+/*isStart - æ ‡è¯†æ˜¯å¦æ›´æ–°start_timeå’Œcappä¸¤ä¸ªå­—æ®µ*/
 static int db_set_action(const char *action, int status, int isStart)
 {
 	int rc;
@@ -898,8 +898,8 @@ static int db_set_version(int verno)
 }
 
 /*
-É¾³ıpathÄ¿Â¼ÏÂËùÓĞ»º´æ£¬²»»áÉ¾³ıpathµÄ»º´æ¡£
-Àı: db_clear_caches("/backup"); //½«É¾³ıËùÓĞÒÔ"/backup/"¿ªÍ·µÄÎÄ¼ş»º´æ£¬µ«ÊÇ"/backup"µÄ»º´æ²»»áÉ¾³ı
+åˆ é™¤pathç›®å½•ä¸‹æ‰€æœ‰ç¼“å­˜ï¼Œä¸ä¼šåˆ é™¤pathçš„ç¼“å­˜ã€‚
+ä¾‹: db_clear_caches("/backup"); //å°†åˆ é™¤æ‰€æœ‰ä»¥"/backup/"å¼€å¤´çš„æ–‡ä»¶ç¼“å­˜ï¼Œä½†æ˜¯"/backup"çš„ç¼“å­˜ä¸ä¼šåˆ é™¤
 */
 static int db_clear_caches(const char *path)
 {
@@ -943,8 +943,8 @@ static int db_clear_caches(const char *path)
 }
 
 /*
-É¾³ıpathµÄ»º´æ£¬²»°üÀ¨Æä×ÓÄ¿Â¼
-Àı: db_remove_cache("/backup"); //½«É¾³ı"/backup"µÄ»º´æ£¬µ«ÊÇÒÔ"/backup/"¿ªÍ·µÄ»º´æ²»»áÉ¾³ı
+åˆ é™¤pathçš„ç¼“å­˜ï¼Œä¸åŒ…æ‹¬å…¶å­ç›®å½•
+ä¾‹: db_remove_cache("/backup"); //å°†åˆ é™¤"/backup"çš„ç¼“å­˜ï¼Œä½†æ˜¯ä»¥"/backup/"å¼€å¤´çš„ç¼“å­˜ä¸ä¼šåˆ é™¤
 */
 static int db_remove_cache(const char *path)
 {
@@ -972,8 +972,8 @@ static int db_remove_cache(const char *path)
 }
 
 /*
-ÉèÖÃpathÄ¿Â¼ÏÂËùÓĞ»º´æµÄ±êÊ¶£¬²»»áÉèÖÃpathµÄ»º´æ±êÊ¶¡£
-Àı: db_set_cache_flags("/backup", 0); //½«ÉèÖÃËùÓĞÒÔ"/backup/"¿ªÍ·µÄ»º´æ±êÊ¶Îª0£¬µ«ÊÇ"/backup"µÄ»º´æ±êÊ¶²»»áÉèÖÃ
+è®¾ç½®pathç›®å½•ä¸‹æ‰€æœ‰ç¼“å­˜çš„æ ‡è¯†ï¼Œä¸ä¼šè®¾ç½®pathçš„ç¼“å­˜æ ‡è¯†ã€‚
+ä¾‹: db_set_cache_flags("/backup", 0); //å°†è®¾ç½®æ‰€æœ‰ä»¥"/backup/"å¼€å¤´çš„ç¼“å­˜æ ‡è¯†ä¸º0ï¼Œä½†æ˜¯"/backup"çš„ç¼“å­˜æ ‡è¯†ä¸ä¼šè®¾ç½®
 */
 static int db_set_cache_flags(const char *path, int flag)
 {
@@ -1016,8 +1016,8 @@ static int db_set_cache_flags(const char *path, int flag)
 }
 
 /*
-ÉèÖÃpath»º´æµÄ±êÊ¶£¬²»°üÀ¨Æä×ÓÄ¿Â¼
-Àı: db_set_cache_flag("/backup", 0); //½«ÉèÖÃ"/backup"µÄ»º´æ±êÊ¶Îª0£¬µ«ÊÇÒÔ"/backup/"¿ªÍ·µÄ»º´æ±êÊ¶²»»áÉèÖÃ
+è®¾ç½®pathç¼“å­˜çš„æ ‡è¯†ï¼Œä¸åŒ…æ‹¬å…¶å­ç›®å½•
+ä¾‹: db_set_cache_flag("/backup", 0); //å°†è®¾ç½®"/backup"çš„ç¼“å­˜æ ‡è¯†ä¸º0ï¼Œä½†æ˜¯ä»¥"/backup/"å¼€å¤´çš„ç¼“å­˜æ ‡è¯†ä¸ä¼šè®¾ç½®
 */
 static int db_set_cache_flag(const char *path, int flag)
 {
@@ -1224,7 +1224,7 @@ static int quota(UInt64 *usedByteSize, UInt64 *totalByteSize)
 	return 0;
 }
 
-/* ·µ»ØÖ±½Ó»ò¼ä½ÓÎÄ¼şÊıÁ¿ */
+/* è¿”å›ç›´æ¥æˆ–é—´æ¥æ–‡ä»¶æ•°é‡ */
 static int method_update_folder(const char *path, DbPrepare *pre, int *pFileCount, int *pDirectFileCount)
 {
 	PcsFileInfoList *list = NULL;
@@ -1301,13 +1301,13 @@ static int method_update(const char *remotePath)
 	PRINT_NOTICE("Server Path: %s", remotePath);
 	action = (char *)pcs_malloc(strlen(remotePath) + 16);
 	strcpy(action, "UPDATE: "); strcat(action, remotePath);
-	//»ñÈ¡µ±Ç°µÄACTION
+	//è·å–å½“å‰çš„ACTION
 	if (db_get_action(&actionInfo, action)) {
 		pcs_free(action);
 		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
-	//¼ì²éACTION×´Ì¬
+	//æ£€æŸ¥ACTIONçŠ¶æ€
 	if (actionInfo.status == ACTION_STATUS_RUNNING) {
 		PRINT_FATAL("There have another update thread running, which is start by %s at %s", actionInfo.create_app, format_time(actionInfo.start_time));
 		pcs_free(action);
@@ -1316,20 +1316,20 @@ static int method_update(const char *remotePath)
 		return -1;
 	}
 	freeActionInfo(&actionInfo);
-	//ÉèÖÃACTIONÎªRUNNING×´Ì¬
+	//è®¾ç½®ACTIONä¸ºRUNNINGçŠ¶æ€
 	if (db_set_action(action, ACTION_STATUS_RUNNING, 1)) {
 		pcs_free(action);
 		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
-	//É¾³ıµ±Ç°Ä¿Â¼µÄ±¾µØ»º´æ
+	//åˆ é™¤å½“å‰ç›®å½•çš„æœ¬åœ°ç¼“å­˜
 	if (db_remove_cache(remotePath)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
 		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
-	//»ñÈ¡µ±Ç°Ä¿Â¼µÄÔªÊı¾İ
+	//è·å–å½“å‰ç›®å½•çš„å…ƒæ•°æ®
 	meta = pcs_meta(pcs, remotePath);
 	if (!meta) {
 		PRINT_FATAL("The remote path not exist: %s", remotePath);
@@ -1338,7 +1338,7 @@ static int method_update(const char *remotePath)
 		PRINT_NOTICE("Update Local Cache - End");
 		return 0;
 	}
-	//×¼±¸²åÈëÊı¾İµ½»º´æ±í¸ñÖĞµÄSQL¹ı³Ì
+	//å‡†å¤‡æ’å…¥æ•°æ®åˆ°ç¼“å­˜è¡¨æ ¼ä¸­çš„SQLè¿‡ç¨‹
 	if (db_prepare(&pre, SQL_CACHE_INSERT, NULL)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
@@ -1346,7 +1346,7 @@ static int method_update(const char *remotePath)
 		PRINT_NOTICE("Update Local Cache - End");
 		return -1;
 	}
-	//»º´æµ±Ç°Ä¿Â¼µÄÔªÊı¾İ
+	//ç¼“å­˜å½“å‰ç›®å½•çš„å…ƒæ•°æ®
 	if (db_add_cache(meta, &pre)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
 		pcs_free(action);
@@ -1356,7 +1356,7 @@ static int method_update(const char *remotePath)
 		return -1;
 	}
 	if (meta->isdir) {
-		//É¾³ı×ÓÄ¿Â¼µÄ±¾µØ»º´æ
+		//åˆ é™¤å­ç›®å½•çš„æœ¬åœ°ç¼“å­˜
 		if (db_clear_caches(remotePath)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -1365,7 +1365,7 @@ static int method_update(const char *remotePath)
 			PRINT_NOTICE("Update Local Cache - End");
 			return -1;
 		}
-		//µİ¹é¸üĞÂ×ÓÄ¿Â¼
+		//é€’å½’æ›´æ–°å­ç›®å½•
 		if (method_update_folder(remotePath, &pre, &fileCount, &directFileCount)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -1466,7 +1466,7 @@ static int method_backup_progress(void *clientp, double dltotal, double dlnow, d
 	return 0;
 }
 
-/*±¸·İÎÄ¼ş*/
+/*å¤‡ä»½æ–‡ä»¶*/
 static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre, int md5Enabled, BackupState *st)
 {
 	PcsFileInfo dst = {0};
@@ -1497,20 +1497,30 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 	}
 	if (md5Enabled) {
 		if (dst.fs_id) {
-			const char *md5 = md5_file(localFile->path);
-			if (pcs_utils_strcmpi(md5, dst.md5)) {
-				if (localFile->mtime == ((time_t)dst.server_mtime)) {
-					PRINT_WARNING("Unable to determine which file is newer: "
-						"The local file %s and remote file %s have different md5 (%s : %s), "
-						"they also have same last modify time %s. Force backup the file.", 
-						localFile->path, remotePath, md5, dst.md5, format_time(localFile->mtime));
-					//freeCacheInfo(&dst);
-					//return -1;
-					need_backup = 1;
+			const char *md5;
+			if (dst.md5) {
+				md5 = md5_file(localFile->path);
+				if (!md5) {
+					PRINT_FATAL("Can't calculate md5 for %s.", localFile->path);
+					freeCacheInfo(&dst);
+					return -1;
 				}
-				else
-					need_backup = localFile->mtime > ((time_t)dst.server_mtime);
+				else if (pcs_utils_strcmpi(md5, dst.md5)) {
+					if (localFile->mtime == ((time_t)dst.server_mtime)) {
+						PRINT_WARNING("Unable to determine which file is newer: "
+							"The local file %s and remote file %s have different md5 (%s : %s), "
+							"they also have same last modify time %s. Force backup the file.",
+							localFile->path, remotePath, md5, dst.md5, format_time(localFile->mtime));
+						//freeCacheInfo(&dst);
+						//return -1;
+						need_backup = 1;
+					}
+					else
+						need_backup = localFile->mtime > ((time_t)dst.server_mtime);
+				}
 			}
+			else
+				need_backup = localFile->mtime > ((time_t)dst.server_mtime);
 		}
 		else {
 			need_backup = 1;
@@ -1579,7 +1589,7 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 	return 0;
 }
 
-/*´´½¨Ä¿Â¼*/
+/*åˆ›å»ºç›®å½•*/
 static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupState *st)
 {
 	PcsFileInfo dst = {0};
@@ -1607,7 +1617,7 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 			st->removeFiles++;
 		}
 	}
-	if (!dst.fs_id) { //Èç¹ûÔ¶³ÌÄ¿Â¼²»´æÔÚ£¬Ôò´´½¨
+	if (!dst.fs_id) { //å¦‚æœè¿œç¨‹ç›®å½•ä¸å­˜åœ¨ï¼Œåˆ™åˆ›å»º
 		PcsRes pcsres = PCS_NONE;
 		//PcsFileInfo *meta = NULL;
 		PcsFileInfo meta = { 0 }; time_t now;
@@ -1616,7 +1626,7 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 			PRINT_FATAL("Can't create the directory %s: %s\n", remotePath, pcs_strerror(pcs));
 			return -1;
 		}
-		////´´½¨³É¹¦ºó£¬»ñÈ¡ÆäÔªÊı¾İ²¢´æÈë±¾µØ»º´æ
+		////åˆ›å»ºæˆåŠŸåï¼Œè·å–å…¶å…ƒæ•°æ®å¹¶å­˜å…¥æœ¬åœ°ç¼“å­˜
 		//meta = pcs_meta(pcs, remotePath);
 		//if (!meta) {
 		//	PRINT_FATAL("Can't get meta: %s", remotePath);
@@ -1657,7 +1667,7 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 	return 0;
 }
 
-/*±¸·İÄ¿Â¼*/
+/*å¤‡ä»½ç›®å½•*/
 static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre, int md5Enabled, BackupState *st)
 {
 	my_dirent *ents = NULL,
@@ -1668,7 +1678,7 @@ static int method_backup_folder(const char *localPath, const char *remotePath, D
 		return -1;
 	}
 	ents = list_dir(localPath, 0);
-	if (!ents) { //Èç¹ûÊÇ¿ÕÄ¿Â¼
+	if (!ents) { //å¦‚æœæ˜¯ç©ºç›®å½•
 		return 0;
 	}
 	ent = ents;
@@ -1731,7 +1741,7 @@ static int method_backup_remove_files(PcsSList *slist, DbPrepare *pre, const cha
 	return 0;
 }
 
-/*É¾³ı±¾µØÒÑ¾­ÒÆ³ıµÄÎÄ¼ş»òÄ¿Â¼*/
+/*åˆ é™¤æœ¬åœ°å·²ç»ç§»é™¤çš„æ–‡ä»¶æˆ–ç›®å½•*/
 static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, BackupState *st) 
 {
 	int rc, is_dir;
@@ -1834,13 +1844,13 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 	action = (char *)pcs_malloc(strlen(localPath) + strlen(remotePath) + 16);
 	strcpy(action, "BACKUP: "); strcat(action, localPath);
 	strcat(action, " -> "); strcat(action, remotePath);
-	//»ñÈ¡µ±Ç°µÄACTION
+	//è·å–å½“å‰çš„ACTION
 	if (db_get_action(&ai, action)) {
 		pcs_free(action);
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	//¼ì²éACTION×´Ì¬
+	//æ£€æŸ¥ACTIONçŠ¶æ€
 	if (ai.status == ACTION_STATUS_RUNNING) {
 		PRINT_FATAL("There have another backup thread running, which is start by %s at %s", ai.create_app, format_time(ai.start_time));
 		pcs_free(action);
@@ -1849,14 +1859,14 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 		return -1;
 	}
 	freeActionInfo(&ai);
-	//ÉèÖÃACTIONÎªRUNNING×´Ì¬
+	//è®¾ç½®ACTIONä¸ºRUNNINGçŠ¶æ€
 	if (db_set_action(action, ACTION_STATUS_RUNNING, 1)) {
 		pcs_free(action);
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
 
-	//¼ì²é±¾µØ»º´æÊÇ·ñ¸üĞÂ - ¿ªÊ¼¡£Èç¹ûÎ´¸üĞÂÔò¸üĞÂ±¾µØ»º´æ
+	//æ£€æŸ¥æœ¬åœ°ç¼“å­˜æ˜¯å¦æ›´æ–° - å¼€å§‹ã€‚å¦‚æœæœªæ›´æ–°åˆ™æ›´æ–°æœ¬åœ°ç¼“å­˜
 	updateAction = (char *)pcs_malloc(strlen(remotePath) + 16);
 	strcpy(updateAction, "UPDATE: ");
 	strcat(updateAction, remotePath);
@@ -1889,9 +1899,9 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 	}
 	pcs_free(updateAction);
 	freeActionInfo(&ai);
-	//¼ì²é±¾µØ»º´æÊÇ·ñ¸üĞÂ - ½áÊø
+	//æ£€æŸ¥æœ¬åœ°ç¼“å­˜æ˜¯å¦æ›´æ–° - ç»“æŸ
 
-	//Çå³ı±¾µØ±ê¼ÇÎ»
+	//æ¸…é™¤æœ¬åœ°æ ‡è®°ä½
 	if (db_set_cache_flag(remotePath, 0)) {
 		PRINT_FATAL("Can't reset local cache flags for %s", remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
@@ -1899,7 +1909,7 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	//Çå³ı×ÓÄ¿Â¼±¾µØ±ê¼Ç
+	//æ¸…é™¤å­ç›®å½•æœ¬åœ°æ ‡è®°
 	if (db_set_cache_flags(remotePath, 0)) {
 		PRINT_FATAL("Can't reset local cache flags for %s", remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
@@ -1923,7 +1933,7 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 		PRINT_NOTICE("Backup - End");
 		return -1;
 	}
-	if (rc == 2) { //ÀàĞÍÎªÄ¿Â¼
+	if (rc == 2) { //ç±»å‹ä¸ºç›®å½•
 		if (method_backup_folder(localPath, remotePath, &pre, md5Enabled, &st)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -1933,7 +1943,7 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 			return -1;
 		}
 	}
-	else if (rc == 1) { //ÀàĞÍÎªÎÄ¼ş
+	else if (rc == 1) { //ç±»å‹ä¸ºæ–‡ä»¶
 		if (method_backup_file(ent, remotePath, &pre, md5Enabled, &st)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -1953,7 +1963,7 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 		return -1;
 	}
 	my_dirent_destroy(ent);
-	//ÒÆ³ı·şÎñÆ÷ÖĞ£¬±¾µØ²»´æÔÚµÄÎÄ¼ş
+	//ç§»é™¤æœåŠ¡å™¨ä¸­ï¼Œæœ¬åœ°ä¸å­˜åœ¨çš„æ–‡ä»¶
 	if (!isCombin && method_backup_remove_untrack(remotePath, &pre, &st)) {
 		//PRINT_FATAL("Can't remove untrack files from the server: %s", remotePath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
@@ -1995,7 +2005,7 @@ static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPre
 	int rc;
 	int need_backup = 0;
 	rc = get_file_ent(&ent, localPath);
-	if (rc == 2) { //ÊÇÄ¿Â¼
+	if (rc == 2) { //æ˜¯ç›®å½•
 		if (my_dirent_remove(localPath)) {
 			PRINT_FATAL("Can't remove the local dir: %s", localPath);
 			my_dirent_destroy(ent);
@@ -2008,19 +2018,31 @@ static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPre
 	}
 	if (md5Enabled) {
 		if (ent) {
-			const char *md5 = md5_file((char *)localPath);
-			if (pcs_utils_strcmpi(md5, remote->md5)) {
-				if (ent->mtime == ((time_t)remote->server_mtime)) {
-					PRINT_WARNING("Unable to determine which file is newer: "
-						"The local file %s and remote file %s have different md5 (%s : %s), "
-						"they also have same last modify time %s. Force restore the file.",
-						ent->path, remote->path, md5, remote->md5, format_time(ent->mtime));
-					//my_dirent_destroy(ent);
-					//ent = NULL;
-					need_backup = 1;
+			const char *md5;
+			if (remote->md5) {
+				md5 = md5_file((char *)localPath);
+				if (!md5) {
+					PRINT_FATAL("Can't calculate md5 for %s.", localPath);
+					my_dirent_destroy(ent);
+					ent = NULL;
+					return -1;
 				}
-				else
-					need_backup = ent->mtime < ((time_t)remote->server_mtime);
+				else if (pcs_utils_strcmpi(md5, remote->md5)) {
+					if (ent->mtime == ((time_t)remote->server_mtime)) {
+						PRINT_WARNING("Unable to determine which file is newer: "
+							"The local file %s and remote file %s have different md5 (%s : %s), "
+							"they also have same last modify time %s. Force restore the file.",
+							ent->path, remote->path, md5, remote->md5, format_time(ent->mtime));
+						//my_dirent_destroy(ent);
+						//ent = NULL;
+						need_backup = 1;
+					}
+					else
+						need_backup = ent->mtime < ((time_t)remote->server_mtime);
+				}
+			}
+			else {
+				need_backup = ent->mtime < ((time_t)remote->server_mtime);
 			}
 		}
 		else {
@@ -2176,7 +2198,7 @@ static int method_restore_folder(const char *localPath, const char *remotePath, 
 			//	return -1;
 			//}
 
-			/*ÒòÎªÆä×ÓÎÄ¼ş¼ĞÒÑ¾­È«²¿²éÑ¯³öÀ´ÁË£¬Òò´ËÎŞĞèµİ¹é´¦ÀíÎÄ¼ş¼Ğ¡£Ö»ĞèÒª´´½¨¼´¿É*/
+			/*å› ä¸ºå…¶å­æ–‡ä»¶å¤¹å·²ç»å…¨éƒ¨æŸ¥è¯¢å‡ºæ¥äº†ï¼Œå› æ­¤æ— éœ€é€’å½’å¤„ç†æ–‡ä»¶å¤¹ã€‚åªéœ€è¦åˆ›å»ºå³å¯*/
 #ifdef WIN32
 			mkdir(dstPath);
 #else
@@ -2226,7 +2248,7 @@ static int method_restore_remove_untrack(my_dirent *local, const char *remotePat
 		}
 		return 0;
 	}
-	if (local->is_dir) { //ÊÇÄ¿Â¼µÄ»°
+	if (local->is_dir) { //æ˜¯ç›®å½•çš„è¯
 		ents = list_dir(local->path, 0);
 		if (ents) {
 			ent = ents;
@@ -2272,13 +2294,13 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 	action = (char *)pcs_malloc(strlen(localPath) + strlen(remotePath) + 16);
 	strcpy(action, "RESTORE: "); strcat(action, localPath);
 	strcat(action, " <- "); strcat(action, remotePath);
-	//»ñÈ¡µ±Ç°µÄACTION
+	//è·å–å½“å‰çš„ACTION
 	if (db_get_action(&ai, action)) {
 		pcs_free(action);
 		PRINT_NOTICE("Restore - End");
 		return -1;
 	}
-	//¼ì²éACTION×´Ì¬
+	//æ£€æŸ¥ACTIONçŠ¶æ€
 	if (ai.status == ACTION_STATUS_RUNNING) {
 		PRINT_FATAL("There have another restore thread running, which is start by %s at %s", ai.create_app, format_time(ai.start_time));
 		pcs_free(action);
@@ -2287,14 +2309,14 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 		return -1;
 	}
 	freeActionInfo(&ai);
-	//ÉèÖÃACTIONÎªRUNNING×´Ì¬
+	//è®¾ç½®ACTIONä¸ºRUNNINGçŠ¶æ€
 	if (db_set_action(action, ACTION_STATUS_RUNNING, 1)) {
 		pcs_free(action);
 		PRINT_NOTICE("Restore - End");
 		return -1;
 	}
 
-	//¼ì²é±¾µØ»º´æÊÇ·ñ¸üĞÂ - ¿ªÊ¼¡£Èç¹ûÎ´¸üĞÂÔò¸üĞÂ±¾µØ»º´æ
+	//æ£€æŸ¥æœ¬åœ°ç¼“å­˜æ˜¯å¦æ›´æ–° - å¼€å§‹ã€‚å¦‚æœæœªæ›´æ–°åˆ™æ›´æ–°æœ¬åœ°ç¼“å­˜
 	updateAction = (char *)pcs_malloc(strlen(remotePath) + 16);
 	strcpy(updateAction, "UPDATE: ");
 	strcat(updateAction, remotePath);
@@ -2327,7 +2349,7 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 	}
 	pcs_free(updateAction);
 	freeActionInfo(&ai);
-	//¼ì²é±¾µØ»º´æÊÇ·ñ¸üĞÂ - ½áÊø
+	//æ£€æŸ¥æœ¬åœ°ç¼“å­˜æ˜¯å¦æ›´æ–° - ç»“æŸ
 
 	if (db_prepare(&pre, SQL_CACHE_INSERT, SQL_CACHE_SELECT, SQL_CACHE_DELETE, SQL_CACHE_UPDATE, SQL_CACHE_SET_FLAG, SQL_CACHE_SELECT_SUB, NULL)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
@@ -2344,7 +2366,7 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 		return -1;
 	}
 	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &method_restore_write);
-	if (rf.isdir) { //ÀàĞÍÎªÄ¿Â¼
+	if (rf.isdir) { //ç±»å‹ä¸ºç›®å½•
 		if (method_restore_folder(localPath, remotePath, &pre, md5Enabled, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
@@ -2355,7 +2377,7 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 			return -1;
 		}
 	}
-	else { //ÀàĞÍÎªÎÄ¼ş
+	else { //ç±»å‹ä¸ºæ–‡ä»¶
 		if (method_restore_file(localPath, &rf, &pre, md5Enabled, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
@@ -2368,7 +2390,7 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 	}
 	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 	freeCacheInfo(&rf);
-	//ÒÆ³ı±¾µØÎÄ¼şÏµÍ³ÖĞ£¬ÔÚ·şÎñÆ÷ÖĞ²»´æÔÚµÄÎÄ¼ş
+	//ç§»é™¤æœ¬åœ°æ–‡ä»¶ç³»ç»Ÿä¸­ï¼Œåœ¨æœåŠ¡å™¨ä¸­ä¸å­˜åœ¨çš„æ–‡ä»¶
 	if (!isCombin) {
 		my_dirent *local;
 		get_file_ent(&local, localPath);
@@ -2408,6 +2430,9 @@ static void addCompareItem(CompareItem *list, char op, char type, char position,
 {
 	CompareItem *item;
 	item = (CompareItem *)pcs_malloc(sizeof(CompareItem));
+	if (!item) {
+		PRINT_FATAL("Can't create object: CompareItem");
+	}
 	memset(item, 0, sizeof(CompareItem));
 	item->op = op;
 	item->type = type;
@@ -2505,35 +2530,41 @@ static void printCompareList(CompareItem *list)
 	printf("Total: %d\n", elem_count);
 	printf(
 		"Sample:\n"
-		"    \"+ D L:/var/www/upload\" - ±íÊ¾±¾µØ½«´´½¨Ò»¸öĞÂÄ¿Â¼/var/www/upload\n"
-		"    \"+ D R:/var/www/upload\" - ±íÊ¾ÍøÅÌÖĞ½«´´½¨Ò»¸öĞÂÄ¿Â¼ / var / www / upload\n"
-		"    \"- F L:/var/www/upload/001.jpg\" - ±íÊ¾±¾µØ½«É¾³ıÒ»¸öÎÄ¼ş / var / www / upload / 001.jpg\n"
-		"    \"+ F R:/var/www/upload/001.jpg\" - ±íÊ¾ÍøÅÌÖĞ½«ĞÂ¼ÓÒ»¸öÎÄ¼ş / var / www / upload / 001.jpg\n"
-		"    \"A F L:/var/www/upload/001.jpg\" - ±íÊ¾½«°Ñ±¾µØÎÄ¼ş / var / www / upload / 001.jpgÉÏ´«²¢¸²¸Çµ½ÍøÅÌÖĞ\n"
-		"    \"V F R:/var/www/upload/001.jpg\" - ±íÊ¾½«°ÑÍøÅÌÎÄ¼ş / var / www / upload / 001.jpgÏÂÔØ²¢¸²¸Çµ½±¾µØ\n"
+		"    \"+ D L:/var/www/upload\"            - Create new directory \"/var/www/upload\" into local file system\n"
+		"    \"+ D R:/backup/www/upload\"         - Create new directory \"/var/backup/upload\" into network disk\n"
+		"    \"- F L:/var/www/upload/001.jpg\"    - Delete the \"/var/www/upload/001.jpg\" from local file system\n"
+		"    \"+ F R:/backup/www/upload/001.jpg\" - Add new file \"/backup/www/upload/001.jpg\" into network disk\n"
+		"    \"A F L:/var/www/upload/001.jpg\"    - Upload the local file \"/var/www/upload/001.jpg\" into network disk\n"
+		"    \"V F R:/backup/www/upload/001.jpg\" - Download the network file \"/backup/www/upload/001.jpg\" into local file system\n"
 		);
 }
 
-/*¸ù¾İremoteĞÅÏ¢ÅĞ¶Ï±¾µØÎÄ¼şÊÇ·ñĞèÒª¸üĞÂ£¬»òÕß±¾µØÎÄ¼şÊÇ·ñĞèÒªÉÏ´«*/
+/*æ ¹æ®remoteä¿¡æ¯åˆ¤æ–­æœ¬åœ°æ–‡ä»¶æ˜¯å¦éœ€è¦æ›´æ–°ï¼Œæˆ–è€…æœ¬åœ°æ–‡ä»¶æ˜¯å¦éœ€è¦ä¸Šä¼ */
 static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPrepare *pre, int md5Enabled, CompareItem *list, int *elem_count)
 {
 	my_dirent *ent = NULL;
 	int rc;
 	rc = get_file_ent(&ent, localPath);
-	if (rc == 2) { //ÊÇÄ¿Â¼
-		addCompareItem(list, '-', 'D', 'L', localPath, elem_count); /*É¾³ı±¾µØÄ¿Â¼*/
+	if (rc == 2) { //æ˜¯ç›®å½•
+		addCompareItem(list, '-', 'D', 'L', localPath, elem_count); /*åˆ é™¤æœ¬åœ°ç›®å½•*/
 		my_dirent_destroy(ent);
 		ent = NULL;
 	}
 	if (ent == NULL) {
-		addCompareItem(list, '+', 'F', 'L', localPath, elem_count); /*´´½¨±¾µØĞÂÎÄ¼ş*/
+		addCompareItem(list, '+', 'F', 'L', localPath, elem_count); /*åˆ›å»ºæœ¬åœ°æ–°æ–‡ä»¶*/
 	}
 	else {
 		int same_md5 = 0;
 		const char *md5;
-		if (md5Enabled) {
-			md5 = md5_file((char *)localPath);
-			same_md5 = pcs_utils_strcmpi(md5, remote->md5);
+		if (md5Enabled && remote->md5) {
+			md5 = md5_file((char *)ent->path);
+			if (!md5) {
+				PRINT_FATAL("Can't calculate md5 for %s.", ent->path);
+				my_dirent_destroy(ent);
+				return -1;
+			}
+			else
+				same_md5 = pcs_utils_strcmpi(md5, remote->md5);
 		}
 		if (!same_md5) {
 			if (md5Enabled && ent->mtime == ((time_t)remote->server_mtime)) {
@@ -2545,10 +2576,10 @@ static int method_compare_file(const char *localPath, PcsFileInfo *remote, DbPre
 				return -1;
 			}
 			if (ent->mtime < ((time_t)remote->server_mtime)) {
-				addCompareItem(list, OP_ARROW_DOWN, 'F', 'R', remote->path, elem_count); /*ÏÂÔØÍøÅÌÎÄ¼ş*/
+				addCompareItem(list, OP_ARROW_DOWN, 'F', 'R', remote->path, elem_count); /*ä¸‹è½½ç½‘ç›˜æ–‡ä»¶*/
 			}
 			else if (ent->mtime >((time_t)remote->server_mtime)) {
-				addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath, elem_count); /*ÉÏ´«±¾µØÎÄ¼ş*/
+				addCompareItem(list, OP_ARROW_UP, 'F', 'L', localPath, elem_count); /*ä¸Šä¼ æœ¬åœ°æ–‡ä»¶*/
 			}
 		}
 	}
@@ -2566,13 +2597,13 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 	PcsFileInfo ri = { 0 };
 	rc = get_file_ent(NULL, localPath);
 	switch (rc){
-	case 1: //±¾µØÊÇÎÄ¼ş
-		addCompareItem(list, '-', 'F', 'L', localPath, elem_count); /*É¾³ı±¾µØÎÄ¼ş*/
+	case 1: //æœ¬åœ°æ˜¯æ–‡ä»¶
+		addCompareItem(list, '-', 'F', 'L', localPath, elem_count); /*åˆ é™¤æœ¬åœ°æ–‡ä»¶*/
 		break;
-	case 2: //±¾µØÊÇÄ¿Â¼
+	case 2: //æœ¬åœ°æ˜¯ç›®å½•
 		break;
-	case 0: //±¾µØ²»´æÔÚ
-		addCompareItem(list, '+', 'D', 'L', localPath, elem_count); /*´´½¨±¾µØĞÂÄ¿Â¼*/
+	case 0: //æœ¬åœ°ä¸å­˜åœ¨
+		addCompareItem(list, '+', 'D', 'L', localPath, elem_count); /*åˆ›å»ºæœ¬åœ°æ–°ç›®å½•*/
 		break;
 	default:
 		break;
@@ -2641,7 +2672,7 @@ static int method_compare_folder(const char *localPath, const char *remotePath, 
 	return 0;
 }
 
-/*Ñ°ÕÒµ½ËùÓĞ±¾µØ´æÔÚ£¬µ«ÊÇÍøÅÌ²»´æÔÚµÄÎÄ¼ş£¬¼´ÕÒµ½ĞèÒªÌí¼Óµ½ÍøÅÌµÄ±¾µØÎÄ¼ş*/
+/*å¯»æ‰¾åˆ°æ‰€æœ‰æœ¬åœ°å­˜åœ¨ï¼Œä½†æ˜¯ç½‘ç›˜ä¸å­˜åœ¨çš„æ–‡ä»¶ï¼Œå³æ‰¾åˆ°éœ€è¦æ·»åŠ åˆ°ç½‘ç›˜çš„æœ¬åœ°æ–‡ä»¶*/
 static int method_compare_untrack(const char *localPath, const char *remotePath, DbPrepare *pre, CompareItem *list, int *elem_count)
 {
 	int rc;
@@ -2651,12 +2682,12 @@ static int method_compare_untrack(const char *localPath, const char *remotePath,
 	char *dstPath;
 
 	rc = get_file_ent(NULL, localPath);
-	if (rc == 2) { //Ä¿Â¼
+	if (rc == 2) { //ç›®å½•
 		if (db_get_cache(&rf, pre, remotePath)) {
 			return -1;
 		}
 		if (!rf.fs_id) {
-			addCompareItem(list, '+', 'D', 'R', remotePath, elem_count); /*´´½¨ĞÂÍøÅÌÄ¿Â¼*/
+			addCompareItem(list, '+', 'D', 'R', remotePath, elem_count); /*åˆ›å»ºæ–°ç½‘ç›˜ç›®å½•*/
 		}
 		freeCacheInfo(&rf);
 		ents = list_dir(localPath, 0);
@@ -2675,12 +2706,12 @@ static int method_compare_untrack(const char *localPath, const char *remotePath,
 			my_dirent_destroy(ents);
 		}
 	}
-	else if (rc == 1) { //±¾µØÊÇÎÄ¼ş
+	else if (rc == 1) { //æœ¬åœ°æ˜¯æ–‡ä»¶
 		if (db_get_cache(&rf, pre, remotePath)) {
 			return -1;
 		}
 		if (!rf.fs_id) {
-			addCompareItem(list, '+', 'F', 'R', remotePath, elem_count); /*´´½¨ĞÂÍøÅÌÎÄ¼ş*/
+			addCompareItem(list, '+', 'F', 'R', remotePath, elem_count); /*åˆ›å»ºæ–°ç½‘ç›˜æ–‡ä»¶*/
 		}
 		freeCacheInfo(&rf);
 	}
@@ -2714,13 +2745,13 @@ static int method_compare(const char *localPath, const char *remotePath, int md5
 	action = (char *)pcs_malloc(strlen(localPath) + strlen(remotePath) + 16);
 	strcpy(action, "COMPARE: "); strcat(action, localPath);
 	strcat(action, " <- "); strcat(action, remotePath);
-	//»ñÈ¡µ±Ç°µÄACTION
+	//è·å–å½“å‰çš„ACTION
 	if (db_get_action(&ai, action)) {
 		pcs_free(action);
 		PRINT_NOTICE("Compare - End");
 		return -1;
 	}
-	//¼ì²éACTION×´Ì¬
+	//æ£€æŸ¥ACTIONçŠ¶æ€
 	if (ai.status == ACTION_STATUS_RUNNING) {
 		PRINT_FATAL("There have another compare thread running, which is start by %s at %s", ai.create_app, format_time(ai.start_time));
 		pcs_free(action);
@@ -2729,14 +2760,14 @@ static int method_compare(const char *localPath, const char *remotePath, int md5
 		return -1;
 	}
 	freeActionInfo(&ai);
-	//ÉèÖÃACTIONÎªRUNNING×´Ì¬
+	//è®¾ç½®ACTIONä¸ºRUNNINGçŠ¶æ€
 	if (db_set_action(action, ACTION_STATUS_RUNNING, 1)) {
 		pcs_free(action);
 		PRINT_NOTICE("Compare - End");
 		return -1;
 	}
 
-	//¼ì²é±¾µØ»º´æÊÇ·ñ¸üĞÂ - ¿ªÊ¼¡£Èç¹ûÎ´¸üĞÂÔò¸üĞÂ±¾µØ»º´æ
+	//æ£€æŸ¥æœ¬åœ°ç¼“å­˜æ˜¯å¦æ›´æ–° - å¼€å§‹ã€‚å¦‚æœæœªæ›´æ–°åˆ™æ›´æ–°æœ¬åœ°ç¼“å­˜
 	updateAction = (char *)pcs_malloc(strlen(remotePath) + 16);
 	strcpy(updateAction, "UPDATE: ");
 	strcat(updateAction, remotePath);
@@ -2769,7 +2800,7 @@ static int method_compare(const char *localPath, const char *remotePath, int md5
 	}
 	pcs_free(updateAction);
 	freeActionInfo(&ai);
-	//¼ì²é±¾µØ»º´æÊÇ·ñ¸üĞÂ - ½áÊø
+	//æ£€æŸ¥æœ¬åœ°ç¼“å­˜æ˜¯å¦æ›´æ–° - ç»“æŸ
 
 	if (db_prepare(&pre, SQL_CACHE_INSERT, SQL_CACHE_SELECT, SQL_CACHE_DELETE, SQL_CACHE_UPDATE, SQL_CACHE_SET_FLAG, SQL_CACHE_SELECT_SUB, NULL)) {
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
@@ -2785,7 +2816,7 @@ static int method_compare(const char *localPath, const char *remotePath, int md5
 		PRINT_NOTICE("Compare - End");
 		return -1;
 	}
-	if (rf.isdir) { //ÀàĞÍÎªÄ¿Â¼
+	if (rf.isdir) { //ç±»å‹ä¸ºç›®å½•
 		if (method_compare_folder(localPath, remotePath, &pre, md5Enabled, &list, &elem_count)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -2796,7 +2827,7 @@ static int method_compare(const char *localPath, const char *remotePath, int md5
 			return -1;
 		}
 	}
-	else { //ÀàĞÍÎªÎÄ¼ş
+	else { //ç±»å‹ä¸ºæ–‡ä»¶
 		if (method_compare_file(localPath, &rf, &pre, md5Enabled, &list, &elem_count)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -2808,7 +2839,7 @@ static int method_compare(const char *localPath, const char *remotePath, int md5
 		}
 	}
 	freeCacheInfo(&rf);
-	//Ñ°ÕÒ±¾µØÎÄ¼şÏµÍ³ÖĞ£¬ĞèÒªÌí¼Óµ½·şÎñÆ÷µÄÎÄ¼ş»òÄ¿Â¼
+	//å¯»æ‰¾æœ¬åœ°æ–‡ä»¶ç³»ç»Ÿä¸­ï¼Œéœ€è¦æ·»åŠ åˆ°æœåŠ¡å™¨çš„æ–‡ä»¶æˆ–ç›®å½•
 	if (method_compare_untrack(localPath, remotePath, &pre, &list, &elem_count)) {
 		//PRINT_FATAL("Can't remove untrack files: %s", localPath);
 		db_set_action(action, ACTION_STATUS_ERROR, 0);
@@ -3158,7 +3189,7 @@ static int run_svc(struct params *params)
 		PRINT_NOTICE("Application end up");
 		return -1;
 	}
-	/* ´´½¨Ò»¸öPcs¶ÔÏó */
+	/* åˆ›å»ºä¸€ä¸ªPcså¯¹è±¡ */
 	pcs = pcs_create(config.cookieFilePath);
 	if (pcs_islogin(pcs) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
@@ -3194,7 +3225,7 @@ static int run_svc(struct params *params)
 
 static int parse_run_shell_params(struct params *params, int requireCooki, int requireCache)
 {
-	//¶Á²ÎÊı - ¿ªÊ¼
+	//è¯»å‚æ•° - å¼€å§‹
 	if (params->config) {
 		config.configFilePath = pcs_utils_strdup(params->config);
 		if (readConfigFile()) {
@@ -3239,7 +3270,7 @@ static int parse_run_shell_params(struct params *params, int requireCooki, int r
 		freeConfig(FALSE);
 		return -1;
 	}
-	//¶Á²ÎÊı - ½áÊø
+	//è¯»å‚æ•° - ç»“æŸ
 	return 0;
 }
 
@@ -3261,7 +3292,7 @@ static int run_shell(struct params *params)
 		PRINT_NOTICE("Application end up");
 		return -1;
 	}
-	/* ´´½¨Ò»¸öPcs¶ÔÏó */
+	/* åˆ›å»ºä¸€ä¸ªPcså¯¹è±¡ */
 	pcs = pcs_create(config.cookieFilePath);
 	if (pcs_islogin(pcs) != PCS_LOGIN) {
 		PRINT_FATAL("Not login or session time out");
