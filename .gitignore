@@ -12,3 +12,4 @@ objs
 bin
 libconfig.a
 libpcs.a
+test/version.h
