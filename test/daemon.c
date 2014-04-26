@@ -1467,10 +1467,10 @@ static int method_backup_progress(void *clientp, double dltotal, double dlnow, d
 }
 
 /*备份文件*/
-static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre, int md5Enabled, BackupState *st)
+static int method_backup_file(const my_dirent *localFile, const char *remotePath, DbPrepare *pre, int md5Enabled, int isForce, int isCombin, BackupState *st)
 {
 	PcsFileInfo dst = {0};
-	int need_backup = 0;
+	int need_backup = 1;
 
 	if (db_get_cache(&dst, pre, remotePath)) {
 		return -1;
@@ -1496,34 +1496,29 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 		}
 	}
 	if (md5Enabled) {
-		if (dst.fs_id) {
+		if (dst.fs_id && dst.md5) {
 			const char *md5;
-			if (dst.md5) {
-				md5 = md5_file(localFile->path);
-				if (!md5) {
-					PRINT_FATAL("Can't calculate md5 for %s.", localFile->path);
+			md5 = md5_file(localFile->path);
+			if (!md5) {
+				PRINT_FATAL("Can't calculate md5 for %s.", localFile->path);
+				freeCacheInfo(&dst);
+				return -1;
+			}
+			else if (pcs_utils_strcmpi(md5, dst.md5) == 0) {
+				need_backup = 0;
+			}
+			else if (isCombin) {
+				if (localFile->mtime == ((time_t)dst.server_mtime)) {
+					PRINT_WARNING("Unable to determine which file is newer: "
+						"The local file %s and remote file %s have different md5 (%s : %s), "
+						"they also have same last modify time %s.",
+						localFile->path, remotePath, md5, dst.md5, format_time(localFile->mtime));
 					freeCacheInfo(&dst);
 					return -1;
 				}
-				else if (pcs_utils_strcmpi(md5, dst.md5)) {
-					if (localFile->mtime == ((time_t)dst.server_mtime)) {
-						PRINT_WARNING("Unable to determine which file is newer: "
-							"The local file %s and remote file %s have different md5 (%s : %s), "
-							"they also have same last modify time %s. Force backup the file.",
-							localFile->path, remotePath, md5, dst.md5, format_time(localFile->mtime));
-						//freeCacheInfo(&dst);
-						//return -1;
-						need_backup = 1;
-					}
-					else
-						need_backup = localFile->mtime > ((time_t)dst.server_mtime);
-				}
+				else
+					need_backup = localFile->mtime > ((time_t)dst.server_mtime);
 			}
-			else
-				need_backup = localFile->mtime > ((time_t)dst.server_mtime);
-		}
-		else {
-			need_backup = 1;
 		}
 	}
 	else {
@@ -1668,7 +1663,7 @@ static int method_backup_mkdir(const char *remotePath, DbPrepare *pre, BackupSta
 }
 
 /*备份目录*/
-static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre, int md5Enabled, BackupState *st)
+static int method_backup_folder(const char *localPath, const char *remotePath, DbPrepare *pre, int md5Enabled, int isForce, int isCombin, BackupState *st)
 {
 	my_dirent *ents = NULL,
 		*ent = NULL;
@@ -1685,14 +1680,14 @@ static int method_backup_folder(const char *localPath, const char *remotePath, D
 	while(ent) {
 		dstPath = get_remote_path(ent->path, localPath, remotePath);
 		if (ent->is_dir) {
-			if (method_backup_folder(ent->path, dstPath, pre, md5Enabled, st)) {
+			if (method_backup_folder(ent->path, dstPath, pre, md5Enabled, isForce, isCombin, st)) {
 				pcs_free(dstPath);
 				my_dirent_destroy(ents);
 				return -1;
 			}
 		}
 		else {
-			if (method_backup_file(ent, dstPath, pre, md5Enabled, st)) {
+			if (method_backup_file(ent, dstPath, pre, md5Enabled, isForce, isCombin, st)) {
 				pcs_free(dstPath);
 				my_dirent_destroy(ents);
 				return -1;
@@ -1820,7 +1815,7 @@ static int method_backup_remove_untrack(const char *remotePath, DbPrepare *pre, 
 	return 0;
 }
 
-int method_backup(const char *localPath, const char *remotePath, int md5Enabled, int isCombin)
+int method_backup(const char *localPath, const char *remotePath, int md5Enabled, int isForce, int isCombin)
 {
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
@@ -1934,7 +1929,7 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 		return -1;
 	}
 	if (rc == 2) { //类型为目录
-		if (method_backup_folder(localPath, remotePath, &pre, md5Enabled, &st)) {
+		if (method_backup_folder(localPath, remotePath, &pre, md5Enabled, isForce, isCombin, &st)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			my_dirent_destroy(ent);
@@ -1944,7 +1939,7 @@ int method_backup(const char *localPath, const char *remotePath, int md5Enabled,
 		}
 	}
 	else if (rc == 1) { //类型为文件
-		if (method_backup_file(ent, remotePath, &pre, md5Enabled, &st)) {
+		if (method_backup_file(ent, remotePath, &pre, md5Enabled, isForce, isCombin, &st)) {
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
 			my_dirent_destroy(ent);
@@ -1999,11 +1994,11 @@ static int method_restore_write(char *ptr, size_t size, size_t contentlength, vo
 	return i;
 }
 
-static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPrepare *pre, int md5Enabled, BackupState *st)
+static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPrepare *pre, int md5Enabled, int isForce, int isCombin, BackupState *st)
 {
 	my_dirent *ent = NULL;
 	int rc;
-	int need_backup = 0;
+	int need_restore = 1;
 	rc = get_file_ent(&ent, localPath);
 	if (rc == 2) { //是目录
 		if (my_dirent_remove(localPath)) {
@@ -2017,42 +2012,37 @@ static int method_restore_file(const char *localPath, PcsFileInfo *remote, DbPre
 		}
 	}
 	if (md5Enabled) {
-		if (ent) {
+		if (ent && remote->md5) {
 			const char *md5;
-			if (remote->md5) {
-				md5 = md5_file((char *)localPath);
-				if (!md5) {
-					PRINT_FATAL("Can't calculate md5 for %s.", localPath);
+			md5 = md5_file((char *)localPath);
+			if (!md5) {
+				PRINT_FATAL("Can't calculate md5 for %s.", localPath);
+				my_dirent_destroy(ent);
+				ent = NULL;
+				return -1;
+			}
+			else if (pcs_utils_strcmpi(md5, remote->md5) == 0) {
+				need_restore = 0;
+			}
+			else if (isCombin) {
+				if (ent->mtime == ((time_t)remote->server_mtime)) {
+					PRINT_WARNING("Unable to determine which file is newer: "
+						"The local file %s and remote file %s have different md5 (%s : %s), "
+						"they also have same last modify time %s. ",
+						ent->path, remote->path, md5, remote->md5, format_time(ent->mtime));
 					my_dirent_destroy(ent);
 					ent = NULL;
 					return -1;
 				}
-				else if (pcs_utils_strcmpi(md5, remote->md5)) {
-					if (ent->mtime == ((time_t)remote->server_mtime)) {
-						PRINT_WARNING("Unable to determine which file is newer: "
-							"The local file %s and remote file %s have different md5 (%s : %s), "
-							"they also have same last modify time %s. Force restore the file.",
-							ent->path, remote->path, md5, remote->md5, format_time(ent->mtime));
-						//my_dirent_destroy(ent);
-						//ent = NULL;
-						need_backup = 1;
-					}
-					else
-						need_backup = ent->mtime < ((time_t)remote->server_mtime);
-				}
+				else
+					need_restore = ent->mtime < ((time_t)remote->server_mtime);
 			}
-			else {
-				need_backup = ent->mtime < ((time_t)remote->server_mtime);
-			}
-		}
-		else {
-			need_backup = 1;
 		}
 	}
 	else {
-		need_backup = ent == NULL || ent->mtime < ((time_t)remote->server_mtime);
+		need_restore = ent == NULL || ent->mtime < ((time_t)remote->server_mtime);
 	}
-	if (need_backup) {
+	if (need_restore) {
 		DownloadState ds = {0};
 		PcsRes res;
 		ds.pf = fopen(localPath, "wb");
@@ -2145,7 +2135,7 @@ static void mkdirs(const char *dir)
 	mkdirs(p + 1);
 }
 
-static int method_restore_folder(const char *localPath, const char *remotePath, DbPrepare *pre, int md5Enabled, BackupState *st)
+static int method_restore_folder(const char *localPath, const char *remotePath, DbPrepare *pre, int md5Enabled, int isForce, int isCombin, BackupState *st)
 {
 	int rc;
 	sqlite3_stmt *stmt;
@@ -2206,7 +2196,7 @@ static int method_restore_folder(const char *localPath, const char *remotePath, 
 #endif
 		}
 		else {
-			if (method_restore_file(dstPath, &ri, pre, md5Enabled, st)) {
+			if (method_restore_file(dstPath, &ri, pre, md5Enabled, isForce, isCombin, st)) {
 				pcs_free(val);
 				pcs_free(dstPath);
 				freeCacheInfo(&ri);
@@ -2274,7 +2264,7 @@ static int method_restore_remove_untrack(my_dirent *local, const char *remotePat
 	return 0;
 }
 
-static int method_restore(const char *localPath, const char *remotePath, int md5Enabled, int isCombin)
+static int method_restore(const char *localPath, const char *remotePath, int md5Enabled, int isForce, int isCombin)
 {
 	ActionInfo ai = {0};
 	DbPrepare pre = {0};
@@ -2367,7 +2357,7 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 	}
 	pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &method_restore_write);
 	if (rf.isdir) { //类型为目录
-		if (method_restore_folder(localPath, remotePath, &pre, md5Enabled, &st)) {
+		if (method_restore_folder(localPath, remotePath, &pre, md5Enabled, isForce, isCombin, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -2378,7 +2368,7 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 		}
 	}
 	else { //类型为文件
-		if (method_restore_file(localPath, &rf, &pre, md5Enabled, &st)) {
+		if (method_restore_file(localPath, &rf, &pre, md5Enabled, isForce, isCombin, &st)) {
 			pcs_setopt(pcs, PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, NULL);
 			db_set_action(action, ACTION_STATUS_ERROR, 0);
 			pcs_free(action);
@@ -2419,9 +2409,9 @@ static int method_restore(const char *localPath, const char *remotePath, int md5
 static int method_combin(const char *localPath, const char *remotePath, int md5Enabled)
 {
 	int rc;
-	rc = method_backup(localPath, remotePath, md5Enabled, 1);
+	rc = method_backup(localPath, remotePath, md5Enabled, 0, 1);
 	if (!rc) {
-		rc = method_restore(localPath, remotePath, md5Enabled, 1);
+		rc = method_restore(localPath, remotePath, md5Enabled, 0, 1);
 	}
 	return rc;
 }
@@ -3099,17 +3089,17 @@ static int task(int itemIndex)
 		}
 		break;
 	case METHOD_BACKUP:
-		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0);
+		rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0, 0);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0);
+			rc = method_backup(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0, 0);
 		}
 		break;
 	case METHOD_RESTORE:
-		rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0);
+		rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0, 0);
 		if (rc) {
 			PRINT_NOTICE("Retry");
-			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0);
+			rc = method_restore(config.items[itemIndex].localPath, config.items[itemIndex].remotePath, config.items[itemIndex].md5, 0, 0);
 		}
 		break;
 	case METHOD_RESET:
@@ -3309,10 +3299,10 @@ static int run_shell(struct params *params)
 		rc = method_update(params->args[0]);
 		break;
 	case ACTION_BACKUP:
-		rc = method_backup(params->args[0], params->args[1], params->md5, 0);
+		rc = method_backup(params->args[0], params->args[1], params->md5, params->is_force, 0);
 		break;
 	case ACTION_RESTORE:
-		rc = method_restore(params->args[0], params->args[1], params->md5, 0);
+		rc = method_restore(params->args[0], params->args[1], params->md5, params->is_force, 0);
 		break;
 	case ACTION_COMBIN:
 		rc = method_combin(params->args[0], params->args[1], params->md5);
