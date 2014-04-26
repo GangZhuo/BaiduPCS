@@ -440,6 +440,10 @@ static int readConfigFile()
 				cJSON_Delete(json);
 				return -1;
 			}
+			value = cJSON_GetObjectItem(item, "md5");
+			if (value) {
+				config.items[i].md5 = value->valueint;
+			}
 			value = cJSON_GetObjectItem(item, "schedule");
 			if (!value) {
 				PRINT_FATAL("No \"schedule\" option in items[%d] (%s)", i, config.configFilePath);
@@ -522,7 +526,7 @@ static void freeCacheInfo(PcsFileInfo *info)
 }
 
 static int db_check_table(sqlite3_stmt *stmt, const char *table_name, 
-	const char *sql_create_table, const char *sql_create_index)
+	const char *sql_create_table, const char *sql_create_index, const char *sql_other)
 {
 	int rc;
 	rc = sqlite3_bind_text(stmt, 1, table_name, -1, SQLITE_STATIC);
@@ -545,8 +549,24 @@ static int db_check_table(sqlite3_stmt *stmt, const char *table_name,
 		}
 		if (sql_create_index)
 			sqlite3_exec(db, sql_create_index, NULL, NULL, NULL);
+		if (sql_other)
+			sqlite3_exec(db, sql_other, NULL, NULL, NULL);
 	}
 	sqlite3_reset(stmt);
+	return 0;
+}
+
+static int db_get_version();
+static int db_set_version(int verno);
+
+static int db_check_update()
+{
+	int verno;
+	verno = db_get_version();
+	if (verno < DB_VERSION) {
+		sqlite3_exec(db, SQL_UPDATE_DB_FROM_VER0, NULL, NULL, NULL);
+		db_set_version(DB_VERSION);
+	}
 	return 0;
 }
 
@@ -568,7 +588,7 @@ static int db_open()
 	}
 
 	// TABLE_NAME_CACHE
-	if (db_check_table(stmt, TABLE_NAME_CACHE, TABLE_CACHE_CREATOR, TABLE_CACHE_INDEX_CREATOR)) {
+	if (db_check_table(stmt, TABLE_NAME_CACHE, TABLE_CACHE_CREATOR, TABLE_CACHE_INDEX_CREATOR, NULL)) {
 		sqlite3_finalize(stmt);
 		sqlite3_close(db);
 		db = NULL;
@@ -576,7 +596,7 @@ static int db_open()
 	}
 
 	// TABLE_NAME_ACTION
-	if (db_check_table(stmt, TABLE_NAME_ACTION, TABLE_ACTION_CREATOR, TABLE_ACTION_INDEX_CREATOR)) {
+	if (db_check_table(stmt, TABLE_NAME_ACTION, TABLE_ACTION_CREATOR, TABLE_ACTION_INDEX_CREATOR, SQL_ADD_DB_VERSION)) {
 		sqlite3_finalize(stmt);
 		sqlite3_close(db);
 		db = NULL;
@@ -584,7 +604,7 @@ static int db_open()
 	}
 
 	// TABLE_NAME_TASK
-	if (db_check_table(stmt, TABLE_NAME_TASK, TABLE_TASK_CREATOR, NULL)) {
+	if (db_check_table(stmt, TABLE_NAME_TASK, TABLE_TASK_CREATOR, NULL, NULL)) {
 		sqlite3_finalize(stmt);
 		sqlite3_close(db);
 		db = NULL;
@@ -592,6 +612,11 @@ static int db_open()
 	}
 
 	sqlite3_finalize(stmt);
+
+	if (db_check_update()) {
+		PRINT_FATAL("Can't update cache file: %s", sqlite3_errmsg(db));
+	}
+
 	return 0;
 }
 
@@ -852,6 +877,24 @@ static int db_get_action(ActionInfo *dst, const char *action)
 	dst->modify_app = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 6));
 	sqlite3_finalize(stmt);
 	return 0;
+}
+
+static int db_get_version()
+{
+	int verno;
+	ActionInfo ver = { 0 };
+	if (db_get_action(&ver, DB_VERSION_KEY)) {
+		PRINT_FATAL("Can't get db version.");
+		return -1;
+	}
+	verno = ver.status;
+	freeActionInfo(&ver);
+	return verno;
+}
+
+static int db_set_version(int verno)
+{
+	return db_set_action(DB_VERSION_KEY, verno, 0);
 }
 
 /*
@@ -2904,6 +2947,7 @@ static void log_task()
 		sqlite3_bind_int(stmt, 7, config.items[i].interval);
 		sqlite3_bind_text(stmt, 8, config.items[i].localPath, -1, SQLITE_STATIC);
 		sqlite3_bind_text(stmt, 9, config.items[i].remotePath, -1, SQLITE_STATIC);
+		sqlite3_bind_int(stmt, 10, config.items[i].md5);
 
 		rc = sqlite3_step(stmt);
 		if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
@@ -2924,34 +2968,35 @@ static void print_taks()
 	sqlite3_stmt *stmt = NULL;
 
 	int i;
-	printf("\nCURRENT TASK: \n");
-	printf("id | method | enabled | last run time | next run time | schedule | interval | local path | remote path\n");
-	printf("------------------------------------------------\n");
-	for (i = 0; i < config.itemCount; i++) {
-		printf("%03d | %s | %s | %s ",
-			i + 1,
-			get_method_name(config.items[i].method),
-			config.items[i].enable ? "yes" : "no ",
-			format_time(config.items[i].last_run_time));
-		printf("| %s | %d | %d | %s | %s\n",
-			format_time(config.items[i].next_run_time),
-			config.items[i].schedule,
-			config.items[i].interval,
-			config.items[i].localPath,
-			config.items[i].remotePath);
+	if (config.run_in_daemon) {
+		printf("\nCURRENT TASK: \n");
+		printf("id | method | enabled | md5 | last run time | next run time | schedule | interval | local path | remote path\n");
+		printf("------------------------------------------------\n");
+		for (i = 0; i < config.itemCount; i++) {
+			printf("%03d | %s | %s | %s | %s ",
+				i + 1,
+				get_method_name(config.items[i].method),
+				config.items[i].enable ? "yes" : "no ",
+				config.items[i].md5 ? "yes" : "no ",
+				format_time(config.items[i].last_run_time));
+			printf("| %s | %d | %d | %s | %s\n",
+				format_time(config.items[i].next_run_time),
+				config.items[i].schedule,
+				config.items[i].interval,
+				config.items[i].localPath,
+				config.items[i].remotePath);
+		}
+		printf("------------------------------------------------\n");
 	}
-	printf("------------------------------------------------\n");
-
 
 	rc = sqlite3_prepare_v2(db, SQL_TASK_SELECT_ALL, -1, &stmt, NULL);
 	if (rc) {
 		printf("Can't build the sql %s: %s\n", SQL_TASK_SELECT_ALL, sqlite3_errmsg(db));
 		return;
 	}
-	//"SELECT id,method,enabled,last_run_time,next_run_time,schedule,interval,local_path,remote_path,
-	//status,result,start_time,end_time,elapsed FROM pcs_task"
+
 	printf("\nSVC TASK: \n");
-	printf("id | method | enabled | last run time | next run time | schedule | interval | status | elapsed | local path | remote path\n");
+	printf("id | method | enabled | md5 | last run time | next run time | schedule | interval | status | elapsed | local path | remote path\n");
 	printf("------------------------------------------------\n");
 	while (1) {
 		rc = sqlite3_step(stmt);
@@ -2963,10 +3008,11 @@ static void print_taks()
 		}
 		status = sqlite3_column_int(stmt, 9);
 		elapsed = sqlite3_column_int64(stmt, 13);
-		printf("%03d | %s | %s | %s ",
+		printf("%03d | %s | %s | %s | %s ",
 			sqlite3_column_int(stmt, 0),
 			get_method_name(sqlite3_column_int(stmt, 1)),
 			sqlite3_column_int(stmt, 2) ? "yes" : "no ",
+			sqlite3_column_int(stmt, 14) ? "yes" : "no ",
 			format_time(sqlite3_column_int64(stmt, 3)));
 		printf("| %s | %d | %d | %s | %d | %s | %s\n", 
 			format_time(sqlite3_column_int64(stmt, 4)),
