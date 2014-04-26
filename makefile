@@ -1,5 +1,5 @@
 
-ver = debug
+ver = release
 
 OS_NAME = $(shell uname -o)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
@@ -13,8 +13,8 @@ else
 CYGWIN_CCFLAGS = 
 endif
 
-ifeq ($(ver), debug)
-$(warning " Build for debug, if you used in production, please use 'make clean & make ver=release'.")
+ifneq ($(ver), debug)
+$(warning "Use `make clean & make ver=debug' to build for gdb debug.")
 CC = gcc -g -DDEBUG -D_DEBUG
 else
 CC = gcc
@@ -73,7 +73,11 @@ bin/pcs_slist.o: pcs/pcs_slist.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_slist.h
 bin/pcs_utils.o: pcs/pcs_utils.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pcs_slist.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_utils.c
 
+.PHONY : install
+install:
+	cp ./bin/pcs /usr/local/bin
+
 .PHONY : clean
 clean :
-	-rm bin/*.o bin/libpcs.a bin/pcs test/version.h
+	-rm ./bin/*.o ./bin/libpcs.a ./bin/pcs ./test/version.h
 
