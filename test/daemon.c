@@ -6,11 +6,11 @@
 #  include <direct.h>
 #  define mkdir _mkdir
 #  define chdir _chdir
-#  define D_SLEEP(ms) Sleep(ms)
+#  define D_SLEEP(s) Sleep((s) * 1000)
 #  define snprintf _snprintf
 #else
 #  include <unistd.h>
-#  define D_SLEEP(ms) sleep(ms)
+#  define D_SLEEP(s) sleep(s)
 #endif
 
 #include "../sqlite/sqlite3.h"
@@ -3198,7 +3198,7 @@ static void svc_loop()
 					rc ? 3 : 2, rc ? 3 : 2, now, end);
 			}
 		}
-		D_SLEEP(1000);
+		D_SLEEP(1);
 	}
 }
 
