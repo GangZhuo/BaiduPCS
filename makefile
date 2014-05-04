@@ -15,9 +15,9 @@ endif
 
 ifneq ($(ver), debug)
 $(warning "Use `make ver=debug' to build for gdb debug.")
-CC = gcc -g -DDEBUG -D_DEBUG
-else
 CC = gcc
+else
+CC = gcc -g -DDEBUG -D_DEBUG
 endif
 
 all: test/version.h bin/libpcs.a bin/pcs
