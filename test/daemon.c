@@ -74,6 +74,7 @@ typedef struct BackupItem {
 	int		md5; /*是否启用MD5*/
 	time_t	next_run_time; /* 下次执行时间 */
 	time_t	last_run_time;
+	void	*state; /*附加数据*/
 } BackupItem;
 
 typedef struct Config {
@@ -147,6 +148,25 @@ typedef struct CompareItem {
 	struct CompareItem *next;
 	struct CompareItem *prev;
 } CompareItem;
+
+/*Sqlite数据库中pcs_task表格的结构*/
+typedef struct TaskInfo {
+	int id;
+	int method;
+	int enabled;
+	time_t last_run_time;
+	time_t next_run_time;
+	int schedule;
+	int interval;
+	char *local_path;
+	char *remote_path;
+	int status;
+	int result;
+	time_t start_time;
+	time_t end_time;
+	int elapsed;
+	int md5;
+} TaskInfo;
 
 static Config config = {0};
 static sqlite3 *db = NULL;
@@ -497,6 +517,13 @@ static void init_schedule()
 	}
 }
 
+static void freeTaskInfo(TaskInfo *info)
+{
+	if (info->local_path) { pcs_free(info->local_path); info->local_path = NULL; }
+	if (info->remote_path) { pcs_free(info->remote_path); info->remote_path = NULL; }
+	memset(info, 0, sizeof(TaskInfo));
+}
+
 static void freeActionInfo(ActionInfo *info)
 {
 	info->rowid = 0;
@@ -696,6 +723,50 @@ static void db_prepare_destroy(DbPrepare *pre)
 	}
 }
 
+static int db_get_task(TaskInfo *dst, int method, const char *localPath, const char *remotePath)
+{
+	int rc;
+	sqlite3_stmt *stmt = NULL;
+	rc = sqlite3_prepare_v2(db, SQL_TASK_SELECT_ONE, -1, &stmt, NULL);
+	if (rc) {
+		PRINT_FATAL("Can't build the sql %s: %s", SQL_TASK_SELECT_ONE, sqlite3_errmsg(db));
+		return -1;
+	}
+	rc = sqlite3_bind_int(stmt, 1, method);
+	rc = sqlite3_bind_text(stmt, 2, localPath, -1, SQLITE_STATIC);
+	rc = sqlite3_bind_text(stmt, 3, remotePath, -1, SQLITE_STATIC);
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+		PRINT_FATAL("Can't execute the statement %s: %s", SQL_TASK_SELECT_ONE, sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		freeTaskInfo(dst);
+		return 0;
+	}
+	freeTaskInfo(dst);
+	if (rc == SQLITE_DONE) {
+		//PRINT_NOTICE("The action [%s] not exist", action);
+		sqlite3_finalize(stmt);
+		return 0;
+	}
+	dst->id = sqlite3_column_int(stmt, 0);
+	dst->method = sqlite3_column_int(stmt, 1);
+	dst->enabled = sqlite3_column_int(stmt, 2);
+	dst->last_run_time = sqlite3_column_int64(stmt, 3);
+	dst->next_run_time = sqlite3_column_int64(stmt, 4);
+	dst->schedule = sqlite3_column_int(stmt, 5);
+	dst->interval = sqlite3_column_int(stmt, 6);
+	dst->local_path = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 7));
+	dst->remote_path = pcs_utils_strdup((const char *)sqlite3_column_text(stmt, 8));
+	dst->status = sqlite3_column_int(stmt, 9);
+	dst->result = sqlite3_column_int(stmt, 10);
+	dst->start_time = sqlite3_column_int64(stmt, 11);
+	dst->end_time = sqlite3_column_int64(stmt, 12);
+	dst->elapsed = sqlite3_column_int(stmt, 13);
+	dst->md5 = sqlite3_column_int(stmt, 14);
+	sqlite3_finalize(stmt);
+	return 0;
+}
+
 static int db_update_task_status(int id, int status, int result, time_t start_time)
 {
 	int rc;
@@ -860,7 +931,7 @@ static int db_get_action(ActionInfo *dst, const char *action)
 		PRINT_FATAL("Can't execute the statement %s: %s", SQL_ACTION_SELECT, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
 		freeActionInfo(dst);
-		return 0;
+		return -1;
 	}
 	freeActionInfo(dst);
 	if (rc == SQLITE_DONE) {
@@ -3035,17 +3106,64 @@ static int method_md5(const char *path)
 	return 0;
 }
 
+static inline void clear_config_BackupItem_old_task_state() {
+	int i;
+	TaskInfo *t = NULL;
+	for (i = 0; i < config.itemCount; i++) {
+		if (config.items[i].state) {
+			t = (TaskInfo *)config.items[i].state;
+			freeTaskInfo(t);
+			pcs_free(t);
+			config.items[i].state = NULL;
+		}
+	}
+}
+
 static void log_task()
 {
 	int rc, i;
 	sqlite3_stmt *stmt = NULL;
+	TaskInfo *t = NULL;
+	for (i = 0; i < config.itemCount; i++) {
+		if (!t) {
+			t = (TaskInfo *)pcs_malloc(sizeof(TaskInfo));
+			memset(t, 0, sizeof(TaskInfo));
+		}
+		if (db_get_task(t, config.items[i].method, config.items[i].localPath, config.items[i].remotePath)) {
+			printf("Can't get the old task info from cache.\n");
+			pcs_free(t); t = NULL;
+			return;
+		}
+		if (t->id) {
+			config.items[i].state = t;
+			t = NULL;
+		}
+	}
+	if (t) pcs_free(t);
 	rc = sqlite3_exec(db, SQL_TASK_DELETE_ALL, NULL, NULL, NULL);
 	rc = sqlite3_prepare_v2(db, SQL_TASK_INSERT, -1, &stmt, NULL);
 	if (rc) {
 		printf("Can't build the sql %s: %s\n", SQL_TASK_INSERT, sqlite3_errmsg(db));
+		clear_config_BackupItem_old_task_state();
 		return;
 	}
 	for (i = 0; i < config.itemCount; i++) {
+		t = (TaskInfo *)config.items[i].state;
+		if (t) {
+			config.items[i].last_run_time = t->last_run_time;
+			sqlite3_bind_int(stmt, 11, t->status);
+			sqlite3_bind_int(stmt, 12, t->result);
+			sqlite3_bind_int64(stmt, 13, t->start_time);
+			sqlite3_bind_int64(stmt, 14, t->end_time);
+			sqlite3_bind_int(stmt, 15, t->elapsed);
+		}
+		else {
+			sqlite3_bind_int(stmt, 11, 0);
+			sqlite3_bind_int(stmt, 12, 0);
+			sqlite3_bind_int64(stmt, 13, 0);
+			sqlite3_bind_int64(stmt, 14, 0);
+			sqlite3_bind_int(stmt, 15, 0);
+		}
 		sqlite3_bind_int(stmt, 1, i + 1);
 		sqlite3_bind_int(stmt, 2, config.items[i].method);
 		sqlite3_bind_int(stmt, 3, config.items[i].enable);
@@ -3061,11 +3179,13 @@ static void log_task()
 		if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
 			PRINT_FATAL("Can't insert the task: %s", sqlite3_errmsg(db));
 			sqlite3_finalize(stmt);
+			clear_config_BackupItem_old_task_state();
 			return;
 		}
 		sqlite3_reset(stmt);
 	}
 	sqlite3_finalize(stmt);
+	clear_config_BackupItem_old_task_state();
 	return;
 }
 
