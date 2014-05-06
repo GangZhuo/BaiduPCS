@@ -2,6 +2,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
 这是通过分析网盘网站得到的直接接口，不需要创建应用。
 如果有错误、建议、问题等，请发邮件gang.zhuo[AT]gmail.com。
 
+
 编译安装：
 ===================================
 ### 1. 安装 libcurl
@@ -263,3 +264,4 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     pcs ls-op --config=<config file path>
     
     
+可参考示例教程： http://www.cnblogs.com/beikx/p/3697149.html
