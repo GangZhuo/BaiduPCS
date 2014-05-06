@@ -1357,7 +1357,7 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 		item = cJSON_GetObjectItem(json, "error_msg");
 		if (item)
 			error_msg = item->valuestring;
-		pcs_set_errmsg(handle, "Can't upload file. error_code: %d, error_msg: %s, raw response: %s", error_code, error_msg, html);
+		pcs_set_errmsg(handle, "Can't upload file. error_code: %d. error_msg: %s. raw response: %s", error_code, error_msg, html);
 		cJSON_Delete(json);
 		return NULL;
 	}
