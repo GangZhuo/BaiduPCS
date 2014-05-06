@@ -1321,7 +1321,7 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 	char *url, *html,
 		*dir = pcs_utils_basedir(path),
 		*filename = pcs_utils_filename(path);
-	cJSON *json;
+	cJSON *json, *item;
 	PcsFileInfo *meta;
 
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
@@ -1347,6 +1347,18 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 	json = cJSON_Parse(html);
 	if (!json) {
 		pcs_set_errmsg(handle, "Can't parse the response as json: %s", html);
+		return NULL;
+	}
+	//"{\"error_code\":31062,\"error_msg\":\"file name is invalid\",\"request_id\":3071564675}
+	item = cJSON_GetObjectItem(json, "error_code");
+	if (item) {
+		int error_code = item->valueint;
+		const char *error_msg = NULL;
+		item = cJSON_GetObjectItem(json, "error_msg");
+		if (item)
+			error_msg = item->valuestring;
+		pcs_set_errmsg(handle, "Can't upload file. error_code: %d, error_msg: %s, raw response: %s", error_code, error_msg, html);
+		cJSON_Delete(json);
 		return NULL;
 	}
 
