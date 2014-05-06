@@ -99,8 +99,8 @@ static PcsBool cb_get_verify_code_byurlc(unsigned char *ptr, size_t size, char *
 		puts("Cannot init the libcurl.");
 		return PcsFalse;
 	}
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 #   define USAGE "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36"
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, USAGE);
 	/* tell libcurl to follow redirection */
@@ -114,9 +114,9 @@ static PcsBool cb_get_verify_code_byurlc(unsigned char *ptr, size_t size, char *
 		CURLFORM_BUFFERLENGTH, (long)size,
 		CURLFORM_END);
 	curl_easy_setopt(curl, CURLOPT_URL, "http://urlc.cn/g/upload.php");
-    curl_easy_setopt(curl, CURLOPT_POST, 1);
+	curl_easy_setopt(curl, CURLOPT_POST, 1L);
 	//curl_easy_setopt(curl, CURLOPT_COOKIE, "");
-	curl_easy_setopt(curl, CURLOPT_HEADER , 1);
+	curl_easy_setopt(curl, CURLOPT_HEADER, 1L);
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &cb_get_verify_code_byurlc_curl_write);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &html);
 	curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost); 
@@ -1556,7 +1556,7 @@ int shell(struct params *params)
 	}
 	pcs_setopts(pcs,
 		PCS_OPTION_PROGRESS_FUNCTION, cb_upload_progress,
-		PCS_OPTION_PROGRESS, PcsFalse,
+		PCS_OPTION_PROGRESS, (void *)PcsFalse,
 		PCS_OPTION_END);
 
 	if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {

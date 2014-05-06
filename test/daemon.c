@@ -1609,7 +1609,7 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 			pcs_setopts(pcs,
 				PCS_OPTION_PROGRESS_FUNCTION, method_backup_progress,
 				PCS_OPTION_PROGRESS_FUNCTION_DATE, &state,
-				PCS_OPTION_PROGRESS, PcsTrue,
+				PCS_OPTION_PROGRESS, (void *)PcsTrue,
 				PCS_OPTION_END);
 		}
 		rc = pcs_upload(pcs, remotePath, PcsTrue, localFile->path);
@@ -1617,7 +1617,7 @@ static int method_backup_file(const my_dirent *localFile, const char *remotePath
 			pcs_setopts(pcs,
 				PCS_OPTION_PROGRESS_FUNCTION, NULL,
 				PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
-				PCS_OPTION_PROGRESS, PcsFalse,
+				PCS_OPTION_PROGRESS, (void *)PcsFalse,
 				PCS_OPTION_END);
 		}
 		if (!rc) {

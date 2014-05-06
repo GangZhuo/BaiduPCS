@@ -87,13 +87,13 @@ inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod method, cons
 	switch(method)
 	{
 	case HTTP_METHOD_GET:
-		curl_easy_setopt(http->curl, CURLOPT_HTTPGET, 1);
+		curl_easy_setopt(http->curl, CURLOPT_HTTPGET, 1L);
 		break;
 	case HTTP_METHOD_POST:
-		curl_easy_setopt(http->curl, CURLOPT_POST, 1);
+		curl_easy_setopt(http->curl, CURLOPT_POST, 1L);
 		break;
 	}
-	curl_easy_setopt(http->curl, CURLOPT_HEADER , 1);
+	curl_easy_setopt(http->curl, CURLOPT_HEADER, 1L);
 	curl_easy_setopt(http->curl, CURLOPT_WRITEFUNCTION, write_func);
 	curl_easy_setopt(http->curl, CURLOPT_WRITEDATA, state);
 
@@ -411,8 +411,8 @@ PCS_API PcsHttp pcs_http_create(const char *cookie_file)
 		pcs_free(http);
 		return NULL;
 	}
-	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYPEER, 0);
-	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYHOST, 0);
+	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYPEER, 0L);
+	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYHOST, 0L);
 	curl_easy_setopt(http->curl, CURLOPT_USERAGENT, USAGE);
 	curl_easy_setopt(http->curl, CURLOPT_FOLLOWLOCATION, 1L);
 	if (cookie_file) {

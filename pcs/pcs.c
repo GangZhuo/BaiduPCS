@@ -663,15 +663,18 @@ PcsRes pcs_get_captcha(Pcs handle, const char *code_string, char *captcha, int c
 		return PCS_NO_CAPTCHA_FUNC;
 	}
 	url = pcs_utils_sprintf(URL_CAPTCHA "%s", code_string);
-	img = pcs_http_get_raw(pcs->http, url, PcsTrue, &imgsz); pcs_free(url);
+	img = pcs_http_get_raw(pcs->http, url, PcsTrue, &imgsz); 
 	if (!img) {
-		pcs_set_errmsg(handle, "Can't get captch image from the server.");
+		pcs_set_errmsg(handle, "Can't get captch image from the server. url: %s. Error message: %s", url, pcs_http_strerror(pcs->http));
+		pcs_free(url);
 		return PCS_NETWORK_ERROR;
 	}
 	if (!(*pcs->captcha_func)((unsigned char *)img, imgsz, captcha, captchaSize, pcs->captcha_data)) {
 		pcs_set_errmsg(handle, "Can't get captch from the captcha, which is regist by user.");
+		pcs_free(url);
 		return PCS_GET_CAPTCHA_FAIL;
 	}
+	pcs_free(url);
 	return PCS_OK;
 }
 
