@@ -438,9 +438,9 @@ static int readConfigFile()
 				config.items[i].enable = 1;
 			else
 				config.items[i].enable = value->valueint;
-			if (!config.items[i].enable) continue;
 			value = cJSON_GetObjectItem(item, "method");
 			if (!value) {
+				if (!config.items[i].enable) continue;
 				PRINT_FATAL("No \"method\" option in items[%d] (%s)", i, config.configFilePath);
 				cJSON_Delete(json);
 				return -1;
@@ -456,6 +456,7 @@ static int readConfigFile()
 			else if (strcmp(value->valuestring, "combin") == 0)
 				config.items[i].method = METHOD_COMBIN;
 			else {
+				if (!config.items[i].enable) continue;
 				PRINT_FATAL("Wrong \"method\" option in items[%d], the method should be one of [\"update\", \"backup\", \"restore\"] (%s)", i, config.configFilePath);
 				cJSON_Delete(json);
 				return -1;
@@ -466,6 +467,7 @@ static int readConfigFile()
 			}
 			value = cJSON_GetObjectItem(item, "schedule");
 			if (!value) {
+				if (!config.items[i].enable) continue;
 				PRINT_FATAL("No \"schedule\" option in items[%d] (%s)", i, config.configFilePath);
 				cJSON_Delete(json);
 				return -1;
@@ -473,6 +475,7 @@ static int readConfigFile()
 			config.items[i].schedule = convert_to_time_t(value->valuestring);
 			value = cJSON_GetObjectItem(item, "interval");
 			if (!value) {
+				if (!config.items[i].enable) continue;
 				PRINT_FATAL("No \"interval\" option in items[%d] (%s)", i, config.configFilePath);
 				cJSON_Delete(json);
 				return -1;
