@@ -141,7 +141,7 @@ PCS_API char *pcs_utils_filename(const char *path)
 	return name;
 }
 
-inline int chcmpi(char a, char b)
+static inline int chcmpi(char a, char b)
 {
 	if((a == b) 
 		|| ((a >= 'A' || a <= 'Z') && b == a + ('a' - 'A'))

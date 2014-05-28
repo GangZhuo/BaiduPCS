@@ -644,7 +644,7 @@ void pcs_cat_errmsg(Pcs handle, const char *fmt, ...)
 	}
 }
 
-//inline void pcs_set_errmsg(Pcs handle, PcsRes error)
+//static inline void pcs_set_errmsg(Pcs handle, PcsRes error)
 //{
 //	if (error != PCS_NONE)
 //		pcs_set_error(handle, pcs_strerror(handle, error));
