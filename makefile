@@ -1,7 +1,7 @@
 
 ver = release
 
-OS_NAME = $(shell uname -o)
+OS_NAME = $(shell uname -s | cut -c1-6)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
 
 PCS_OBJS     = bin/cJSON.o bin/pcs.o bin/pcs_fileinfo.o bin/pcs_http.o bin/pcs_mem.o bin/pcs_pan_api_resinfo.o bin/pcs_slist.o bin/pcs_utils.o
@@ -13,17 +13,23 @@ else
 CYGWIN_CCFLAGS = 
 endif
 
+ifeq ($(LC_OS_NAME), darwin)
+APPLE_CCFLAGS = -largp
+else
+APPLE_CCFLAGS = 
+endif
+
 ifneq ($(ver), debug)
-$(warning "Use `make ver=debug' to build for gdb debug.")
+$(warning "Use 'make ver=debug' to build for gdb debug.")
 CC = gcc
 else
 CC = gcc -g -DDEBUG -D_DEBUG
 endif
 
-all: test/version.h bin/libpcs.a bin/pcs
+all: pre test/version.h bin/libpcs.a bin/pcs
 
 bin/pcs : bin/main.o bin/libpcs.a $(SHELL_OBJS)
-	$(CC) -o $@ bin/main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto
+	$(CC) -o $@ bin/main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto
 
 bin/main.o: test/main.c test/shell.h
 	$(CC) -o $@ -c test/main.c $(PCS_CCFLAGS)
@@ -80,4 +86,8 @@ install:
 .PHONY : clean
 clean :
 	-rm ./bin/*.o ./bin/libpcs.a ./bin/pcs ./test/version.h
+
+.PHONY : pre
+pre :
+	mkdir -p bin/
 
