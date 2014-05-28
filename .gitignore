@@ -13,3 +13,4 @@ bin
 libconfig.a
 libpcs.a
 test/version.h
+.DS_Store
