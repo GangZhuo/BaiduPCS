@@ -11,7 +11,6 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
     git clone https://github.com/GangZhuo/baidupcs.git
 ### 3. 编译源代码
     cd baidupcs
-    mkdir bin
     make clean
     make
     make install #将安装到/usr/local/bin下
