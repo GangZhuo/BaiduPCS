@@ -26,7 +26,7 @@ else
 CC = gcc -g -DDEBUG -D_DEBUG
 endif
 
-all: test/version.h bin/libpcs.a bin/pcs
+all: pre test/version.h bin/libpcs.a bin/pcs
 
 bin/pcs : bin/main.o bin/libpcs.a $(SHELL_OBJS)
 	$(CC) -o $@ bin/main.o $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto
@@ -86,4 +86,8 @@ install:
 .PHONY : clean
 clean :
 	-rm ./bin/*.o ./bin/libpcs.a ./bin/pcs ./test/version.h
+
+.PHONY : pre
+pre :
+	mkdir -p bin/
 
