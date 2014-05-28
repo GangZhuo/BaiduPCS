@@ -141,7 +141,7 @@ static const char doc[] = "\nProvide some commands that can access the baidu net
 	"\n"
 	;
 
-inline void free_params_args(struct params *params)
+static inline void free_params_args(struct params *params)
 {
 	int i;
 	for (i = 0; i < params->args_count; i++) {

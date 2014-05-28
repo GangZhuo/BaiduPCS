@@ -16,7 +16,7 @@ struct pcs_mem {
 static struct pcs_mem *_mem = 0;
 void (*_pcs_mem_printf)(const char *format, ...) = (void (*)(const char *format, ...))printf;
 
-inline void append_mem_ent(struct pcs_mem *mem)
+static inline void append_mem_ent(struct pcs_mem *mem)
 {
 	if (!_mem) {
 		_mem = mem;
@@ -31,7 +31,7 @@ inline void append_mem_ent(struct pcs_mem *mem)
 	}
 }
 
-inline void remove_mem_ent(struct pcs_mem *mem)
+static inline void remove_mem_ent(struct pcs_mem *mem)
 {
 	if (mem->next == mem) {
 		_mem = 0;

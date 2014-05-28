@@ -53,7 +53,7 @@ struct http_post {
     struct curl_httppost *lastptr;
 };
 
-inline void pcs_http_reset_response(struct pcs_http *http)
+static inline void pcs_http_reset_response(struct pcs_http *http)
 {
 	if (http->res_body)
 		pcs_free(http->res_body);
@@ -79,7 +79,7 @@ enum HttpMethod
 	HTTP_METHOD_POST
 };
 
-inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod method, const char *url, PcsBool follow_location, 
+static inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod method, const char *url, PcsBool follow_location,
 							 PcsHttpWriteFunction write_func, void *state)
 {
 	pcs_http_reset_response(http);
@@ -114,7 +114,7 @@ inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod method, cons
 	}
 }
 
-inline void skip_cookie_attr(char **p)
+static inline void skip_cookie_attr(char **p)
 {
 	while (**p != '\t' && **p != '\0')
 		(*p)++; 
@@ -123,7 +123,7 @@ inline void skip_cookie_attr(char **p)
 	}
 }
 
-inline char *read_cookie_attr(char **p) 
+static inline char *read_cookie_attr(char **p)
 {
 	char *start = *p,
 		*res = 0;
@@ -140,7 +140,7 @@ inline char *read_cookie_attr(char **p)
 	return res;
 }
 
-inline PcsBool pcs_http_is_http_redirect_head(struct pcs_http *http, char *ptr, size_t size)
+static inline PcsBool pcs_http_is_http_redirect_head(struct pcs_http *http, char *ptr, size_t size)
 {
 	if ((http->res_type % 2) == 1 && size >= 15 
 		&& ptr[0] == 'H' && ptr[1] == 'T' && ptr[2] == 'T' && ptr[3] == 'P'
@@ -151,12 +151,12 @@ inline PcsBool pcs_http_is_http_redirect_head(struct pcs_http *http, char *ptr, 
 	return PcsFalse;
 }
 
-inline PcsBool pcs_http_is_http_head(struct pcs_http *http, char *ptr, size_t size)
+static inline PcsBool pcs_http_is_http_head(struct pcs_http *http, char *ptr, size_t size)
 {
 	return (http->res_type % 2) == 0 ? PcsTrue : PcsFalse;
 }
 
-inline int pcs_http_get_content_length_from_header(const char *header, int size)
+static inline int pcs_http_get_content_length_from_header(const char *header, int size)
 {
 	int res = -1;
 	char *val = NULL;
@@ -186,7 +186,7 @@ inline int pcs_http_get_content_length_from_header(const char *header, int size)
 	return res;
 }
 
-inline char *pcs_http_get_charset_from_header(const char *header, int size)
+static inline char *pcs_http_get_charset_from_header(const char *header, int size)
 {
 	char *res = NULL;
 	const char *p = header, *key = "charset",
@@ -211,7 +211,7 @@ inline char *pcs_http_get_charset_from_header(const char *header, int size)
 	return res;
 }
 
-//inline char *pcs_http_get_charset_from_body(const char *body, int size)
+//static inline char *pcs_http_get_charset_from_body(const char *body, int size)
 //{
 //	char *res = NULL;
 //	const char *p = body, *key = "charset",
@@ -241,7 +241,7 @@ inline char *pcs_http_get_charset_from_header(const char *header, int size)
 //	return res;
 //}
 
-inline PcsBool pcs_http_parse_http_head(struct pcs_http *http, char **ptr, size_t *size, PcsBool try_get_encode)
+static inline PcsBool pcs_http_parse_http_head(struct pcs_http *http, char **ptr, size_t *size, PcsBool try_get_encode)
 {
 	char *p, *cusor, *end;
 	int cnt;
@@ -315,7 +315,7 @@ inline PcsBool pcs_http_parse_http_head(struct pcs_http *http, char **ptr, size_
 	return PcsTrue;
 }
 
-inline char *pcs_http_append_bytes(char *dest, int sz, char *src, int srcsz)
+static inline char *pcs_http_append_bytes(char *dest, int sz, char *src, int srcsz)
 {
 	char *p;
 
@@ -381,7 +381,7 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 	return size * nmemb;
 }
 
-inline char *pcs_http_perform(struct pcs_http *http)
+static inline char *pcs_http_perform(struct pcs_http *http)
 {
 	CURLcode res;
 	long httpcode;
