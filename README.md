@@ -5,8 +5,10 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用，目的是�
 
 编译安装：
 ===================================
-### 1. 安装 libcurl
-    apt-get install libcurl4-openssl-dev
+程序依赖于 libargp, libcurl, libsqlite3。
+
+### 1. 安装依赖
+    apt-get install libcurl4-openssl-dev libsqlite3-dev
 ### 2. 获取源代码
     git clone https://github.com/GangZhuo/baidupcs.git
 ### 3. 编译源代码
