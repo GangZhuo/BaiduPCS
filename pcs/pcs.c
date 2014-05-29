@@ -1200,20 +1200,22 @@ static PcsPanApiRes *pcs_pan_api_filemanager(Pcs handle, const char *opera, cons
 		return NULL;
 	}
 	error = item->valueint;
-	res->error = error;
-	list = cJSON_GetObjectItem(json, "info");
-	if (!list) {
-		pcs_set_errmsg(handle, "Can't read res.info. Response: %s", html);
-		cJSON_Delete(json);
-		return NULL;
-	}
-	cnt = cJSON_GetArraySize(list);
 	res = pcs_pan_api_res_create();
 	if (!res) {
 		pcs_set_errmsg(handle, "Can't create the object: PcsPanApiRes");
 		cJSON_Delete(json);
 		return NULL;
 	}
+	res->error = error;
+
+	list = cJSON_GetObjectItem(json, "info");
+	if (!list) {
+		pcs_set_errmsg(handle, "Can't read res.info. Response: %s", html);
+		cJSON_Delete(json);
+		return NULL;
+	}
+
+	cnt = cJSON_GetArraySize(list);
 	for (i = 0; i < cnt; i++) {
 		item = cJSON_GetArrayItem(list, i);
 		ri = pcs_pan_api_res_infolist_create();
