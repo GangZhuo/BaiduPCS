@@ -13,7 +13,7 @@
 #  define D_SLEEP(s) sleep(s)
 #endif
 
-#include "../sqlite/sqlite3.h"
+#include <sqlite3.h>
 
 #include "../pcs/cJSON.h"
 #include "../pcs/pcs.h"
