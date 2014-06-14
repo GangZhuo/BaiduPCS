@@ -1551,7 +1551,7 @@ PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value)
 		pcs->secure_key = pcs_utils_strdup((char *)value);
 		break;
 	case PCS_OPTION_SECURE_ENABLE:
-		pcs->secure_enable = (PcsBool)value;
+		pcs->secure_enable = (PcsBool)((long)value);
 		break;
 	default:
 		pcs_set_errmsg(handle, "Unknown option");
