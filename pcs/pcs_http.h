@@ -197,6 +197,22 @@ PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool f
 */
 PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, 
 									  const char *filename, const char *simulate_filename);
+/*
+* 向PcsHttpForm对象中添加一个内存文件。程序将调用
+*   post        文件将添加到该PcsHttpForm对象中。
+*   param_name  发送给服务器的代表该文件内容的参数名字。
+*   simulate_filename 发送到服务器的文件名。可以指定不同于filename的名字，服务器收到的本地文件名将是simulate_filename而不是filename
+*   read_func  用于读取内存文件的函数。
+*               The data area pointed at by the pointer ptr may be filled with at most size multiplied with nmemb number of bytes. 
+*               Your function must return the actual number of bytes that you stored in that memory area. Returning 0 will signal 
+*               end-of-file to the library and cause it to stop the current transfer.
+*   userdata    传递到read_func函数第4个参数的值
+*   content_size 期望传递到服务器的内容长度。将会添加到HTTP头中。
+* 添加成功后，返回PcsTrue，否则返回PcsFalse。
+*/
+PCS_API PcsBool pcs_http_form_addbufferfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, const char *simulate_filename,
+	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata), void *userdata, size_t content_size);
+
 /* 同pcs_http_form_addfile，只不过是从内存中读取文件内容。 */
 PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const char *param_name,
 										const char *buffer, long buffer_size, const char *simulate_filename);
