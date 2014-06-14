@@ -2346,7 +2346,8 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 
 	pcs_clear_errmsg(handle);
 	filename = pcs_utils_filename(path);
-	if (pcs->secure_enable) {
+	if (pcs->secure_enable
+		&& (pcs->secure_method == PCS_SECURE_AES_CBC_128 || pcs->secure_method == PCS_SECURE_AES_CBC_192 || pcs->secure_method == PCS_SECURE_AES_CBC_256)) {
 		struct PcsAesState *aes = NULL;
 		// set the encryption length
 		sz = 0;
@@ -2447,7 +2448,8 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 
 	pcs_clear_errmsg(handle);
 	filename = pcs_utils_filename(path);
-	if (pcs->secure_enable) {
+	if (pcs->secure_enable 
+		&& (pcs->secure_method == PCS_SECURE_AES_CBC_128 || pcs->secure_method == PCS_SECURE_AES_CBC_192 || pcs->secure_method == PCS_SECURE_AES_CBC_256)) {
 		size_t file_size = 0, sz = 0;
 		state.file = fopen(local_filename, "rb");
 		if (state.file) {
