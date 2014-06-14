@@ -17,6 +17,8 @@
 #define PCS_SECURE_AES_CBC_192		((int)192)
 #define PCS_SECURE_AES_CBC_256		((int)256)
 
+#define PCS_AES_MAGIC				(0x41455300)
+
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
 	/* 值为以0结尾的C格式字符串 */
