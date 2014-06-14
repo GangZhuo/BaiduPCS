@@ -84,17 +84,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\shell.c" />
     <ClCompile Include="..\sqlite\sqlite3.c" />
-    <ClCompile Include="..\test\daemon.c" />
-    <ClCompile Include="..\test\dir.c" />
-    <ClCompile Include="..\test\hashtable.c" />
-    <ClCompile Include="..\test\logger.c" />
-    <ClCompile Include="..\test\main.c" />
-    <ClCompile Include="..\test\pcs_io.c" />
-    <ClCompile Include="..\test\rc4.c" />
-    <ClCompile Include="..\test\shell.c" />
-    <ClCompile Include="..\test\shell_args.c" />
-    <ClCompile Include="..\test\utf8.c" />
     <ClCompile Include="cJSON.c" />
     <ClCompile Include="pcs.c" />
     <ClCompile Include="pcs_fileinfo.c" />
@@ -105,18 +96,9 @@
     <ClCompile Include="pcs_utils.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\shell.h" />
     <ClInclude Include="..\sqlite\sqlite3.h" />
     <ClInclude Include="..\sqlite\sqlite3ext.h" />
-    <ClInclude Include="..\test\daemon.h" />
-    <ClInclude Include="..\test\dir.h" />
-    <ClInclude Include="..\test\hashtable.h" />
-    <ClInclude Include="..\test\logger.h" />
-    <ClInclude Include="..\test\pcs_io.h" />
-    <ClInclude Include="..\test\rc4.h" />
-    <ClInclude Include="..\test\shell.h" />
-    <ClInclude Include="..\test\shell_args.h" />
-    <ClInclude Include="..\test\sql.h" />
-    <ClInclude Include="..\test\utf8.h" />
     <ClInclude Include="cJSON.h" />
     <ClInclude Include="openssl_aes.h" />
     <ClInclude Include="openssl_md5.h" />
