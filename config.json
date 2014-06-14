@@ -3,6 +3,8 @@
 	"cookieFilePath": "~/.baidupcs/default.cookie", /*使用的COOKIE*/
 	"cacheFilePath": "", /*缓存文件的路径*/
 	"logFilePath": "", /*日志文件的路径*/
+    "secureMethod": "plaintext",/*指定加密方法。可选值为：plaintext, aes-cbc-128, aes-cbc-192 or aes-cbc-256*/
+    "secureKey": "", /*指定加密时使用的密钥。*/
 	"items": [{
 		"enable": 1,
 		"localPath": "",

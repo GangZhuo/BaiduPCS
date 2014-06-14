@@ -24,12 +24,14 @@ const char *argp_program_version = program_full_name;
 
 #define program_usage program_filename " [option...] <command> [<args>]"
 
-#define OPT_SYNCH	1
-#define OPT_COOKIE	2
-#define OPT_RC4		3
-#define OPT_CONFIG	4
-#define OPT_CACHE	5
-#define OPT_MD5		6
+#define OPT_SYNCH			1
+#define OPT_COOKIE			2
+//#define OPT_RC4				3
+#define OPT_CONFIG			4
+#define OPT_CACHE			5
+#define OPT_MD5				6
+#define OPT_SECURE_METHOD	7
+#define OPT_SECURE_KEY		8
 
 struct argp_option options[] = {
 	{ 0,			0,	 0,						0,							"Options:", 0},
@@ -49,7 +51,9 @@ struct argp_option options[] = {
 																			"The default behavior write the image into ~/.baidupcs/ .", 0},
 	{ "verbose",	'v', 0,						OPTION_ARG_OPTIONAL,		"Show the response text.", 0},
 	{ "cookie",		OPT_COOKIE, "<cookiefile>", OPTION_ARG_OPTIONAL,		"Specify the cookie file.", 0},
-	{ "rc4",		OPT_RC4, "<rc4-key>",		OPTION_ARG_OPTIONAL,		"Specify that use rc4 to encode/decode the content.", 0},
+	{ "secure-method", OPT_SECURE_METHOD, "<secure-method>", OPTION_ARG_OPTIONAL, "Specify the method to encode/decode the content. "
+																				  "The value should be plaintext, aes-cbc-128, aes-cbc-192 or aes-cbc-256.", 0 },
+	{ "secure-key", OPT_SECURE_KEY, "<secure-key>", OPTION_ARG_OPTIONAL, "Specify key to encode/decode the content.", 0 },
 	{ "config",     OPT_CONFIG, "<config>",		OPTION_ARG_OPTIONAL,		"Specify the config file.", 0 },
 	{ "cache",      OPT_CACHE, "<cache>",		OPTION_ARG_OPTIONAL,		"Specify the cache file.", 0 },
 	{ "md5",		OPT_MD5, 0,					OPTION_ARG_OPTIONAL,		"Specify that whether use md5 when execute backup, restore, combin, compare.", 0 },
@@ -175,6 +179,16 @@ static error_t add_arg(struct params *params, char *arg)
 	return 0;
 }
 
+PcsBool shell_args_check_secure(struct params *params)
+{
+	if (params->secure_method != PCS_SECURE_NONE && params->secure_method != PCS_SECURE_PLAINTEXT) {
+		if (!params->secure_key || strlen(params->secure_key) == 0) {
+			return PcsFalse;
+		}
+	}
+	return PcsTrue;
+}
+
 PcsBool shell_args_check_params(struct params *params)
 {
 	PcsBool res = PcsTrue;
@@ -238,11 +252,21 @@ PcsBool shell_args_check_params(struct params *params)
 			res = PcsFalse;
 			break;
 		}
+		if (!shell_args_check_secure(params)) {
+			print_arg_err("usage: " program_name " download --secure-method=[aes-cbc-128|aes-cbc-192|aes-cbc-256] --secure-key=<secure-key> <remote path> <local path>\nSample: " program_name " download -r --secure-method=\"aes-cbc-128\" --secure-key=\"123456\" /backup/upload_backup /var/www/upload\n");
+			res = PcsFalse;
+			break;
+		}
 		break;
 
 	case ACTION_UPLOAD:
 		if (params->args_count != 2) {
 			print_arg_err("usage: " program_name " upload <local path> <local path>\nSample: " program_name " upload -r /var/www/upload /backup/upload_backup\n");
+			res = PcsFalse;
+			break;
+		}
+		if (!shell_args_check_secure(params)) {
+			print_arg_err("usage: " program_name " upload --secure-method=[aes-cbc-128|aes-cbc-192|aes-cbc-256] --secure-key=<secure-key> <local path> <local path>\nSample: " program_name " upload -r --secure-method=\"aes-cbc-128\" --secure-key=\"123456\" /var/www/upload /backup/upload_backup\n");
 			res = PcsFalse;
 			break;
 		}
@@ -270,12 +294,22 @@ PcsBool shell_args_check_params(struct params *params)
 			res = PcsFalse;
 			break;
 		}
+		if (!shell_args_check_secure(params)) {
+			print_arg_err("usage: " program_name " echo --secure-method=[aes-cbc-128|aes-cbc-192|aes-cbc-256] --secure-key=<secure-key> <remote path> <text>\nSample: " program_name " echo -a --secure-method=\"aes-cbc-128\" --secure-key=\"123456\" /data/note.txt \"The text that append by 'echo' command\"\n");
+			res = PcsFalse;
+			break;
+		}
 		break;
 
 
 	case ACTION_CAT:
 		if (params->args_count != 1) {
 			print_arg_err("usage: " program_name " cat <remote path>\nSample: " program_name " cat /data/note.txt\n");
+			res = PcsFalse;
+			break;
+		}
+		if (!shell_args_check_secure(params)) {
+			print_arg_err("usage: " program_name " cat --secure-method=[aes-cbc-128|aes-cbc-192|aes-cbc-256] --secure-key=<secure-key> <remote path>\nSample: " program_name " cat --secure-method=\"aes-cbc-128\" --secure-key=\"123456\" /data/note.txt\n");
 			res = PcsFalse;
 			break;
 		}
@@ -420,7 +454,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		if (params->password) pcs_free(params->password);
 		if (params->sort) pcs_free(params->sort);
 		if (params->cookie) pcs_free(params->cookie);
-		if (params->rc4_key) pcs_free(params->rc4_key);
+		if (params->secure_key) pcs_free(params->secure_key);
 		if (params->args) {
 			for (i = 0; i < params->args_count; i++) {
 				pcs_free(params->args[i]);
@@ -433,7 +467,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		params->username = NULL;
 		params->password = NULL;
 		params->cookie = NULL;
-		params->rc4_key = NULL;
+		params->secure_key = NULL;
 		params->sort = NULL;
 		params->is_recursion = PcsFalse;
 		params->is_force = PcsFalse;
@@ -442,7 +476,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		params->is_append = PcsFalse;
 		params->is_verbose = PcsFalse;
 		params->is_synch = PcsFalse;
-		params->is_rc4 = PcsFalse;
+		params->secure_method = PCS_SECURE_NONE;
 		params->action = ACTION_NONE;
 		params->args = NULL;
 		params->args_count = 0;
@@ -568,10 +602,26 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 		}
 		break;
 
-	case OPT_RC4:
-		params->is_rc4 = PcsTrue;
+	case OPT_SECURE_KEY:
 		if (arg && arg[0]) {
-			params->rc4_key = pcs_utils_strdup(arg);
+			params->secure_key = pcs_utils_strdup(arg);
+		}
+		break;
+
+	case OPT_SECURE_METHOD:
+		if (arg && arg[0]) {
+			if (strcmp(arg, "plaintext") == 0)
+				params->secure_method = PCS_SECURE_PLAINTEXT;
+			else if (strcmp(arg, "aes-cbc-128") == 0)
+				params->secure_method = PCS_SECURE_AES_CBC_128;
+			else if (strcmp(arg, "aes-cbc-192") == 0)
+				params->secure_method = PCS_SECURE_AES_CBC_192;
+			else if (strcmp(arg, "aes-cbc-256") == 0)
+				params->secure_method = PCS_SECURE_AES_CBC_256;
+			else {
+				print_arg_err("Unsupport secure method.\n");
+				return EINVAL;
+			}
 		}
 		break;
 
@@ -633,7 +683,7 @@ void shell_args_destroy_params(struct params *params)
 	if (params->password) pcs_free(params->password);
 	if (params->sort) pcs_free(params->sort);
 	if (params->cookie) pcs_free(params->cookie);
-	if (params->rc4_key) pcs_free(params->rc4_key);
+	if (params->secure_key) pcs_free(params->secure_key);
 	if (params->args) {
 		for (i = 0; i < params->args_count; i++) {
 			pcs_free(params->args[i]);

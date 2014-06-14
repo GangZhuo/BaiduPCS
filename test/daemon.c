@@ -84,6 +84,8 @@ typedef struct Config {
 	char		*logFilePath; /*日志文件的路径*/
 	BackupItem	*items; /*需要备份|还原的项*/
 	int			itemCount;
+	char		*secure_key;
+	int			secure_method;
 
 	int			run_in_daemon;
 	int			log_enabled;
@@ -268,6 +270,7 @@ static void freeConfig(int keepGlobal)
 	if (config.cookieFilePath) pcs_free(config.cookieFilePath);
 	if (config.cacheFilePath) pcs_free(config.cacheFilePath);
 	if (config.logFilePath) pcs_free(config.logFilePath);
+	if (config.secure_key) pcs_free(config.secure_key);
 	if (config.items) {
 		int ii;
 		for(ii = 0; ii < config.itemCount; ii++) {
@@ -395,6 +398,7 @@ static int readConfigFile()
 		PRINT_FATAL("Broken JSON string %s", config.configFilePath);
 		return -1;
 	}
+
 	item = cJSON_GetObjectItem(json, "cookieFilePath");
 	if (!item) { 
 		PRINT_FATAL("No \"cookieFilePath\" option (%s)", config.configFilePath);
@@ -402,6 +406,7 @@ static int readConfigFile()
 		return -1;
 	}
 	config.cookieFilePath = pcs_utils_strdup(item->valuestring);
+
 	item = cJSON_GetObjectItem(json, "cacheFilePath");
 	if (!item) {
 		PRINT_FATAL("No \"cacheFilePath\" option (%s)", config.configFilePath);
@@ -409,17 +414,51 @@ static int readConfigFile()
 		return -1;
 	}
 	config.cacheFilePath = pcs_utils_strdup(item->valuestring);
+
 	item = cJSON_GetObjectItem(json, "logFilePath");
 	if (item && item->valuestring[0])
 		config.logFilePath = pcs_utils_strdup(item->valuestring);
 	else
 		config.logFilePath = NULL;
+
+	item = cJSON_GetObjectItem(json, "secureMethod");
+	if (item && item->valuestring[0]) {
+		if (strcmp(item->valuestring, "plaintext") == 0)
+			config.secure_method = PCS_SECURE_PLAINTEXT;
+		else if (strcmp(item->valuestring, "aes-cbc-128") == 0)
+			config.secure_method = PCS_SECURE_AES_CBC_128;
+		else if (strcmp(item->valuestring, "aes-cbc-192") == 0)
+			config.secure_method = PCS_SECURE_AES_CBC_192;
+		else if (strcmp(item->valuestring, "aes-cbc-256") == 0)
+			config.secure_method = PCS_SECURE_AES_CBC_256;
+		else {
+			PRINT_FATAL("Invalidate \"secureMethod\" option (%s). The value should be plaintext, aes-cbc-128, aes-cbc-192 or aes-cbc-256.", item->valuestring);
+			cJSON_Delete(json);
+			return -1;
+		}
+	}
+	else
+		config.secure_method = PCS_SECURE_NONE;
+
+	item = cJSON_GetObjectItem(json, "secureKey");
+	if (item && item->valuestring[0]) {
+		config.secure_key = pcs_utils_strdup(item->valuestring);
+	}
+	else if (config.secure_method != PCS_SECURE_NONE && config.secure_method != PCS_SECURE_PLAINTEXT) {
+		PRINT_FATAL("Invalidate \"secureKey\" option. Please specify the secure key.");
+		cJSON_Delete(json);
+		return -1;
+	}
+
 	item = cJSON_GetObjectItem(json, "logEnabled");
 	if (item) config.log_enabled = item->valueint;
+
 	item = cJSON_GetObjectItem(json, "PrintfEnabled");
 	if (item) config.printf_enabled = item->valueint;
+
 	item = cJSON_GetObjectItem(json, "RunInDaemon");
 	if (item) config.run_in_daemon = item->valueint;
+
 	items = cJSON_GetObjectItem(json, "items");
 	if (!items) {
 		PRINT_FATAL("No \"items\" option (%s)", config.configFilePath);
@@ -3382,6 +3421,13 @@ static int run_svc(struct params *params)
 		PRINT_NOTICE("Application end up");
 		return -1;
 	}
+	if (config.secure_method != PCS_SECURE_NONE) {
+		pcs_setopts(pcs,
+			PCS_OPTION_SECURE_METHOD, (void *)((long)config.secure_method),
+			PCS_OPTION_SECURE_KEY, config.secure_key,
+			PCS_OPTION_SECURE_ENABLE, (void *)((long)PcsTrue),
+			PCS_OPTION_END);
+	}
 	init_schedule();
 	log_task();
 	printf("\nTask:\n");
@@ -3409,22 +3455,14 @@ static int parse_run_shell_params(struct params *params, int requireCooki, int r
 			freeConfig(FALSE);
 			return -1;
 		}
-		config.run_in_daemon = 0;
-		config.printf_enabled = 1;
-		config.log_enabled = 0;
-		if (params->cookie) {
-			if (config.cookieFilePath) pcs_free(config.cookieFilePath);
-			config.cookieFilePath = pcs_utils_strdup(params->cookie);
-		}
-		if (params->cache) {
-			if (config.cacheFilePath) pcs_free(config.cacheFilePath);
-			config.cacheFilePath = pcs_utils_strdup(params->cache);
-		}
 	}
 	else {
 		config.configFilePath = NULL;
 		config.logFilePath = NULL;
 	}
+	config.run_in_daemon = 0;
+	config.printf_enabled = 1;
+	config.log_enabled = 0;
 	if (params->cookie) {
 		if (config.cookieFilePath) pcs_free(config.cookieFilePath);
 		config.cookieFilePath = pcs_utils_strdup(params->cookie);
@@ -3432,6 +3470,13 @@ static int parse_run_shell_params(struct params *params, int requireCooki, int r
 	if (params->cache) {
 		if (config.cacheFilePath) pcs_free(config.cacheFilePath);
 		config.cacheFilePath = pcs_utils_strdup(params->cache);
+	}
+	if (params->secure_key) {
+		if (config.secure_key) pcs_free(config.secure_key);
+		config.secure_key = pcs_utils_strdup(params->secure_key);
+	}
+	if (params->secure_method) {
+		config.secure_method = params->secure_method;
 	}
 	if (requireCooki && !config.cookieFilePath) {
 		PRINT_FATAL("Do not specify the cookie file.");
@@ -3477,6 +3522,13 @@ static int run_shell(struct params *params)
 		return -1;
 	}
 	PRINT_NOTICE("UID: %s", pcs_sysUID(pcs));
+	if (config.secure_method != PCS_SECURE_NONE) {
+		pcs_setopts(pcs,
+			PCS_OPTION_SECURE_METHOD, (void *)((long)config.secure_method),
+			PCS_OPTION_SECURE_KEY, config.secure_key,
+			PCS_OPTION_SECURE_ENABLE, (void *)((long)PcsTrue),
+			PCS_OPTION_END);
+	}
 	switch (params->action){
 	case ACTION_UPDATE:
 		rc = method_update(params->args[0]);
