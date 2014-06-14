@@ -51,38 +51,11 @@
     <ClCompile Include="pcs_utils.c">
       <Filter>Source Files\pcs</Filter>
     </ClCompile>
-    <ClCompile Include="..\test\dir.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\hashtable.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\main.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\pcs_io.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\rc4.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\shell.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\shell_args.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\utf8.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\daemon.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\test\logger.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\sqlite\sqlite3.c">
       <Filter>Source Files\sqlite</Filter>
+    </ClCompile>
+    <ClCompile Include="..\shell.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -113,47 +86,20 @@
     <ClInclude Include="pcs_utils.h">
       <Filter>Header Files\pcs</Filter>
     </ClInclude>
-    <ClInclude Include="..\test\dir.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\test\hashtable.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\test\pcs_io.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\test\rc4.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\test\shell.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\test\shell_args.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\test\utf8.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\test\daemon.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\test\logger.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\sqlite\sqlite3.h">
       <Filter>Header Files\sqlite</Filter>
     </ClInclude>
     <ClInclude Include="..\sqlite\sqlite3ext.h">
       <Filter>Header Files\sqlite</Filter>
     </ClInclude>
-    <ClInclude Include="..\test\sql.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="openssl_md5.h">
       <Filter>Header Files\pcs</Filter>
     </ClInclude>
     <ClInclude Include="openssl_aes.h">
       <Filter>Header Files\pcs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shell.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
