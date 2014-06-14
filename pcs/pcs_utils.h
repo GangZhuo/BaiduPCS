@@ -32,6 +32,10 @@ PCS_API PcsBool pcs_utils_streq(const char *str1, const char *str2, int len);
 */
 PCS_API const char *md5_string(const char *str);
 /**
+* 字符串md5。返回16字节的MD5值
+*/
+PCS_API const unsigned char *md5_string_raw(const char *str);
+/**
 * 文件 md5
 */
 PCS_API const char *md5_file(const char *file_name);

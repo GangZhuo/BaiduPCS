@@ -5,13 +5,14 @@
 #ifdef WIN32
 # include <malloc.h>
 # define snprintf _snprintf
+#include "openssl_md5.h"
 #else
 # include <alloca.h>
+#include <openssl/md5.h>
 #endif
 
 #include "pcs_mem.h"
 #include "pcs_utils.h"
-#include "openssl_md5.h"
 
 PCS_API PcsBool pcs_isLittleEndian()
 {
@@ -192,6 +193,33 @@ PCS_API const char *md5_string(const char *str)
 	}
 	return tmp;
 }
+
+/**
+* 字符串md5。返回16字节的MD5值
+*/
+PCS_API const unsigned char *md5_string_raw(const char *str)
+{
+	static unsigned char md[16];
+	MD5((const unsigned char*)str, strlen(str), md);
+	return md;
+}
+
+
+///**
+//* 字符串md5
+//*/
+//PCS_API const char *md5_string_salt(const char *str, const char *salt)
+//{
+//	char *s;
+//	int l = 0;
+//	if (str) l += strlen(str);
+//	if (salt) l += strlen(salt);
+//	s = (char *)pcs_malloc(l + 1);
+//	s[0] = '\0';
+//	if (str) strcat(s, str);
+//	if (salt) strcat(s, salt);
+//	return md5_string(s);
+//}
 
 /**
 * 文件 md5

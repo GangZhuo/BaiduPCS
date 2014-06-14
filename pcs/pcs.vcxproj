@@ -118,6 +118,7 @@
     <ClInclude Include="..\test\sql.h" />
     <ClInclude Include="..\test\utf8.h" />
     <ClInclude Include="cJSON.h" />
+    <ClInclude Include="openssl_aes.h" />
     <ClInclude Include="openssl_md5.h" />
     <ClInclude Include="pcs.h" />
     <ClInclude Include="pcs_defs.h" />

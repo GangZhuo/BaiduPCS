@@ -51,6 +51,8 @@ struct pcs_http {
 struct http_post {
 	struct curl_httppost *formpost;
     struct curl_httppost *lastptr;
+	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata);
+	void *read_func_data;
 };
 
 static inline void pcs_http_reset_response(struct pcs_http *http)
@@ -764,6 +766,37 @@ PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const c
 	return res;
 }
 
+PCS_API PcsBool pcs_http_form_addbufferfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, const char *simulate_filename,
+	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata), void *userdata, size_t content_size)
+{
+	struct pcs_http *http = (struct pcs_http *)handle;
+	struct http_post *formpost = (struct http_post *)(*post);
+	char *escape_param_name, *escape_simulate_filename;
+	PcsBool res = PcsTrue;
+	if (!formpost) {
+		formpost = (struct http_post *)pcs_malloc(sizeof(struct http_post));
+		if (!formpost)
+			return PcsFalse;
+		memset(formpost, 0, sizeof(struct http_post));
+		(*post) = (PcsHttpForm)formpost;
+	}
+	escape_param_name = curl_easy_escape(http->curl, param_name, 0);//pcs_http_escape(handle, param_name);
+	escape_simulate_filename = curl_easy_escape(http->curl, simulate_filename, 0);//pcs_http_escape(handle, simulate_filename);
+	if (curl_formadd(&(formpost->formpost), &(formpost->lastptr),
+		CURLFORM_COPYNAME, escape_param_name,
+		CURLFORM_STREAM, userdata,
+		CURLFORM_CONTENTSLENGTH, (long) content_size,
+		CURLFORM_FILENAME, escape_simulate_filename,
+		CURLFORM_END)) {
+		res = PcsFalse;
+	}
+	curl_free((void *)escape_param_name);//pcs_free(escape_param_name);
+	curl_free((void *)escape_simulate_filename);//pcs_free(escape_simulate_filename);
+	formpost->read_func = read_func;
+	formpost->read_func_data = userdata;
+	return res;
+}
+
 PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const char *param_name,
 										const char *buffer, long buffer_size, const char *simulate_filename)
 {
@@ -805,12 +838,23 @@ PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm dat
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
 	struct http_post *formpost = (struct http_post *)data;
+	char *rc;
 	pcs_http_prepare(http, HTTP_METHOD_POST, url, follow_location, &pcs_http_write, http);
-	if (data)
+	if (data){
 		curl_easy_setopt(http->curl, CURLOPT_HTTPPOST, formpost->formpost); 
+		if (formpost->read_func) {
+			curl_easy_setopt(http->curl, CURLOPT_READFUNCTION, formpost->read_func);
+			curl_easy_setopt(http->curl, CURLOPT_READDATA, formpost->read_func_data);
+		}
+	}
 	else
 		curl_easy_setopt(http->curl, CURLOPT_POSTFIELDS, "");  
-	return pcs_http_perform(http);
+	rc = pcs_http_perform(http);
+	if (data && formpost->read_func) {
+		curl_easy_setopt(http->curl, CURLOPT_READFUNCTION, NULL);
+		curl_easy_setopt(http->curl, CURLOPT_READDATA, NULL);
+	}
+	return rc;
 }
 
 PCS_API char *pcs_http_cookie_data(PcsHttp handle)

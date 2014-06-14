@@ -4,8 +4,10 @@
 #include <string.h>
 #ifdef WIN32
 # include <malloc.h>
+#include "openssl_aes.h"
 #else
 # include <alloca.h>
+#include <openssl/aes.h>
 #endif
 
 #include "pcs_defs.h"
@@ -43,6 +45,72 @@ struct pcs {
 
 	PcsHttp		http;
 
+	int			secure_method;
+	char		*secure_key;
+	PcsBool		secure_enable;
+
+	PcsHttpWriteFunction	download_func;
+	void					*download_data;
+
+	char		*buffer;
+	size_t		buffer_size;
+};
+
+#define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
+#define PCS_ACTION_NONE			0
+#define PCS_ACTION_DOWNLOAD		1
+#define PCS_ACTION_UPLOAD		2
+
+struct PcsDownloadState
+{
+	Pcs					handle;
+	size_t				contentlength;
+	unsigned char		buffer[PCS_BUFFER_SIZE];
+	size_t				buffer_size;
+	int					secure;
+
+	void				*userdata;
+
+	PcsHttpWriteFunction write;
+	void				 *write_state;
+
+	PcsBool (*finish)(void *finish_state);
+	void				*finish_state;
+
+	void (*destroy)(void *destroy_state);
+	void				*destroy_state;
+};
+
+struct PcsAesHead
+{
+	char				magic[4]; /*Should be AES*/
+	unsigned char		bits;
+	unsigned char		polish;
+};
+
+struct PcsAesState
+{
+	struct PcsAesHead	head;
+	int					mod;
+
+	AES_KEY				aes;
+	unsigned char		key[AES_BLOCK_SIZE];
+	unsigned char		iv[AES_BLOCK_SIZE];
+	unsigned char		buffer[PCS_BUFFER_SIZE];
+	unsigned char		last_block_buffer[AES_BLOCK_SIZE]; /*128bits block*/
+	unsigned char		*last_block;
+};
+
+struct PcsUploadState
+{
+	Pcs					handle;
+	size_t				contentlength;
+	FILE				*file;
+	unsigned char		buffer[PCS_BUFFER_SIZE];
+	size_t				buffer_size;
+	int					secure;
+
+	struct PcsAesState	*aes;
 };
 
 /*从网盘JS获取，应该是网盘API的错误消息*/
@@ -1414,6 +1482,10 @@ PCS_API void pcs_destroy(Pcs handle)
 		pcs_free(pcs->sysUID);
 	if (pcs->errmsg)
 		pcs_free(pcs->errmsg);
+	if (pcs->secure_key)
+		pcs_free(pcs->secure_key);
+	if (pcs->buffer)
+		pcs_free(pcs->buffer);
 	pcs_free(pcs);
 }
 
@@ -1450,10 +1522,12 @@ PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value)
 		pcs->captcha_data = value;
 		break;
 	case PCS_OPTION_DOWNLOAD_WRITE_FUNCTION:
-		pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, value);
+		//pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, value);
+		pcs->download_func = (PcsHttpWriteFunction)value;
 		break;
 	case PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA:
-		pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION_DATE, value);
+		//pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION_DATE, value);
+		pcs->download_data = value;
 		break;
 	case PCS_OPTION_HTTP_RESPONSE_FUNCTION:
 		pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_HTTP_RESPONSE_FUNCTION, value);
@@ -1469,6 +1543,15 @@ PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value)
 		break;
 	case PCS_OPTION_PROGRESS:
 		pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_PROGRESS, value);
+		break;
+	case PCS_OPTION_SECURE_METHOD:
+		pcs->secure_method = (int)((long)value);
+		break;
+	case PCS_OPTION_SECURE_KEY:
+		pcs->secure_key = pcs_utils_strdup((char *)value);
+		break;
+	case PCS_OPTION_SECURE_ENABLE:
+		pcs->secure_enable = (PcsBool)value;
 		break;
 	default:
 		pcs_set_errmsg(handle, "Unknown option");
@@ -1926,12 +2009,266 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 	return res;
 }
 
-PCS_API PcsRes pcs_download(Pcs handle, const char *path)
+static struct PcsAesState *createPcsAesState(Pcs handle, int bits, int mod, unsigned char polish)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	struct PcsAesState *state = NULL;
+	const char *key;
+	int rc;
+	if (!pcs->secure_key) {
+		pcs_set_errmsg(handle, "The key is not specify.");
+		return NULL;
+	}
+	if (bits != 128 && bits != 192 && bits != 256) {
+		pcs_set_errmsg(handle, "bits should be 128, 192 or 256.");
+		return NULL;
+	}
+	state = (struct PcsAesState *)pcs_malloc(sizeof(struct PcsAesState));
+	if (!state) {
+		pcs_set_errmsg(handle, "Can't create PcsAesState.");
+		return NULL;
+	}
+	memset(state, 0, sizeof(struct PcsAesState));
+	state->head.magic[0] = 'A';
+	state->head.magic[1] = 'E';
+	state->head.magic[2] = 'S';
+	state->head.bits = bits;
+	state->head.polish = polish;
+	state->mod = mod;
+	key = md5_string_raw(pcs->secure_key);
+	memcpy(state->key, key, AES_BLOCK_SIZE);
+	switch (mod)
+	{
+	case AES_ENCRYPT:
+		rc = AES_set_encrypt_key(key, bits, &state->aes);
+		break;
+	case AES_DECRYPT:
+		rc = AES_set_decrypt_key(key, bits, &state->aes);
+		break;
+	default:
+		pcs_set_errmsg(handle, "Unknow AES Mod.");
+		pcs_free(state);
+		return NULL;
+		//break;
+	}
+	if (rc < 0) {
+		pcs_set_errmsg(handle, "Can't set encryption|decryption key in AES.");
+		pcs_free(state);
+		return NULL;
+	}
+	return state;
+}
+
+static void destroyPcsAesState(struct PcsAesState *state)
+{
+	if (state) pcs_free(state);
+}
+
+static PcsBool pcs_download_aes_finish(void *userdata)
+{
+	struct PcsDownloadState *state = (struct PcsDownloadState *)userdata;
+	struct pcs *pcs = (struct pcs *)state->handle;
+	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
+	int l;
+	if (state->buffer_size > 0) {
+		if ((state->buffer_size % AES_BLOCK_SIZE) != 0) return PcsFalse;
+		if (aes->last_block) {
+			l = (*state->write)(aes->last_block, AES_BLOCK_SIZE, state->contentlength, state->write_state);
+			if (l != AES_BLOCK_SIZE) return PcsFalse;
+			aes->last_block = NULL;
+		}
+		// decrypt AES_ENCRYPT
+		AES_cbc_encrypt(state->buffer, aes->buffer, state->buffer_size, &aes->aes, aes->iv, AES_DECRYPT);
+		l = (*state->write)(aes->buffer, state->buffer_size - aes->head.polish, state->contentlength, state->write_state);
+		if (l != state->buffer_size - aes->head.polish) return PcsFalse;
+		state->buffer_size = 0;
+	}
+	else if (aes->last_block) {
+		l = (*state->write)(aes->last_block, AES_BLOCK_SIZE - aes->head.polish, state->contentlength, state->write_state);
+		if (l != AES_BLOCK_SIZE - aes->head.polish) return PcsFalse;
+		aes->last_block = NULL;
+	}
+	return PcsTrue;
+}
+
+static void pcs_download_aes_destroy(void *userdata)
+{
+	struct PcsDownloadState *state = (struct PcsDownloadState *)userdata;
+	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
+	destroyPcsAesState(aes);
+}
+
+static PcsBool pcs_download_finish(struct PcsDownloadState *state)
+{
+	struct pcs *pcs = (struct pcs *)state->handle;
+	PcsBool rc = PcsTrue;
+	if (state->finish) {
+		rc = (*state->finish)(state->finish_state);
+	}
+	else if (state->buffer_size > 0) {
+		int l = (*state->write)(state->buffer, state->buffer_size, state->contentlength, state->write_state);
+		if (l != state->buffer_size) {
+			rc = PcsFalse;
+		}
+		else
+			state->buffer_size = 0;
+	}
+	return rc;
+}
+
+static void pcs_download_destroy(struct PcsDownloadState *state)
+{
+	if (state->destroy) {
+		(*state->destroy)(state->destroy_state);
+	}
+}
+
+static size_t pcs_download_write_func(char *ptr, size_t size, size_t contentlength, void *userdata)
+{
+	struct PcsDownloadState *state = (struct PcsDownloadState *)userdata;
+	struct pcs *pcs = (struct pcs *)state->handle;
+	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
+	char *p = ptr;
+	size_t sz = size, l;
+
+	state->contentlength = contentlength;
+	while (sz > 0) {
+		l = ((size_t)PCS_BUFFER_SIZE) - state->buffer_size;
+		if (l > sz) l = sz;
+		memcpy(&state->buffer[state->buffer_size], p, l);
+		state->buffer_size += l;
+		sz -= l;
+		p += l;
+		if (!state->secure && state->buffer_size >= AES_BLOCK_SIZE) {
+			if (state->buffer[0] == 'A'
+				&& state->buffer[1] == 'E'
+				&& state->buffer[2] == 'S'
+				&& state->buffer[3] == '\0'
+				&& (   ((unsigned char)state->buffer[4]) == 128
+					|| ((unsigned char)state->buffer[4]) == 192
+					|| ((unsigned char)state->buffer[4]) == 256 )
+				&& ((unsigned char)state->buffer[5]) < AES_BLOCK_SIZE) {
+				aes = createPcsAesState(state->handle, (unsigned char)state->buffer[4], AES_DECRYPT, (unsigned char)state->buffer[5]);
+				if (!aes) return 0;
+				state->userdata = aes;
+				state->finish_state = state;
+				state->finish = &pcs_download_aes_finish;
+				state->destroy_state = state;
+				state->destroy = &pcs_download_aes_destroy;
+				switch ((int)((unsigned char)state->buffer[4]))
+				{
+				case 128:
+					state->secure = PCS_SECURE_AES_CBC_128;
+					break;
+				case 192:
+					state->secure = PCS_SECURE_AES_CBC_192;
+					break;
+				case 256:
+					state->secure = PCS_SECURE_AES_CBC_256;
+					break;
+				}
+				state->buffer_size -= AES_BLOCK_SIZE;
+				memcpy(state->buffer, &state->buffer[AES_BLOCK_SIZE], state->buffer_size);
+			}
+			else {
+				state->secure = PCS_SECURE_PLAINTEXT;
+			}
+		}
+		if (state->buffer_size == PCS_BUFFER_SIZE) {
+			if (state->secure == PCS_SECURE_AES_CBC_128 || state->secure == PCS_SECURE_AES_CBC_192 || state->secure == PCS_SECURE_AES_CBC_256) {
+				if (aes->head.polish) {
+					if (aes->last_block) {
+						l = (*state->write)(aes->last_block, AES_BLOCK_SIZE, contentlength, state->write_state);
+						if (l != AES_BLOCK_SIZE) return 0;
+						aes->last_block = NULL;
+					}
+					// decrypt AES_ENCRYPT
+					AES_cbc_encrypt(state->buffer, aes->buffer, state->buffer_size, &aes->aes, aes->iv, AES_DECRYPT);
+					memcpy(aes->last_block_buffer, &aes->buffer[state->buffer_size - AES_BLOCK_SIZE], AES_BLOCK_SIZE);
+					aes->last_block = aes->last_block_buffer;
+					l = (*state->write)(aes->buffer, state->buffer_size - AES_BLOCK_SIZE, contentlength, state->write_state);
+					if (l != state->buffer_size - AES_BLOCK_SIZE) return 0;
+					state->buffer_size = 0;
+				}
+				else {
+					// decrypt AES_ENCRYPT
+					AES_cbc_encrypt(state->buffer, aes->buffer, state->buffer_size, &aes->aes, aes->iv, AES_DECRYPT);
+					l = (*state->write)(aes->buffer, state->buffer_size, contentlength, state->write_state);
+					if (l != state->buffer_size) return 0;
+					state->buffer_size = 0;
+				}
+			}
+			else if (state->secure == PCS_SECURE_PLAINTEXT) {
+				l = (*state->write)(state->buffer, state->buffer_size, contentlength, state->write_state);
+				if (l != state->buffer_size) return 0;
+				state->buffer_size = 0;
+			}
+			else {
+				return 0;
+			}
+		}
+	}
+	return size;
+}
+
+static PcsRes pcs_download_secure(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	char *url;
+	struct PcsDownloadState state = { 0 };
+
+	pcs_clear_errmsg(handle);
+	if (!write) {
+		pcs_set_errmsg(handle, "Please specify the write function.");
+		return PCS_FAIL;
+	}
+	state.handle = handle;
+	state.contentlength = 0;
+	state.userdata = NULL;
+	state.write = write;
+	state.write_state = write_state;
+	pcs_http_setopts(pcs->http,
+		PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, &pcs_download_write_func,
+		PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION_DATE, &state,
+		PCS_HTTP_OPTION_END);
+	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
+		"method", "download",
+		"app_id", "250528",
+		"path", path,
+		NULL);
+	if (!url) {
+		pcs_set_errmsg(handle, "Can't build the url.");
+		return PCS_BUILD_URL;
+	}
+	if (pcs_http_get_download(pcs->http, url, PcsTrue)) {
+		pcs_free(url);
+		if (!pcs_download_finish(&state)) {
+			pcs_download_destroy(&state);
+			return PCS_FAIL;
+		}
+		pcs_download_destroy(&state);
+		return PCS_OK;
+	}
+	pcs_free(url);
+	pcs_set_errmsg(handle, "Can't download the file: %s", pcs_http_strerror(pcs->http));
+	pcs_download_destroy(&state);
+	return PCS_FAIL;
+}
+
+static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url;
 
 	pcs_clear_errmsg(handle);
+	if (!write) {
+		pcs_set_errmsg(handle, "Please specify the write function.");
+		return PCS_FAIL;
+	}
+	pcs_http_setopts(pcs->http,
+		PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, write,
+		PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION_DATE, write_state,
+		PCS_HTTP_OPTION_END);
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
 		"method", "download",
 		"app_id", "250528",
@@ -1950,28 +2287,51 @@ PCS_API PcsRes pcs_download(Pcs handle, const char *path)
 	return PCS_FAIL;
 }
 
+PCS_API PcsRes pcs_download(Pcs handle, const char *path)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	if (pcs->secure_enable)
+		return pcs_download_secure(handle, path, pcs->download_func, pcs->download_data);
+	else
+		return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data);
+}
+
+static size_t pcs_cat_write_func(char *ptr, size_t size, size_t contentlength, void *userdata)
+{
+	struct pcs *pcs = (struct pcs *)userdata;
+	size_t sz = pcs->buffer_size + size;
+	char *buf = (char *)pcs_malloc(sz + 1);
+	if (!buf) return 0;
+	if (pcs->buffer) {
+		memcpy(buf, pcs->buffer, pcs->buffer_size);
+		memcpy(&buf[pcs->buffer_size], ptr, size);
+		buf[sz] = '\0';
+		pcs_free(pcs->buffer);
+		pcs->buffer = buf;
+		pcs->buffer_size = sz;
+	}
+	else {
+		memcpy(buf, ptr, size);
+		buf[sz] = '\0';
+		pcs->buffer = buf;
+		pcs->buffer_size = sz;
+	}
+	return size;
+}
+
 PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	char *url, *html;
+	PcsRes rc;
 
-	pcs_clear_errmsg(handle);
-	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
-		"method", "download",
-		"app_id", "250528",
-		"path", path,
-		NULL);
-	if (!url) {
-		pcs_set_errmsg(handle, "Can't build the url.");
-		return NULL;
-	}
-	html = pcs_http_get_raw(pcs->http, url, PcsTrue, dstsz);
-	pcs_free(url);
-	if (!html) {
-		pcs_set_errmsg(handle, "Can't get response from the server.");
-		return NULL;
-	}
-	return html;
+	if (pcs->buffer) pcs_free(pcs->buffer);
+	pcs->buffer = NULL;
+	pcs->buffer_size = 0;
+	if (pcs->secure_enable)
+		rc = pcs_download_secure(handle, path, &pcs_cat_write_func, pcs);
+	else
+		rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs);
+	return pcs->buffer;
 }
 
 PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, 
@@ -1981,18 +2341,98 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 	char *filename;
 	PcsHttpForm form = NULL;
 	PcsFileInfo *meta;
+	size_t sz = buffer_size;
+	char *buf = (char *)buffer;
 
 	pcs_clear_errmsg(handle);
 	filename = pcs_utils_filename(path);
-	if (pcs_http_form_addbuffer(pcs->http, &form, "file", buffer, (long)buffer_size, filename) != PcsTrue) {
+	if (pcs->secure_enable) {
+		struct PcsAesState *aes = NULL;
+		// set the encryption length
+		sz = 0;
+		if (buffer_size % AES_BLOCK_SIZE == 0) {
+			sz = buffer_size;
+		}
+		else {
+			sz = (buffer_size / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+		}
+		buf = (char *)pcs_malloc(sz + AES_BLOCK_SIZE);
+		if (!buf) {
+			pcs_set_errmsg(handle, "Can't alloc buffer for post data.");
+			pcs_free(filename);
+			return NULL;
+		}
+		memset(buf, 0, sz + AES_BLOCK_SIZE);
+		buf[0] = 'A'; buf[1] = 'E'; buf[2] = 'S';
+		buf[4] = (char)(unsigned char)pcs->secure_method;
+		buf[5] = (char)(unsigned char)(sz - buffer_size);
+		aes = createPcsAesState(handle, pcs->secure_method, AES_ENCRYPT, (unsigned char)(sz - buffer_size));
+		if (!aes) {
+			pcs_set_errmsg(handle, "Can't create AES object.");
+			pcs_free(filename);
+			pcs_free(buf);
+			return NULL;
+		}
+		// encrypt (iv will change)
+		AES_cbc_encrypt(buffer, &buf[AES_BLOCK_SIZE], buffer_size, &aes->aes, aes->iv, AES_ENCRYPT);
+		sz += AES_BLOCK_SIZE;
+		destroyPcsAesState(aes);
+	}
+	if (pcs_http_form_addbuffer(pcs->http, &form, "file", buf, (long)sz, filename) != PcsTrue) {
 		pcs_set_errmsg(handle, "Can't build the post data.");
 		pcs_free(filename);
+		if (buf != buffer) pcs_free(buf);
 		return NULL;
 	}
 	pcs_free(filename);
 	meta = pcs_upload_form(handle, path, overwrite, form);
 	pcs_http_form_destroy(pcs->http, form);
+	if (buf != buffer) pcs_free(buf);
 	return meta;
+}
+
+size_t pcs_upload_read_func(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	struct PcsUploadState *state = (struct PcsUploadState *) userdata;
+	struct PcsAesState *aes = state->aes;
+	FILE *file = state->file;
+	char *buf = state->buffer;
+	size_t sz, buf_size = state->buffer_size;
+
+	if (buf_size == 0) {
+		sz = fread(aes->buffer, 1, PCS_BUFFER_SIZE, file);
+		if (sz % AES_BLOCK_SIZE != 0) {
+			buf_size = (sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+			memset(&aes->buffer[sz], 0, buf_size - sz);
+		}
+		else {
+			buf_size = sz;
+		}
+		// encrypt (iv will change)
+		AES_cbc_encrypt(aes->buffer, buf, buf_size, &aes->aes, aes->iv, AES_ENCRYPT);
+		state->buffer_size = buf_size;
+	}
+
+	if (buf_size > 0) {
+		sz = size * nmemb;
+		if (sz >= buf_size) {
+			sz = buf_size;
+			memcpy((char *)ptr, buf, sz);
+			memset(buf, 0, PCS_BUFFER_SIZE);
+			buf_size = 0;
+			state->buffer_size = buf_size;
+		}
+		else {
+			memcpy((char *)ptr, buf, sz);
+			buf_size -= sz;
+			memcpy(buf, &buf[sz], buf_size);
+			state->buffer_size = buf_size;
+		}
+	}
+	else {
+		sz = 0;
+	}
+	return sz;
 }
 
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
@@ -2002,17 +2442,68 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 	char *filename;
 	PcsHttpForm form = NULL;
 	PcsFileInfo *meta;
+	struct PcsUploadState state = { 0 };
+	struct PcsAesState *aes = NULL;
 
 	pcs_clear_errmsg(handle);
 	filename = pcs_utils_filename(path);
-	if (pcs_http_form_addfile(pcs->http, &form, "file", local_filename, filename) != PcsTrue) {
-		pcs_set_errmsg(handle, "Can't build the post data.");
-		pcs_free(filename);
-		return NULL;
+	if (pcs->secure_enable) {
+		size_t file_size = 0, sz = 0;
+		state.file = fopen(local_filename, "rb");
+		if (state.file) {
+			fseek(state.file, 0, SEEK_END);
+			file_size = ftell(state.file);
+			fseek(state.file, 0, SEEK_SET);
+		}
+		else {
+			pcs_set_errmsg(handle, "Can't open the file.");
+			pcs_free(filename);
+			return NULL;
+		}
+		if (file_size % AES_BLOCK_SIZE == 0) {
+			sz = file_size;
+		}
+		else {
+			sz = (file_size / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+		}
+		memset(state.buffer, 0, AES_BLOCK_SIZE);
+		state.buffer[0] = 'A'; state.buffer[1] = 'E'; state.buffer[2] = 'S';
+		state.buffer[4] = (char)(unsigned char)pcs->secure_method;
+		state.buffer[5] = (char)(unsigned char)(sz - file_size);
+		state.buffer_size = AES_BLOCK_SIZE;
+		state.handle = handle;
+		state.contentlength = sz + AES_BLOCK_SIZE;
+		state.secure = pcs->secure_method;
+		aes = createPcsAesState(handle, pcs->secure_method, AES_ENCRYPT, (unsigned char)(sz - file_size));
+		if (!aes) {
+			pcs_set_errmsg(handle, "Can't create AES object.");
+			pcs_free(filename);
+			if (state.file) fclose(state.file);
+			return NULL;
+		}
+		state.aes = aes;
+
+		if (pcs_http_form_addbufferfile(pcs->http, &form, "file", filename, &pcs_upload_read_func, &state, sz + AES_BLOCK_SIZE) != PcsTrue) {
+			pcs_set_errmsg(handle, "Can't build the post data.");
+			pcs_free(filename);
+			destroyPcsAesState(aes);
+			if (state.file) fclose(state.file);
+			return NULL;
+		}
+
+	}
+	else {
+		if (pcs_http_form_addfile(pcs->http, &form, "file", local_filename, filename) != PcsTrue) {
+			pcs_set_errmsg(handle, "Can't build the post data.");
+			pcs_free(filename);
+			return NULL;
+		}
 	}
 	pcs_free(filename);
 	meta = pcs_upload_form(handle, path, overwrite, form);
 	pcs_http_form_destroy(pcs->http, form);
+	if (aes) destroyPcsAesState(aes);
+	if (state.file) fclose(state.file);
 	return meta;
 }
 

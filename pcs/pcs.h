@@ -9,7 +9,13 @@
 #include "pcs_slist.h"
 #include "pcs_utils.h"
 
-#define PCS_API_VERSION "v1.0.3"
+#define PCS_API_VERSION "v1.0.4"
+
+#define PCS_SECURE_NONE				((int)0)
+#define PCS_SECURE_PLAINTEXT		((int)1)
+#define PCS_SECURE_AES_CBC_128		((int)128)
+#define PCS_SECURE_AES_CBC_192		((int)192)
+#define PCS_SECURE_AES_CBC_256		((int)256)
 
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
@@ -35,6 +41,12 @@ typedef enum PcsOption {
 	PCS_OPTION_PROGRESS_FUNCTION_DATE,
 	/* 设置是否启用下载或上传进度，值为PcsBool类型 */
 	PCS_OPTION_PROGRESS,
+	/* 设置加密|解密方法，类型为INT，可选值：PCS_SECURE_NONE,PCS_SECURE_AES_CBC_128,PCS_SECURE_AES_CBC_192,PCS_SECURE_AES_CBC_256 */
+	PCS_OPTION_SECURE_METHOD,
+	/* 设置加密|解密方法的密钥，类型为string。长度16 */
+	PCS_OPTION_SECURE_KEY,
+	/*禁用或启用安全，值为PcsBool类型。设置为PcsTrue时，启用PCS_OPTION_SECURE_METHOD和PCS_OPTION_SECURE_KEY选项；设置为PcsFalse时，禁用PCS_OPTION_SECURE_METHOD和PCS_OPTION_SECURE_KEY选项*/
+	PCS_OPTION_SECURE_ENABLE,
 
 
 } PcsOption;
