@@ -83,9 +83,9 @@ struct PcsDownloadState
 
 struct PcsAesHead
 {
-	char				magic[4]; /*Should be AES*/
-	unsigned char		bits;
-	unsigned char		polish;
+	int					magic; /*Should be AES*/
+	int					bits;
+	int					polish;
 };
 
 struct PcsAesState
@@ -2009,7 +2009,23 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 	return res;
 }
 
-static struct PcsAesState *createPcsAesState(Pcs handle, int bits, int mod, unsigned char polish)
+static inline const struct PcsAesHead *readAesHead(char *buf)
+{
+	static struct PcsAesHead head = { 0 };
+	head.magic = readInt(buf);
+	head.bits = readInt(&buf[4]);
+	head.polish = readInt(&buf[8]);
+	return &head;
+}
+
+//static inline void fillAesHead(const struct PcsAesHead *head, char *buf)
+//{
+//	int2Buffer(head->magic, buf);
+//	int2Buffer(head->bits, &buf[4]);
+//	int2Buffer(head->polish, &buf[8]);
+//}
+
+static struct PcsAesState *createPcsAesState(Pcs handle, int bits, int mod, int polish)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	struct PcsAesState *state = NULL;
@@ -2029,9 +2045,7 @@ static struct PcsAesState *createPcsAesState(Pcs handle, int bits, int mod, unsi
 		return NULL;
 	}
 	memset(state, 0, sizeof(struct PcsAesState));
-	state->head.magic[0] = 'A';
-	state->head.magic[1] = 'E';
-	state->head.magic[2] = 'S';
+	state->head.magic = PCS_AES_MAGIC;
 	state->head.bits = bits;
 	state->head.polish = polish;
 	state->mod = mod;
@@ -2140,22 +2154,16 @@ static size_t pcs_download_write_func(char *ptr, size_t size, size_t contentleng
 		sz -= l;
 		p += l;
 		if (!state->secure && state->buffer_size >= AES_BLOCK_SIZE) {
-			if (state->buffer[0] == 'A'
-				&& state->buffer[1] == 'E'
-				&& state->buffer[2] == 'S'
-				&& state->buffer[3] == '\0'
-				&& (   ((unsigned char)state->buffer[4]) == 128
-					|| ((unsigned char)state->buffer[4]) == 192
-					|| ((unsigned char)state->buffer[4]) == 256 )
-				&& ((unsigned char)state->buffer[5]) < AES_BLOCK_SIZE) {
-				aes = createPcsAesState(state->handle, (unsigned char)state->buffer[4], AES_DECRYPT, (unsigned char)state->buffer[5]);
+			const struct PcsAesHead *head = readAesHead(state->buffer);
+			if (head->magic == PCS_AES_MAGIC && (head->bits == 128 || head->bits == 192 || head->bits == 256) && head->polish >= 0 && head->polish < AES_BLOCK_SIZE) {
+				aes = createPcsAesState(state->handle, head->bits, AES_DECRYPT, head->polish);
 				if (!aes) return 0;
 				state->userdata = aes;
 				state->finish_state = state;
 				state->finish = &pcs_download_aes_finish;
 				state->destroy_state = state;
 				state->destroy = &pcs_download_aes_destroy;
-				switch ((int)((unsigned char)state->buffer[4]))
+				switch (head->bits)
 				{
 				case 128:
 					state->secure = PCS_SECURE_AES_CBC_128;
@@ -2364,9 +2372,9 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 			return NULL;
 		}
 		memset(buf, 0, sz + AES_BLOCK_SIZE);
-		buf[0] = 'A'; buf[1] = 'E'; buf[2] = 'S';
-		buf[4] = (char)(unsigned char)pcs->secure_method;
-		buf[5] = (char)(unsigned char)(sz - buffer_size);
+		int2Buffer(PCS_AES_MAGIC, buf);
+		int2Buffer(pcs->secure_method, &buf[4]);
+		int2Buffer((int)(sz - buffer_size), &buf[8]);
 		aes = createPcsAesState(handle, pcs->secure_method, AES_ENCRYPT, (unsigned char)(sz - buffer_size));
 		if (!aes) {
 			pcs_set_errmsg(handle, "Can't create AES object.");
@@ -2469,9 +2477,9 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 			sz = (file_size / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 		}
 		memset(state.buffer, 0, AES_BLOCK_SIZE);
-		state.buffer[0] = 'A'; state.buffer[1] = 'E'; state.buffer[2] = 'S';
-		state.buffer[4] = (char)(unsigned char)pcs->secure_method;
-		state.buffer[5] = (char)(unsigned char)(sz - file_size);
+		int2Buffer(PCS_AES_MAGIC, state.buffer);
+		int2Buffer(pcs->secure_method, &state.buffer[4]);
+		int2Buffer((int)(sz - file_size), &state.buffer[8]);
 		state.buffer_size = AES_BLOCK_SIZE;
 		state.handle = handle;
 		state.contentlength = sz + AES_BLOCK_SIZE;

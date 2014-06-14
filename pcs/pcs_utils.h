@@ -40,4 +40,13 @@ PCS_API const unsigned char *md5_string_raw(const char *str);
 */
 PCS_API const char *md5_file(const char *file_name);
 
+/*把32位整数按从高位到低位顺序填充到buf的4个字节中。
+* 例：0xF1E2D3C4 填充后 buf[0] = 0xF1, buf[1] = 0xE2, buf[2] = 0xD3, buf[3] = 0xC4.buf中其他项无改动
+*/
+PCS_API void int2Buffer(int v, char *buf);
+
+/*int2Buffer的逆过程*/
+PCS_API int readInt(char *buf);
+
+
 #endif
