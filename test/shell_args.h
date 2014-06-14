@@ -44,7 +44,7 @@ struct params {
 	char		*password;
 	char		*cookie;
 	char		*sort;
-	char		*rc4_key;
+	char		*secure_key;
 	char		*config;
 	char		*cache;
 	PcsBool		is_recursion;
@@ -54,7 +54,7 @@ struct params {
 	PcsBool		use_urlc;
 	PcsBool		is_verbose;
 	PcsBool		is_synch;
-	PcsBool		is_rc4;
+	int			secure_method;
 	PcsBool		md5;
 	enum action action;
 	char		**args;

@@ -5,7 +5,7 @@ OS_NAME = $(shell uname -s | cut -c1-6)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
 
 PCS_OBJS     = bin/cJSON.o bin/pcs.o bin/pcs_fileinfo.o bin/pcs_http.o bin/pcs_mem.o bin/pcs_pan_api_resinfo.o bin/pcs_slist.o bin/pcs_utils.o
-SHELL_OBJS   = bin/shell.o bin/pcs_io.o bin/shell_args.o bin/dir.o bin/hashtable.o bin/rc4.o bin/daemon.o bin/logger.o 
+SHELL_OBJS   = bin/shell.o bin/pcs_io.o bin/shell_args.o bin/dir.o bin/hashtable.o bin/daemon.o bin/logger.o 
 #CCFLAGS      = -DHAVE_ASPRINTF -DHAVE_ICONV
 ifeq ($(LC_OS_NAME), cygwin)
 CYGWIN_CCFLAGS = -largp
@@ -37,8 +37,7 @@ bin/main.o: test/main.c test/shell.h
 bin/shell.o: test/shell.c \
          test/shell.h \
 		 test/shell_args.h \
-		 test/pcs_io.h \
-		 test/rc4.h
+		 test/pcs_io.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/shell.c
 bin/pcs_io.o: test/pcs_io.c test/pcs_io.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/pcs_io.c
@@ -48,8 +47,6 @@ bin/dir.o: test/dir.c test/dir.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS)test/dir.c
 bin/hashtable.o: test/hashtable.c test/hashtable.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/hashtable.c
-bin/rc4.o: test/rc4.c test/rc4.h
-	$(CC) -o $@ -c $(PCS_CCFLAGS) test/rc4.c
 bin/daemon.o: test/daemon.c test/daemon.h test/sql.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) test/daemon.c
 bin/logger.o: test/logger.c test/logger.h
