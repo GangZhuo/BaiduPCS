@@ -13,6 +13,7 @@ extern void (*_pcs_mem_printf)(const char *format, ...);
 #if defined(DEBUG) || defined(_DEBUG)
 
    PCS_API void *pcs_mem_malloc(size_t size, const char *filename, int line);
+   PCS_API void *pcs_mem_malloc_arg1(size_t sz);
    PCS_API void pcs_mem_free(void *p);
    /*´òÓ¡Ð¹Â©µÄÄÚ´æ*/
    PCS_API void pcs_mem_print_leak();

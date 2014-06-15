@@ -55,6 +55,11 @@ PCS_API void *pcs_mem_malloc(size_t size, const char *filename, int line)
 	return ent->ptr;
 }
 
+PCS_API void *pcs_mem_malloc_arg1(size_t sz)
+{
+	return pcs_mem_malloc(sz, "unknow", 0);
+}
+
 PCS_API void pcs_mem_free(void *ptr)
 {
 	struct pcs_mem *ent;
