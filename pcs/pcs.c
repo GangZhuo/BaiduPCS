@@ -28,6 +28,7 @@
 #define URL_HOME			"http://www.baidu.com"
 #define URL_DISK_HOME		"http://pan.baidu.com/disk/home"
 #define URL_PASSPORT_API	"https://passport.baidu.com/v2/api/?"
+#define URL_PASSPORT_LOGOUT	"https://passport.baidu.com/?logout&u=http://pan.baidu.com"
 #define URL_CAPTCHA			"https://passport.baidu.com/cgi-bin/genimage?"
 #define URL_PAN_API			"http://pan.baidu.com/api/"
 #define URL_PCS_REST		"http://c.pcs.baidu.com/rest/2.0/pcs/file"
@@ -1759,6 +1760,40 @@ try_login:
 	pcs_free(token);
 	pcs_free(code_string);
 	pcs_set_errmsg(handle, "Unknown Error");
+	return PCS_FAIL;
+}
+
+PCS_API PcsRes pcs_logout(Pcs handle)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	int http_code;
+
+	pcs_clear_errmsg(handle);
+	http_code = pcs_http_get(pcs->http, URL_PASSPORT_LOGOUT, PcsFalse);
+	if (http_code == 302) {
+		if (pcs->username) {
+			pcs_free(pcs->username);
+			pcs->username = NULL;
+		}
+		if (pcs->password) {
+			pcs_free(pcs->password);
+			pcs->password = NULL;
+		}
+		if (pcs->bdstoken) {
+			pcs_free(pcs->bdstoken);
+			pcs->bdstoken = NULL;
+		}
+		if (pcs->bduss) {
+			pcs_free(pcs->bduss);
+			pcs->bduss = NULL;
+		}
+		if (pcs->sysUID) {
+			pcs_free(pcs->sysUID);
+			pcs->sysUID = NULL;
+		}
+		return PCS_OK;
+	}
+	pcs_set_errmsg(handle, "Can't logout. Http Code: %d", http_code);
 	return PCS_FAIL;
 }
 

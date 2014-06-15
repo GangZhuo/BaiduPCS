@@ -9,7 +9,7 @@
 #include "pcs_slist.h"
 #include "pcs_utils.h"
 
-#define PCS_API_VERSION "v1.0.4"
+#define PCS_API_VERSION "v1.0.5"
 
 #define PCS_SECURE_NONE				((int)0)
 #define PCS_SECURE_PLAINTEXT		((int)1)
@@ -181,6 +181,12 @@ PCS_API PcsRes pcs_islogin(Pcs handle);
  * 成功后返回PCS_LOGIN，失败则返回错误编号
 */
 PCS_API PcsRes pcs_login(Pcs handle);
+
+/*
+* 注销百度帐号，
+* 成功后返回PCS_OK，失败则返回PCS_FAIL
+*/
+PCS_API PcsRes pcs_logout(Pcs handle);
 
 /*
  * 获取网盘配额
