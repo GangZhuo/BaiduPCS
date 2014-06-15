@@ -7,10 +7,12 @@ ipch
 *.user
 *.exe
 *.o
+*.stackdump
 obj
 objs
 bin
 libconfig.a
 libpcs.a
 test/version.h
+version.h
 .DS_Store
