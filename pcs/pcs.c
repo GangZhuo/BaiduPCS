@@ -1769,7 +1769,8 @@ PCS_API PcsRes pcs_logout(Pcs handle)
 	int http_code;
 
 	pcs_clear_errmsg(handle);
-	http_code = pcs_http_get(pcs->http, URL_PASSPORT_LOGOUT, PcsFalse);
+	pcs_http_get(pcs->http, URL_PASSPORT_LOGOUT, PcsFalse);
+	http_code = pcs_http_code(pcs->http);
 	if (http_code == 302) {
 		if (pcs->username) {
 			pcs_free(pcs->username);
