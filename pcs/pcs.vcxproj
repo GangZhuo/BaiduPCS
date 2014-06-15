@@ -84,6 +84,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\hashtable.c" />
     <ClCompile Include="..\shell.c" />
     <ClCompile Include="..\sqlite\sqlite3.c" />
     <ClCompile Include="cJSON.c" />
@@ -96,6 +97,7 @@
     <ClCompile Include="pcs_utils.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\hashtable.h" />
     <ClInclude Include="..\shell.h" />
     <ClInclude Include="..\sqlite\sqlite3.h" />
     <ClInclude Include="..\sqlite\sqlite3ext.h" />

@@ -57,6 +57,9 @@
     <ClCompile Include="..\shell.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\hashtable.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cJSON.h">
@@ -99,6 +102,9 @@
       <Filter>Header Files\pcs</Filter>
     </ClInclude>
     <ClInclude Include="..\shell.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\hashtable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

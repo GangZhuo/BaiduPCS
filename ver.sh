@@ -5,7 +5,7 @@ if git status | grep -q "modified:" ; then
 fi
 echo "Version: $VER"
 
-rm -f ./test/version.h
-cat ./test/version.h.in | sed "s/\$GIT_VERSION/$VER/g" > ./test/version.h
+rm -f ./version.h
+cat ./version.h.in | sed "s/\$GIT_VERSION/$VER/g" > ./version.h
 #echo $GIT_VERSION
 echo "Generated version.h"
