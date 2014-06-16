@@ -2045,13 +2045,11 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 	return res;
 }
 
-static inline const struct PcsAesHead *readAesHead(char *buf)
+static inline void readToAesHead(char *buf, struct PcsAesHead *head)
 {
-	static struct PcsAesHead head = { 0 };
-	head.magic = readInt(buf);
-	head.bits = readInt(&buf[4]);
-	head.polish = readInt(&buf[8]);
-	return &head;
+	head->magic = readInt(buf);
+	head->bits = readInt(&buf[4]);
+	head->polish = readInt(&buf[8]);
 }
 
 //static inline void fillAesHead(const struct PcsAesHead *head, char *buf)
@@ -2190,16 +2188,17 @@ static size_t pcs_download_write_func(char *ptr, size_t size, size_t contentleng
 		sz -= l;
 		p += l;
 		if (!state->secure && state->buffer_size >= AES_BLOCK_SIZE) {
-			const struct PcsAesHead *head = readAesHead(state->buffer);
-			if (head->magic == PCS_AES_MAGIC && (head->bits == 128 || head->bits == 192 || head->bits == 256) && head->polish >= 0 && head->polish < AES_BLOCK_SIZE) {
-				aes = createPcsAesState(state->handle, head->bits, AES_DECRYPT, head->polish);
+			struct PcsAesHead head = { 0 };
+			readToAesHead(state->buffer, &head);
+			if (head.magic == PCS_AES_MAGIC && (head.bits == 128 || head.bits == 192 || head.bits == 256) && head.polish >= 0 && head.polish < AES_BLOCK_SIZE) {
+				aes = createPcsAesState(state->handle, head.bits, AES_DECRYPT, head.polish);
 				if (!aes) return 0;
 				state->userdata = aes;
 				state->finish_state = state;
 				state->finish = &pcs_download_aes_finish;
 				state->destroy_state = state;
 				state->destroy = &pcs_download_aes_destroy;
-				switch (head->bits)
+				switch (head.bits)
 				{
 				case 128:
 					state->secure = PCS_SECURE_AES_CBC_128;
