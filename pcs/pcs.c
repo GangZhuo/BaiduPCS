@@ -1549,6 +1549,7 @@ PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value)
 		pcs->secure_method = (int)((long)value);
 		break;
 	case PCS_OPTION_SECURE_KEY:
+		if (pcs->secure_key) pcs_free(pcs->secure_key);
 		pcs->secure_key = pcs_utils_strdup((char *)value);
 		break;
 	case PCS_OPTION_SECURE_ENABLE:
