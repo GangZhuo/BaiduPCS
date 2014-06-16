@@ -2371,10 +2371,12 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 	if (pcs->buffer) pcs_free(pcs->buffer);
 	pcs->buffer = NULL;
 	pcs->buffer_size = 0;
-	if (pcs->secure_enable)
+	if (pcs->secure_enable) {
 		rc = pcs_download_secure(handle, path, &pcs_cat_write_func, pcs);
-	else
+	}
+	else {
 		rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs);
+	}
 	if (dstsz) *dstsz = pcs->buffer_size;
 	return pcs->buffer;
 }
