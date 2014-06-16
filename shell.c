@@ -20,6 +20,7 @@
 #include "version.h"
 #include "shell.h"
 #include "dir.h"
+#include "rb_tree/red_black_tree.h"
 
 #if defined(WIN32)
 # define mkdir _mkdir
@@ -183,6 +184,32 @@ static int is_absolute_path(const char *path)
 
 #endif
 
+/*红黑树中用于释放 key */
+static void rb_destory_key(void *a)
+{
+}
+
+/*红黑树中用于释放 info */
+static void rb_destory_info(void *a)
+{
+}
+
+/*红黑树中用于比较 key 值。当 *a > *b 时，返回 1; 当 *a < *b 时，返回 -1; 当相等时，返回 0。 */
+static int rb_compare(const void *a, const void *b)
+{
+	return(0);
+}
+
+/*红黑树中用于打印 key */
+static void rb_print_key(const void *a)
+{
+}
+
+/*红黑树中用于打印 info */
+static void rb_print_info(void *a)
+{
+}
+
 /*返回COOKIE文件路径*/
 static const char *cookiefile()
 {
@@ -271,6 +298,24 @@ static int upload_progress(void *clientp, double dltotal, double dlnow, double u
 	fflush(stdout);
 
 	return 0;
+}
+
+/*下载文件时，写入文件并显示进度*/
+static int download_write(char *ptr, size_t size, size_t contentlength, void *userdata)
+{
+	struct DownloadState *ds = (struct DownloadState *)userdata;
+	FILE *pf = ds->pf;
+	size_t i;
+	char tmp[64];
+	tmp[63] = '\0';
+	i = fwrite(ptr, 1, size, pf);
+	ds->size += i;
+	if (ds->msg)
+		printf("%s", ds->msg);
+	printf("%s", pcs_utils_readable_size(ds->size, tmp, 63, NULL));
+	printf("/%s      \r", pcs_utils_readable_size(contentlength, tmp, 63, NULL));
+	fflush(stdout);
+	return i;
 }
 
 /*
@@ -875,6 +920,7 @@ static void free_context(ShellContext *context)
 	memset(context, 0, sizeof(ShellContext));
 }
 
+/*初始化PCS的安全选项*/
 static void init_pcs_secure(ShellContext *context)
 {
 	int method = 0;
@@ -1274,6 +1320,7 @@ static void usage(ShellContext *context)
 	printf("  %s cd /temp\n", context->name);
 }
 
+/*判断是否需要打印usage*/
 static inline int is_print_usage(int argc, char *argv[])
 {
 	return (argc == 1 && (strcmp(argv[0], "-h") == 0 || strcmp(argv[0], "-?") == 0 || strcmp(argv[0], "--help") == 0));
@@ -1299,6 +1346,124 @@ static PcsBool is_login(ShellContext *context, const char *msg)
 		printf("You are not logon or your session is time out. You can login by 'login' command.\n");
 	}
 	return PcsFalse;
+}
+
+/*设置上下文中的cookiefile值*/
+static int set_cookiefile(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (streq(context->cookiefile, val, -1)) return 0;
+	if (context->cookiefile) pcs_free(context->cookiefile);
+	context->cookiefile = pcs_utils_strdup(val);
+	if (context->pcs) {
+		pcs_destroy(context->pcs);
+		context->pcs = NULL;
+		init_pcs(context);
+	}
+	return 0;
+}
+
+/*设置上下文中的captchafile值*/
+static int set_captchafile(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (streq(context->captchafile, val, -1)) return 0;
+	if (context->captchafile) pcs_free(context->captchafile);
+	context->captchafile = pcs_utils_strdup(val);
+	return 0;
+}
+
+/*设置上下文中的list_page_size值*/
+static int set_list_page_size(ShellContext *context, const char *val)
+{
+	const char *p = val;
+	int v;
+	if (!val || !val[0]) return -1;
+	while (*p) {
+		if (*p < '0' || *p > '9')
+			return -1;
+		p++;
+	}
+	v = atoi(val);
+	if (v < 1) return -1;
+	context->list_page_size = v;
+	return 0;
+}
+
+/*设置上下文中的list_sort_name值*/
+static int set_list_sort_name(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (strcmp(val, "name") && strcmp(val, "time") && strcmp(val, "size")) {
+		return -1;
+	}
+	if (streq(context->list_sort_name, val, -1)) return 0;
+	if (context->list_sort_name) pcs_free(context->list_sort_name);
+	context->list_sort_name = pcs_utils_strdup(val);
+	return 0;
+}
+
+/*设置上下文中的list_sort_direction值*/
+static int set_list_sort_direction(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (strcmp(val, "asc") && strcmp(val, "desc")) {
+		return -1;
+	}
+	if (streq(context->list_sort_direction, val, -1)) return 0;
+	if (context->list_sort_direction) pcs_free(context->list_sort_direction);
+	context->list_sort_direction = pcs_utils_strdup(val);
+	return 0;
+}
+
+/*设置上下文中的secure_method值*/
+static int set_secure_method(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (strcmp(val, "plaintext") && strcmp(val, "aes-cbc-128") && strcmp(val, "aes-cbc-192") && strcmp(val, "aes-cbc-256")) {
+		return -1;
+	}
+	if (streq(context->secure_method, val, -1)) return 0;
+	if (context->secure_method) pcs_free(context->secure_method);
+	context->secure_method = pcs_utils_strdup(val);
+
+	if (context->pcs) {
+		init_pcs_secure(context);
+	}
+	return 0;
+}
+
+/*设置上下文中的secure_key值*/
+static int set_secure_key(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (streq(context->secure_key, val, -1)) return 0;
+	if (context->secure_key) pcs_free(context->secure_key);
+	context->secure_key = pcs_utils_strdup(val);
+
+	if (context->pcs) {
+		init_pcs_secure(context);
+	}
+	return 0;
+}
+
+/*设置上下文中的secure_enable值*/
+static int set_secure_enable(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (strcmp(val, "true") == 0) {
+		context->secure_enable = 1;
+	}
+	else if (strcmp(val, "false") == 0) {
+		context->secure_enable = 0;
+	}
+	else {
+		return -1;
+	}
+	if (context->pcs) {
+		init_pcs_secure(context);
+	}
+	return 0;
 }
 
 /*打印网盘文件内容*/
@@ -1431,23 +1596,6 @@ static int cmd_context(ShellContext *context, int argc, char *argv[])
 	printf("%s\n", json);
 	pcs_free(json);
 	return 0;
-}
-
-static int download_write(char *ptr, size_t size, size_t contentlength, void *userdata)
-{
-	struct DownloadState *ds = (struct DownloadState *)userdata;
-	FILE *pf = ds->pf;
-	size_t i;
-	char tmp[64];
-	tmp[63] = '\0';
-	i = fwrite(ptr, 1, size, pf);
-	ds->size += i;
-	if (ds->msg)
-		printf("%s", ds->msg);
-	printf("%s", pcs_utils_readable_size(ds->size, tmp, 63, NULL));
-	printf("/%s      \r", pcs_utils_readable_size(contentlength, tmp, 63, NULL));
-	fflush(stdout);
-	return i;
 }
 
 /*下载*/
@@ -2031,116 +2179,6 @@ static int cmd_rename(ShellContext *context, int argc, char *argv[])
 	printf("Rename %s to %s Success.\n", slist.string1, slist.string2);
 	pcs_pan_api_res_destroy(res);
 	pcs_free(slist.string1);
-	return 0;
-}
-
-static int set_cookiefile(ShellContext *context, const char *val)
-{
-	if (!val || !val[0]) return -1;
-	if (streq(context->cookiefile, val, -1)) return 0;
-	if (context->cookiefile) pcs_free(context->cookiefile);
-	context->cookiefile = pcs_utils_strdup(val);
-	if (context->pcs) {
-		pcs_destroy(context->pcs);
-		context->pcs = NULL;
-		init_pcs(context);
-	}
-	return 0;
-}
-
-static int set_captchafile(ShellContext *context, const char *val)
-{
-	if (!val || !val[0]) return -1;
-	if (streq(context->captchafile, val, -1)) return 0;
-	if (context->captchafile) pcs_free(context->captchafile);
-	context->captchafile = pcs_utils_strdup(val);
-	return 0;
-}
-
-static int set_list_page_size(ShellContext *context, const char *val)
-{
-	const char *p = val;
-	int v;
-	if (!val || !val[0]) return -1;
-	while (*p) {
-		if (*p < '0' || *p > '9')
-			return -1;
-		p++;
-	}
-	v = atoi(val);
-	if (v < 1) return -1;
-	context->list_page_size = v;
-	return 0;
-}
-
-static int set_list_sort_name(ShellContext *context, const char *val)
-{
-	if (!val || !val[0]) return -1;
-	if (strcmp(val, "name") && strcmp(val, "time") && strcmp(val, "size")) {
-		return -1;
-	}
-	if (streq(context->list_sort_name, val, -1)) return 0;
-	if (context->list_sort_name) pcs_free(context->list_sort_name);
-	context->list_sort_name = pcs_utils_strdup(val);
-	return 0;
-}
-
-static int set_list_sort_direction(ShellContext *context, const char *val)
-{
-	if (!val || !val[0]) return -1;
-	if (strcmp(val, "asc") && strcmp(val, "desc")) {
-		return -1;
-	}
-	if (streq(context->list_sort_direction, val, -1)) return 0;
-	if (context->list_sort_direction) pcs_free(context->list_sort_direction);
-	context->list_sort_direction = pcs_utils_strdup(val);
-	return 0;
-}
-
-static int set_secure_method(ShellContext *context, const char *val)
-{
-	if (!val || !val[0]) return -1;
-	if (strcmp(val, "plaintext") && strcmp(val, "aes-cbc-128") && strcmp(val, "aes-cbc-192") && strcmp(val, "aes-cbc-256")) {
-		return -1;
-	}
-	if (streq(context->secure_method, val, -1)) return 0;
-	if (context->secure_method) pcs_free(context->secure_method);
-	context->secure_method = pcs_utils_strdup(val);
-
-	if (context->pcs) {
-		init_pcs_secure(context);
-	}
-	return 0;
-}
-
-static int set_secure_key(ShellContext *context, const char *val)
-{
-	if (!val || !val[0]) return -1;
-	if (streq(context->secure_key, val, -1)) return 0;
-	if (context->secure_key) pcs_free(context->secure_key);
-	context->secure_key = pcs_utils_strdup(val);
-
-	if (context->pcs) {
-		init_pcs_secure(context);
-	}
-	return 0;
-}
-
-static int set_secure_enable(ShellContext *context, const char *val)
-{
-	if (!val || !val[0]) return -1;
-	if (strcmp(val, "true") == 0) {
-		context->secure_enable = 1;
-	}
-	else if (strcmp(val, "false") == 0) {
-		context->secure_enable = 0;
-	}
-	else {
-		return -1;
-	}
-	if (context->pcs) {
-		init_pcs_secure(context);
-	}
 	return 0;
 }
 

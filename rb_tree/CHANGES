@@ -1,0 +1,10 @@
+
+Sun Jan 09, 2005: I fixed a bug that caused the test_rb program to
+                  go into an infinite loop if the user entered an
+                  invalid key.  Thanks to Amores Perros for pointing
+                  out this problem.
+
+Wed Sep 19, 2001: I fixed some bugs and memory leaks pointed out
+                  by Brett Donahue and added some rudimentary
+                  memory checking tests to the makefile.
+

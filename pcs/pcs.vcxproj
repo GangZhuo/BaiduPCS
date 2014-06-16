@@ -86,6 +86,9 @@
   <ItemGroup>
     <ClCompile Include="..\dir.c" />
     <ClCompile Include="..\hashtable.c" />
+    <ClCompile Include="..\rb_tree\misc.c" />
+    <ClCompile Include="..\rb_tree\red_black_tree.c" />
+    <ClCompile Include="..\rb_tree\stack.c" />
     <ClCompile Include="..\shell.c" />
     <ClCompile Include="..\sqlite\sqlite3.c" />
     <ClCompile Include="cJSON.c" />
@@ -100,6 +103,9 @@
   <ItemGroup>
     <ClInclude Include="..\dir.h" />
     <ClInclude Include="..\hashtable.h" />
+    <ClInclude Include="..\rb_tree\misc.h" />
+    <ClInclude Include="..\rb_tree\red_black_tree.h" />
+    <ClInclude Include="..\rb_tree\stack.h" />
     <ClInclude Include="..\shell.h" />
     <ClInclude Include="..\sqlite\sqlite3.h" />
     <ClInclude Include="..\sqlite\sqlite3ext.h" />
