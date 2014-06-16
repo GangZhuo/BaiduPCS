@@ -26,11 +26,26 @@
 # define mkdir _mkdir
 #endif
 
-struct DownloadState {
+#define MYMETA_FILENAME		"pcs.meta"
+
+/*MyMeta，用于维护一份自己的文件元数据*/
+typedef struct MyMeta MyMeta;
+struct MyMeta
+{
+	char	*path;
+	time_t	mtime;
+	char	*md5;
+	size_t	size;
+};
+
+struct DownloadState
+{
 	FILE *pf;
 	char *msg;
 	size_t size;
 };
+
+static PcsBool is_login(ShellContext *context, const char *msg);
 
 #ifdef WIN32
 
@@ -184,30 +199,69 @@ static int is_absolute_path(const char *path)
 
 #endif
 
-/*红黑树中用于释放 key */
-static void rb_destory_key(void *a)
+/*
+string to time_t
+时间格式 2009-3-24 0:00:08 或 2009-3-24
+*/
+int str2time(const char *str, time_t *timeData)
 {
-}
+	char *pBeginPos = (char*)str;
+	char *pPos = strstr(pBeginPos, "-");
+	int iYear, iMonth, iDay, iHour, iMin, iSec;
+	struct tm sourcedate = { 0 };
+	if (pPos == NULL) {
+		printf("strDateStr[%s] err \n", str);
+		return -1;
+	}
+	iYear = atoi(pBeginPos);
+	iMonth = atoi(pPos + 1);
+	pPos = strstr(pPos + 1, "-");
+	if (pPos == NULL) {
+		printf("strDateStr[%s] err \n", str);
+		return -1;
+	}
+	iDay = atoi(pPos + 1);
+	iHour = 0;
+	iMin = 0;
+	iSec = 0;
+	pPos = strstr(pPos + 1, " ");
+	//为了兼容有些没精确到时分秒的
+	if (pPos != NULL) {
+		iHour = atoi(pPos + 1);
+		pPos = strstr(pPos + 1, ":");
+		if (pPos != NULL) {
+			iMin = atoi(pPos + 1);
+			pPos = strstr(pPos + 1, ":");
+			if (pPos != NULL) {
+				iSec = atoi(pPos + 1);
+			}
+		}
+	}
 
-/*红黑树中用于释放 info */
-static void rb_destory_info(void *a)
-{
+	sourcedate.tm_sec = iSec;
+	sourcedate.tm_min = iMin;
+	sourcedate.tm_hour = iHour;
+	sourcedate.tm_mday = iDay;
+	sourcedate.tm_mon = iMonth - 1;
+	sourcedate.tm_year = iYear - 1900;
+	timeData = mktime(&sourcedate);
+	return 0;
 }
-
-/*红黑树中用于比较 key 值。当 *a > *b 时，返回 1; 当 *a < *b 时，返回 -1; 当相等时，返回 0。 */
-static int rb_compare(const void *a, const void *b)
+/*
+time_t to string 时间格式 2009-3-24 0:00:08
+*/
+int time2str(char *buf, const time_t *t)
 {
-	return(0);
-}
+	char chTmp[100] = { 0 };
+	struct tm *p;
+	p = localtime(t);
+	p->tm_year = p->tm_year + 1900;
+	p->tm_mon = p->tm_mon + 1;
 
-/*红黑树中用于打印 key */
-static void rb_print_key(const void *a)
-{
-}
-
-/*红黑树中用于打印 info */
-static void rb_print_info(void *a)
-{
+	snprintf(chTmp, sizeof(chTmp), "%04d-%02d-%02d %02d:%02d:%02d",
+		p->tm_year, p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec);
+	strcpy(buf, chTmp);
+	return 0;
 }
 
 /*返回COOKIE文件路径*/
@@ -1015,11 +1069,15 @@ static void usage_copy(ShellContext *context)
 static void usage_compare(ShellContext *context)
 {
 	version(context);
-	printf("\nUsage: %s compare\n", context->name);
+	printf("\nUsage: %s compare [-f] <local path> <net disk path>\n", context->name);
 	printf("\nDescription:\n");
 	printf("  Print the differents between local and net disk\n");
+	printf("\nOptions:\n");
+	printf("  -r    Recursive compare the sub directories.\n");
 	printf("\nSamples:\n");
-	printf("  %s compare\n", context->name);
+	printf("  %s compare ~/music /music\n", context->name);
+	printf("  %s compare music /music\n", context->name);
+	printf("  %s compare -r music /music\n", context->name);
 }
 
 /*打印context命令用法*/
@@ -1466,6 +1524,200 @@ static int set_secure_enable(ShellContext *context, const char *val)
 	return 0;
 }
 
+
+/*创建一个MyMeta*/
+static MyMeta *meta_create(const char *path, time_t mtime, const char *md5, size_t size)
+{
+	MyMeta *rc;
+	rc = (MyMeta *)pcs_malloc(sizeof(MyMeta));
+	assert(rc);
+	memset(rc, 0, sizeof(MyMeta));
+	if (path) rc->path = pcs_utils_strdup(path);
+	rc->mtime = mtime;
+	if (md5) rc->md5 = pcs_utils_strdup(md5);
+	rc->size = size;
+	return rc;
+}
+
+/*释放掉一个MyMeta*/
+static void meta_destroy(MyMeta *meta)
+{
+	if (!meta) return;
+	if (meta->path) pcs_free(meta->path);
+	if (meta->md5) pcs_free(meta->md5);
+	pcs_free(meta);
+}
+
+static void rb_destory_string(void *a);
+static void rb_destory_meta(void *a);
+static int rb_compare_string(const void *a, const void *b);
+static void rb_print_string(const void *a);
+static void rb_print_meta(void *a);
+
+/* Utility to jump whitespace and cr/lf and comma */
+static const char *skip_space(const char *in)
+{
+	while (in && *in && ((unsigned char)*in <= 32 || *in == ','))
+		in++;
+	return in;
+}
+
+/*读取一个字符串*/
+static const char *parse_string(const char *in, char **ptr)
+{
+	const char *p = in, *start, *end, *result = NULL;
+	p = skip_space(p);
+	if (*p != '\"') {
+		printf("Error: Can't read. Wrong format.");
+		return NULL;
+	}
+	p++;
+	start = p;
+	while (*p && *p != '\"') p++;
+	if (*p != '\"') {
+		printf("Error: Can't read. Wrong format.");
+		return NULL;
+	}
+	end = p;
+	*ptr = (char *)pcs_malloc(end - start + 1);
+	assert(*ptr);
+	memcpy(*ptr, start, end - start);
+	*ptr[end - start] = '\0';
+	return p + 1;
+}
+
+/*读取一个字符串*/
+static const char *parse_numeric(const char *in, char **ptr)
+{
+	const char *p = in, *start, *end, *result = NULL;
+	p = skip_space(p);
+	if (*p != '-' && (*p < '0' || *p > '9')) {
+		printf("Error: Can't read. Wrong format.");
+		return NULL;
+	}
+	start = p;
+	if (*p == '-') p++;
+	while (*p && (*p >= '0' && *p <= '9')) p++;
+	end = p;
+	*ptr = (char *)pcs_malloc(end - start + 1);
+	assert(*ptr);
+	memcpy(*ptr, start, end - start);
+	*ptr[end - start] = '\0';
+	return p;
+}
+
+static MyMeta *meta_read(const char **ptr)
+{
+	const char *p = *ptr;
+	char *num;
+	MyMeta *meta;
+
+	meta = meta_create(NULL, 0, NULL, 0);
+	assert(meta);
+	p = parse_string(p, &meta->path);
+	if (!p) {
+		meta_destroy(meta);
+		return NULL;
+	}
+	p = parse_string(p, &num);
+	if (!p) {
+		meta_destroy(meta);
+		return NULL;
+	}
+	str2time(num, &meta->mtime);
+	p = parse_numeric(p, &num);
+	if (!p) {
+		meta_destroy(meta);
+		return NULL;
+	}
+	meta->size = (size_t)((unsigned long)atol(num));
+	*ptr = p;
+	return meta;
+}
+
+/*从网盘中下载dir指定目录中文件的元数据*/
+static rb_red_blk_tree *meta_download(ShellContext *context, const char *dir)
+{
+	rb_red_blk_tree *rb = NULL;
+	char *path;
+	const char *res, *p;
+	size_t sz;
+	MyMeta *meta;
+	if (!is_login(context, "")) {
+		printf("Error: Can't get meta file. Your session is time out.\n");
+		return NULL;
+	}
+	path = combin_unix_path(context->workdir, MYMETA_FILENAME);
+	assert(path);
+	res = pcs_cat(context->pcs, path, &sz);
+	if (res == NULL) {
+		printf("Error: Can't get meta file. %s\n", path, pcs_strerror(context->pcs));
+		pcs_free(path);
+		return NULL;
+	}
+	pcs_free(path);
+
+	rb = RBTreeCreate(&rb_compare_string, &rb_destory_string, &rb_destory_meta, &rb_print_string, &rb_print_meta);
+	assert(rb);
+
+	p = res;
+	while ((meta = meta_read(&p)) != NULL) {
+		RBTreeInsert(rb, meta->path, meta);
+	}
+	pcs_free(res);
+	return rb;
+}
+
+/*查询path指定文件的元数据*/
+static MyMeta *meta_query(rb_red_blk_tree *rb, const char *path)
+{
+	rb_red_blk_node *node;
+	node = RBExactQuery(rb, path);
+	if (node) {
+		return (MyMeta *)node->info;
+	}
+	return NULL;
+}
+
+/*红黑树中用于释放 key */
+static void rb_destory_string(void *a)
+{
+	if (a) pcs_free(a);
+}
+
+/*红黑树中用于释放 info */
+static void rb_destory_meta(void *a)
+{
+	if (a) meta_destroy((MyMeta *)a);
+}
+
+/*红黑树中用于比较 key 值。当 *a > *b 时，返回 1; 当 *a < *b 时，返回 -1; 当相等时，返回 0。 */
+static int rb_compare_string(const void *a, const void *b)
+{
+	int rc = strcmp(a, b);
+	return (rc < 0 ? -1 : (rc > 0 ? 1 : 0));
+}
+
+/*红黑树中用于打印 key */
+static void rb_print_string(const void *a)
+{
+	printf("%s", a);
+}
+
+/*红黑树中用于打印 info */
+static void rb_print_meta(void *a)
+{
+	MyMeta *meta = (MyMeta *)a;
+	if (!meta) {
+		printf("(null)\n");
+		return;
+	}
+	printf("Path:\t\t%s\n", meta->path);
+	print_time("Modify time:\t%s\n", meta->mtime);
+	print_size("Size:\t\t%s\n", meta->size);
+	printf("md5:\t\t%s\n", meta->md5);
+}
+
 /*打印网盘文件内容*/
 static int cmd_cat(ShellContext *context, int argc, char *argv[])
 {
@@ -1574,12 +1826,108 @@ static int cmd_copy(ShellContext *context, int argc, char *argv[])
 /*比较本地和网盘目录的异同*/
 static int cmd_compare(ShellContext *context, int argc, char *argv[])
 {
+	int is_recursive = 0;
+	char *path = NULL;
+	const char *relPath = NULL, *locPath = NULL;
+	int i;
+
+	int ft;
+	PcsFileInfo *meta;
+	PcsRes res;
+
 	if (is_print_usage(argc, argv)) {
 		usage_compare(context);
 		return 0;
 	}
-	if (!is_login(context, NULL)) return -1;
-	printf("not implement\n");
+	if (argc != 2 && argc != 3) {
+		usage_compare(context);
+		return -1;
+	}
+	/*解析参数 - 开始*/
+	if (argc == 2){
+		if (strcmp(argv[0], "-f") == 0 || strcmp(argv[1], "-f") == 0) {
+			usage_compare(context);
+			return -1;
+		}
+		locPath = argv[0];
+		relPath = argv[1];
+	}
+	else if (argc == 3) {
+		for (i = 0; i < argc; i++) {
+			if (is_recursive == 0 && strcmp(argv[i], "-f") == 0) {
+				is_recursive = 1;
+			}
+			else if (locPath == NULL) {
+				locPath = argv[i];
+			}
+			else if (relPath == NULL) {
+				relPath = argv[i];
+			}
+			else {
+				usage_compare(context);
+				return -1;
+			}
+		}
+		if (is_recursive == 0) {
+			usage_compare(context);
+			return -1;
+		}
+	}
+	if (!locPath || !relPath) {
+		usage_compare(context);
+		return -1;
+	}
+	/*解析参数 - 结束*/
+
+	/*检查本地文件 - 开始*/
+	ft = is_dir_or_file(locPath);
+	if (ft == 0) {
+		printf("Error: The local %s not exist, and it's a directory.\n", locPath);
+		return -1;
+	}
+	/*检查本地文件 - 结束*/
+
+	//检查是否已经登录
+	if (!is_login(context, NULL)) {
+		return -1;
+	}
+
+	path = combin_unix_path(context->workdir, relPath);
+	if (!path) {
+		assert(path);
+		return -1;
+	}
+
+	/*检查网盘文件 - 开始*/
+	meta = pcs_meta(context->pcs, path);
+	if (!meta) {
+		printf("Error: Can't find the meta for %s\n", pcs_strerror(context->pcs));
+		pcs_free(path);
+		return -1;
+	}
+
+	if (ft == 1) {
+		if (meta->isdir) {
+			printf("Error: local %s is file, but remote %s is directory.\n", locPath, path);
+			pcs_free(path);
+			return -1;
+		}
+		else {
+			/*比较文件异同*/
+
+		}
+	}
+
+	if (meta->isdir) {
+		printf("Error: The net disk file %s is directory.\n", path);
+		pcs_fileinfo_destroy(meta);
+		pcs_free(path);
+		return -1;
+	}
+	pcs_fileinfo_destroy(meta);
+	/*检查网盘文件 - 结束*/
+
+	
 	return 0;
 }
 
