@@ -2375,6 +2375,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 		rc = pcs_download_secure(handle, path, &pcs_cat_write_func, pcs);
 	else
 		rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs);
+	if (dstsz) *dstsz = pcs->buffer_size;
 	return pcs->buffer;
 }
 
