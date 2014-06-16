@@ -1,5 +1,5 @@
-#ifndef _BAIDUPCS_SHELL_H
-#define _BAIDUPCS_SHELL_H
+#ifndef _PCS_SHELL_SHELL_H
+#define _PCS_SHELL_SHELL_H
 
 #include <time.h>
 #include "pcs/pcs.h"
