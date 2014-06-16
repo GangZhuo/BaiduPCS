@@ -646,6 +646,15 @@ static void print_time(const char *format, UInt64 time)
 	}
 }
 
+/*打印可读的文件大小*/
+static void print_size(const char *format, UInt64 size)
+{
+	char tmp[64];
+	tmp[63] = '\0';
+	pcs_utils_readable_size(size, tmp, 63, NULL);
+	printf(format, tmp);
+}
+
 /*打印文件列表的头*/
 static void print_filelist_head(int size_width)
 {
@@ -741,6 +750,26 @@ static void print_str(const char *str, int len)
 		for (i = 0; i < len; i++) {
 			putchar(str[i]);
 		}
+	}
+}
+
+/*打印文件或目录的元数据*/
+static void print_fileinfo(PcsFileInfo *f, const char *prex)
+{
+	if (!prex) prex = "";
+	printf("%sCategory:\t%d\n", prex, f->category);
+	printf("%sPath:\t\t%s\n", prex, f->path);
+	printf("%sFilename:\t%s\n", prex, f->server_filename);
+	printf("%s", prex);
+	print_time("Create time:\t%s\n", f->server_ctime);
+	printf("%s", prex);
+	print_time("Modify time:\t%s\n", f->server_mtime);
+	printf("%sIs Dir:\t%s\n", prex, f->isdir ? "Yes" : "No");
+	if (!f->isdir) {
+		printf("%s", prex);
+		print_size("Size:\t\t%s\n", f->size);
+		printf("%smd5:\t\t%s\n", prex, f->md5);
+		printf("%sdlink:\t\t%s\n", prex, f->dlink);
 	}
 }
 
@@ -858,7 +887,7 @@ static void init_pcs_secure(ShellContext *context)
 	}
 	if (method){
 		pcs_setopts(context->pcs,
-			PCS_OPTION_SECURE_METHOD, (void *)((long)context->secure_method),
+			PCS_OPTION_SECURE_METHOD, (void *)((long)method),
 			PCS_OPTION_SECURE_KEY, context->secure_key,
 			PCS_OPTION_SECURE_ENABLE, context->secure_enable ? ((void *)((long)PcsTrue)) : ((void *)((long)PcsFalse)),
 			PCS_OPTION_END);
@@ -921,6 +950,19 @@ static void usage_copy(ShellContext *context)
 	printf("  %s copy src.txt dst.txt\n", context->name);
 	printf("  %s copy /music/src.mp3 /music/mp3/dst.mp3\n", context->name);
 	printf("  %s copy /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", context->name);
+}
+
+/*打印echo命令用法*/
+static void usage_echo(ShellContext *context)
+{
+	version(context);
+	printf("Usage: %s echo [-a] <path> <text>\n", context->name);
+	printf("Options:\n");
+	printf("  -a    Append the text.\n");
+	printf("Samples:\n");
+	printf("  %s echo src.txt \"This is from 'echo' command.\" \n", context->name);
+	printf("  %s echo /docs/src.txt \"This is from 'echo' command.\"\n", context->name);
+	printf("  %s echo -a \"for test/src.txt\" \"This is from 'echo' command.\"\n", context->name);
 }
 
 /*打印list命令用法*/
@@ -1021,6 +1063,28 @@ static void usage_help(ShellContext *context)
 	printf("  %s help\n", context->name);
 }
 
+/*打印meta命令用法*/
+static void usage_meta(ShellContext *context)
+{
+	version(context);
+	printf("Usage: %s meta [path]\n", context->name);
+	printf("Samples:\n");
+	printf("  %s meta\n", context->name);
+	printf("  %s meta /music\n", context->name);
+	printf("  %s meta \"/music/Europe and America\"\n", context->name);
+}
+
+/*打印mkdir命令用法*/
+static void usage_mkdir(ShellContext *context)
+{
+	version(context);
+	printf("Usage: %s mkdir <path>\n", context->name);
+	printf("Samples:\n");
+	printf("  %s mkdir subdir\n", context->name);
+	printf("  %s mkdir /music\n", context->name);
+	printf("  %s mkdir \"/music/Europe and America\"\n", context->name);
+}
+
 /*打印用法*/
 static void usage(ShellContext *context)
 {
@@ -1054,8 +1118,11 @@ static void usage(ShellContext *context)
 	printf("More detail see '%s command -h'. \n", context->name);
 }
 
-/*检查是否登录，如果未登录则登录*/
-static PcsBool is_login(ShellContext *context)
+/*
+ * 检查是否登录，如果未登录则登录
+ *   msg   - 检测到未登录时的打印消息。传入NULL的话，则使用默认消息。
+*/
+static PcsBool is_login(ShellContext *context, const char *msg)
 {
 	PcsRes pcsres;
 	time_t now;
@@ -1063,7 +1130,13 @@ static PcsBool is_login(ShellContext *context)
 	pcsres = pcs_islogin(context->pcs);
 	if (pcsres == PCS_LOGIN)
 		return PcsTrue;
-	printf("You are not logon or your session is time out. You can login by 'login' command.\n");
+	if (msg) {
+		if (msg[0])
+			printf("%s\n", msg);
+	}
+	else {
+		printf("You are not logon or your session is time out. You can login by 'login' command.\n");
+	}
 	return PcsFalse;
 }
 
@@ -1077,7 +1150,7 @@ static int cmd_cat(ShellContext *context, int argc, char *argv[])
 		usage_cat(context);
 		return -1;
 	}
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	path = combin_unix_path(context->workdir, argv[0]);
 	assert(path);
 	res = pcs_cat(context->pcs, path, &sz);
@@ -1100,7 +1173,7 @@ static int cmd_cd(ShellContext *context, int argc, char *argv[])
 		usage_cd(context);
 		return -1;
 	}
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	p = combin_unix_path(context->workdir, argv[0]);
 	meta = pcs_meta(context->pcs, p);
 	if (!meta) {
@@ -1132,7 +1205,7 @@ static int cmd_copy(ShellContext *context, int argc, char *argv[])
 		usage_copy(context);
 		return -1;
 	}
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 
 	slist.string1 = combin_unix_path(context->workdir, argv[0]); /* path */
 	slist.string2 = combin_unix_path(context->workdir, argv[1]); /* new_name */
@@ -1164,7 +1237,7 @@ static int cmd_copy(ShellContext *context, int argc, char *argv[])
 /*比较本地和网盘目录的异同*/
 static int cmd_compare(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	printf("not implement\n");
 	return 0;
 }
@@ -1183,7 +1256,7 @@ static int cmd_context(ShellContext *context, int argc, char *argv[])
 /*下载*/
 static int cmd_download(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	printf("not implement\n");
 	return 0;
 }
@@ -1191,8 +1264,78 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 /*输出文本到网盘某一个文件*/
 static int cmd_echo(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
-	printf("not implement\n");
+	int is_append = 0;
+	char *path = NULL, *t = NULL;
+	const char *relPath = NULL, *text = NULL;
+	int i;
+	size_t sz;
+	PcsFileInfo *f;
+	if (argc != 2 && argc != 3) {
+		usage_echo(context);
+		return -1;
+	}
+	/*解析参数 - 开始*/
+	if (argc == 2) {
+		relPath = argv[0];
+		text = argv[1];
+	}
+	else {
+		for (i = 0; i < argc; i++) {
+			if (is_append == 0 && strcmp(argv[i], "-a") == 0) {
+				is_append = 1;
+			}
+			else if (relPath == NULL) {
+				relPath = argv[i];
+			}
+			else if (text == NULL) {
+				text = argv[i];
+			}
+			else {
+				usage_echo(context);
+				return -1;
+			}
+		}
+		if (!is_append) {
+			usage_echo(context);
+			return -1;
+		}
+	}
+	/*解析参数 - 结束*/
+	if (!is_login(context, NULL)) return -1;
+	path = combin_unix_path(context->workdir, relPath);
+	assert(path);
+	sz = strlen(text);
+	if (is_append) {
+		const char *org;
+		size_t len;
+		//获取文件的内容
+		org = pcs_cat(context->pcs, path, &len);
+		if (org == NULL) {
+			printf("Error: path=%s. %s\n", path, pcs_strerror(context->pcs));
+			pcs_free(path);
+			return -1;
+		}
+		//拼接两个字符串
+		t = (char *)pcs_malloc(sz + len + 1);
+		assert(t);
+		memcpy(t, org, len);
+		memcpy(t + len, text, sz + 1);
+		sz += len;
+	}
+	else {
+		t = (char *)text;
+	}
+	f = pcs_upload_buffer(context->pcs, path, PcsTrue, t, sz);
+	if (!f) {
+		printf("Error: %s. The path is %s\n", pcs_strerror(context->pcs), path);
+		pcs_free(path);
+		if (t != text) pcs_free(t);
+		return -1;
+	}
+	printf("Success. path is %s\n", path);
+	pcs_fileinfo_destroy(f);
+	pcs_free(path);
+	if (t != text) pcs_free(t);
 	return 0;
 }
 
@@ -1210,7 +1353,7 @@ static int cmd_list(ShellContext *context, int argc, char *argv[])
 		usage_list(context);
 		return -1;
 	}
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 
 	if (argc == 0) {
 		path = pcs_utils_strdup(context->workdir);
@@ -1227,6 +1370,7 @@ static int cmd_list(ShellContext *context, int argc, char *argv[])
 		if (!list) {
 			if (pcs_strerror(context->pcs)) {
 				printf("Error: %s\n", pcs_strerror(context->pcs));
+				pcs_free(path);
 				return -1;
 			}
 			break;
@@ -1248,8 +1392,9 @@ static int cmd_list(ShellContext *context, int argc, char *argv[])
 	puts("\n------------------------------------------------------------------------------");
 	pcs_utils_readable_size(totalSize, tmp, 63, NULL);
 	tmp[63] = '\0';
-	printf("Total Page: %d, Total Size: %s, File Count: %d, Directory Count: %d\n", tmp, fileCount, dirCount);
+	printf("Total Page: %d, Total Size: %s, File Count: %d, Directory Count: %d\n", page_index, tmp, fileCount, dirCount);
 	putchar('\n');
+	pcs_free(path);
 	return 0;
 }
 
@@ -1262,7 +1407,7 @@ static int cmd_login(ShellContext *context, int argc, char *argv[])
 		usage_login(context);
 		return -1;
 	}
-	if (is_login(context)) {
+	if (is_login(context, "")) {
 		printf("You have been logon, UID is %s. You can 'logout' and then relogin.\n", pcs_sysUID(context->pcs));
 		return -1;
 	}
@@ -1299,7 +1444,7 @@ static int cmd_logout(ShellContext *context, int argc, char *argv[])
 		usage_logout(context);
 		return -1;
 	}
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	pcsres = pcs_logout(context->pcs);
 	if (pcsres != PCS_OK) {
 		printf("Logout Fail: %s\n", pcs_strerror(context->pcs));
@@ -1312,23 +1457,57 @@ static int cmd_logout(ShellContext *context, int argc, char *argv[])
 /*打印文件或目录的元数据*/
 static int cmd_meta(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
-	printf("not implement\n");
+	char *path;
+	PcsFileInfo *fi;
+	if (argc != 0 && argc != 1) {
+		usage_meta(context);
+		return -1;
+	}
+	if (!is_login(context, NULL)) return -1;
+	if (argc == 1)
+		path = combin_unix_path(context->workdir, argv[0]);
+	else
+		path = context->workdir;
+	assert(path);
+	fi = pcs_meta(context->pcs, path);
+	if (!fi) {
+		printf("Error: %s\n", pcs_strerror(context->pcs));
+		if (path != context->workdir) pcs_free(path);
+		return;
+	}
+	print_fileinfo(fi, " ");
+	pcs_fileinfo_destroy(fi);
+	if (path != context->workdir) pcs_free(path);
 	return 0;
 }
 
 /*创建目录*/
 static int cmd_mkdir(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
-	printf("not implement\n");
+	PcsRes res;
+	char *path;
+	if (argc != 1) {
+		usage_mkdir(context);
+		return -1;
+	}
+	if (!is_login(context, NULL)) return -1;
+	path = combin_unix_path(context->workdir, argv[0]);
+	assert(path);
+	res = pcs_mkdir(context->pcs, path);
+	if (res != PCS_OK) {
+		printf("Error: %s\n", pcs_strerror(context->pcs));
+		pcs_free(path);
+		return;
+	}
+	printf("Success.\n");
+	pcs_free(path);
 	return 0;
 }
 
 /*移动文件*/
 static int cmd_move(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	printf("not implement\n");
 	return 0;
 }
@@ -1340,7 +1519,7 @@ static int cmd_pwd(ShellContext *context, int argc, char *argv[])
 		usage_pwd(context);
 		return -1;
 	}
-	//if (!is_login(context)) return -1;
+	//if (!is_login(context, NULL)) return -1;
 	printf("%s\n", context->workdir);
 	return 0;
 }
@@ -1355,7 +1534,7 @@ static int cmd_quota(ShellContext *context, int argc, char *argv[])
 		usage_quota(context);
 		return -1;
 	}
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	pcsres = pcs_quota(context->pcs, &quota, &used);
 	if (pcsres != PCS_OK) {
 		printf("Error: %s\n", pcs_strerror(context->pcs));
@@ -1376,7 +1555,7 @@ static int cmd_quota(ShellContext *context, int argc, char *argv[])
 /*删除文件*/
 static int cmd_remove(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	printf("not implement\n");
 	return 0;
 }
@@ -1384,7 +1563,7 @@ static int cmd_remove(ShellContext *context, int argc, char *argv[])
 /*重命名文件*/
 static int cmd_rename(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	printf("not implement\n");
 	return 0;
 }
@@ -1504,7 +1683,7 @@ static int cmd_set(ShellContext *context, int argc, char *argv[])
 {
 	int i, key_len;
 	char *key, *val;
-	//if (!is_login(context)) return -1;
+	//if (!is_login(context, NULL)) return -1;
 	if (argc == 0) {
 		usage_set(context);
 		return -1;
@@ -1571,13 +1750,14 @@ static int cmd_set(ShellContext *context, int argc, char *argv[])
 			printf("warning: unknow option %s\n", key);
 		}
 	}
+	printf("Success. You can view context by '%s context'\n", context->name);
 	return 0;
 }
 
 /*搜索文件*/
 static int cmd_search(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	printf("not implement\n");
 	return 0;
 }
@@ -1585,7 +1765,7 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 /*上传*/
 static int cmd_upload(ShellContext *context, int argc, char *argv[])
 {
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	printf("not implement\n");
 	return 0;
 }
@@ -1608,7 +1788,7 @@ static int cmd_who(ShellContext *context, int argc, char *argv[])
 		usage_who(context);
 		return -1;
 	}
-	if (!is_login(context)) return -1;
+	if (!is_login(context, NULL)) return -1;
 	printf("%s\n", pcs_sysUID(context->pcs));
 	return 0;
 }
