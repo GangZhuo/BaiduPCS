@@ -5,7 +5,7 @@ OS_NAME = $(shell uname -s | cut -c1-6)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
 
 PCS_OBJS     = bin/cJSON.o bin/pcs.o bin/pcs_fileinfo.o bin/pcs_http.o bin/pcs_mem.o bin/pcs_pan_api_resinfo.o bin/pcs_slist.o bin/pcs_utils.o
-SHELL_OBJS   = bin/shell.o
+SHELL_OBJS   = bin/shell.o bin/dir.o
 #CCFLAGS      = -DHAVE_ASPRINTF -DHAVE_ICONV
 ifeq ($(LC_OS_NAME), cygwin)
 CYGWIN_CCFLAGS = -largp
@@ -26,31 +26,19 @@ else
 CC = gcc -g -DDEBUG -D_DEBUG
 endif
 
-all: pre test/version.h bin/libpcs.a bin/pcs
+all: pre version.h bin/libpcs.a bin/pcs
 
 bin/pcs : bin/libpcs.a $(SHELL_OBJS)
 	$(CC) -o $@ $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto -lsqlite3
 
-bin/main.o: test/main.c test/shell.h
-	$(CC) -o $@ -c test/main.c $(PCS_CCFLAGS)
-
-bin/shell.o: shell.c \
-         shell.h
-	$(CC) -o $@ -c $(PCS_CCFLAGS) shell.c
-bin/pcs_io.o: test/pcs_io.c test/pcs_io.h
-	$(CC) -o $@ -c $(PCS_CCFLAGS) test/pcs_io.c
-bin/shell_args.o: test/shell_args.c test/shell_args.h test/version.h
-	$(CC) -o $@ -c $(PCS_CCFLAGS) test/shell_args.c
-bin/dir.o: test/dir.c test/dir.h
-	$(CC) -o $@ -c $(PCS_CCFLAGS)test/dir.c
-bin/hashtable.o: test/hashtable.c test/hashtable.h
-	$(CC) -o $@ -c $(PCS_CCFLAGS) test/hashtable.c
-bin/daemon.o: test/daemon.c test/daemon.h test/sql.h
-	$(CC) -o $@ -c $(PCS_CCFLAGS) test/daemon.c
-bin/logger.o: test/logger.c test/logger.h
-	$(CC) -o $@ -c $(PCS_CCFLAGS) test/logger.c
-test/version.h:
+version.h:
 	bash ver.sh
+bin/shell.o: shell.c shell.h version.h dir.h
+	$(CC) -o $@ -c $(PCS_CCFLAGS) shell.c
+bin/dir.o: dir.c dir.h
+	$(CC) -o $@ -c $(PCS_CCFLAGS) dir.c
+bin/hashtable.o: hashtable.c hashtable.h
+	$(CC) -o $@ -c $(PCS_CCFLAGS) hashtable.c
 
 bin/libpcs.a : $(PCS_OBJS)
 	$(AR) crv $@ $^
