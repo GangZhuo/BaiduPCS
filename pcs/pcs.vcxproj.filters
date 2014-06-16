@@ -25,6 +25,12 @@
     <Filter Include="Source Files\sqlite">
       <UniqueIdentifier>{1ff90ba7-78c1-427e-bc0c-82df228883fc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\rb_tree">
+      <UniqueIdentifier>{388e605c-56bc-4776-97b7-f94fec898409}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\rb_tree">
+      <UniqueIdentifier>{0c047a36-4680-427c-9b8d-ef8145e7291b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cJSON.c">
@@ -62,6 +68,15 @@
     </ClCompile>
     <ClCompile Include="..\dir.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rb_tree\misc.c">
+      <Filter>Source Files\rb_tree</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rb_tree\red_black_tree.c">
+      <Filter>Source Files\rb_tree</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rb_tree\stack.c">
+      <Filter>Source Files\rb_tree</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -112,6 +127,15 @@
     </ClInclude>
     <ClInclude Include="..\dir.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rb_tree\misc.h">
+      <Filter>Header Files\rb_tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rb_tree\red_black_tree.h">
+      <Filter>Header Files\rb_tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rb_tree\stack.h">
+      <Filter>Header Files\rb_tree</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
