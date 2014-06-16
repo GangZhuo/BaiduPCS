@@ -25,7 +25,7 @@
 #define PCS_HTTP_RES_TYPE_DOWNLOAD		6
 
 struct pcs_http {
-	const char		*strerror;
+	char			*strerror;
 
 	CURL			*curl;
 	int				res_type;
@@ -63,6 +63,8 @@ static inline void pcs_http_reset_response(struct pcs_http *http)
 		pcs_free(http->res_header);
 	if (http->res_encode)
 		pcs_free(http->res_encode);
+	if (http->strerror)
+		pcs_free(http->strerror);
 	http->res_type = PCS_HTTP_RES_TYPE_NORMAL;
 	http->res_code = 0;
 	http->res_header = NULL;
@@ -344,7 +346,8 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 	}
 	sz = size * nmemb;
 	if (!pcs_http_parse_http_head(http, &ptr, &sz, PcsTrue)) {
-		http->strerror = "Cannot parse the http head. ";
+		if (http->strerror) pcs_free(http->strerror);
+		http->strerror = pcs_utils_strdup("Cannot parse the http head. ");
 		return 0;
 	}
 	if (sz > 0) {
@@ -357,7 +360,8 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 			p = &ptr[sz - 1];
 			while(p > ptr) {
 				if (*p == 0) {
-					http->strerror = "The response is not the validate text. ";
+					if (http->strerror) pcs_free(http->strerror);
+					http->strerror = pcs_utils_strdup("The response is not the validate text. ");
 					return 0;
 				}
 				p--;
@@ -371,7 +375,8 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 		}
 		else if (http->res_type == PCS_HTTP_RES_TYPE_DOWNLOAD + 1) {
 			if (!http->write_func) {
-				http->strerror = "Have no write function. ";
+				if (http->strerror) pcs_free(http->strerror);
+				http->strerror = pcs_utils_strdup("Have no write function. ");
 				return 0;
 			}
 			return (*http->write_func)(ptr, sz, http->res_content_length, http->write_data);
@@ -392,7 +397,12 @@ static inline char *pcs_http_perform(struct pcs_http *http)
 	curl_easy_getinfo(http->curl, CURLINFO_RESPONSE_CODE, &httpcode);
 	http->res_code = httpcode;
 	if(res != CURLE_OK) {
-		if (!http->strerror) http->strerror = curl_easy_strerror(res);
+		if (!http->strerror) http->strerror = pcs_utils_strdup(curl_easy_strerror(res));
+		return NULL;
+	}
+	if (httpcode != 200) {
+		if (http->strerror) pcs_free(http->strerror);
+		http->strerror = pcs_utils_sprintf("%d %s", httpcode, http->res_body);
 		return NULL;
 	}
 	if (http->response_func)
@@ -438,6 +448,8 @@ PCS_API void pcs_http_destroy(PcsHttp handle)
 		pcs_free(http->res_body);
 	if (http->res_encode)
 		pcs_free(http->res_encode);
+	if (http->strerror)
+		pcs_free(http->strerror);
 	pcs_free(http);
 }
 
