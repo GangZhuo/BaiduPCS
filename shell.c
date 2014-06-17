@@ -24,18 +24,40 @@
 
 #if defined(WIN32)
 # define mkdir _mkdir
+# define snprintf _snprintf
 #endif
 
-#define MYMETA_FILENAME		"pcs.meta"
+#define MYMETA_FILENAME		".pcs_meta"
+
+#define OP_NONE		0
+#define OP_DOWN		1
+#define OP_UP		2
+#define OP_EQ		3
+#define OP_LEFT		4
+#define OP_RIGHT	5
+
 
 /*MyMeta，用于维护一份自己的文件元数据*/
 typedef struct MyMeta MyMeta;
 struct MyMeta
 {
-	char	*path;
-	time_t	mtime;
-	char	*md5;
-	size_t	size;
+	char		*path;
+	char		*filename;
+	time_t		mtime;
+	time_t		upload_time;
+	char		*md5;
+	size_t		size;
+	int			isdir;
+	UInt64		fs_id;
+
+	int			exist_in_local; /*本地是否存在*/
+	time_t		current_mtime; /*当前的最后修改时间*/
+	char		*current_md5;
+	size_t		current_size;
+	int			current_isdir;
+
+	void		*tag; /*附属值，临时用途。*/
+	int			op; /*附属值，临时用途。*/
 };
 
 struct DownloadState
@@ -244,13 +266,14 @@ int str2time(const char *str, time_t *timeData)
 	sourcedate.tm_mday = iDay;
 	sourcedate.tm_mon = iMonth - 1;
 	sourcedate.tm_year = iYear - 1900;
-	timeData = mktime(&sourcedate);
+	*timeData = mktime(&sourcedate);
 	return 0;
 }
+
 /*
 time_t to string 时间格式 2009-3-24 0:00:08
 */
-int time2str(char *buf, const time_t *t)
+char *time2str(char *buf, const time_t *t)
 {
 	char chTmp[100] = { 0 };
 	struct tm *p;
@@ -653,39 +676,96 @@ static const char *filename(char *path)
 }
 
 /*
+* 合并unix格式的路径，如果filename传入的是绝对路径，则直接返回filename的拷贝。
+* 使用完后，需调用pcs_free来释放返回值
+*/
+static char *combin_path(const char *base, int basesz, const char *filename)
+{
+	char *p, *p2;
+	size_t filenamesz, sz;
+
+	if (is_absolute_path(filename)) { /*如果是绝对路径*/
+		p = pcs_utils_strdup(filename);
+	}
+	else {
+		if (basesz == -1) basesz = strlen(base);
+		filenamesz = strlen(filename);
+		sz = basesz + filenamesz + 1;
+		p = (char *)pcs_malloc(sz + 1);
+		assert(p);
+		memset(p, 0, sz + 1);
+		memcpy(p, base, basesz);
+		p[basesz] = '\0';
+		if (filename[0] == '/' || filename[0] == '\\') {
+			if (p[basesz - 1] == '/' || p[basesz - 1] == '\\') {
+				p[basesz - 1] = '\0';
+			}
+		}
+		else {
+			if (p[basesz - 1] != '/' && p[basesz - 1] != '\\') {
+#ifdef WIN32
+				p[basesz] = '\\';
+#else
+				p[basesz] = '/';
+#endif
+				p[basesz + 1] = '\0';
+			}
+		}
+		strcat(p, filename);
+	}
+	p2 = p;
+	while (*p2) {
+#ifdef WIN32
+		if (*p2 == '/') *p2 = '\\';
+#else
+		if (*p2 == '\\') *p2 = '/';
+#endif
+		p2++;
+	}
+	return p;
+}
+
+/*
  * 合并unix格式的路径，如果filename传入的是绝对路径，则直接返回filename的拷贝。
  * 使用完后，需调用pcs_free来释放返回值
  */
 static char *combin_unix_path(const char *base, const char *filename)
 {
-	char *p;
+	char *p, *p2;
 	size_t basesz, filenamesz, sz;
 
-	if (filename[0] == '/') { /*如果是绝对路径，直接返回该值*/
-		return pcs_utils_strdup(filename);
+	if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*如果是绝对路径，直接返回该值*/
+		p = pcs_utils_strdup(filename);
 	}
-
-	basesz = strlen(base);
-	filenamesz = strlen(filename);
-	sz = basesz + filenamesz + 1;
-	p = (char *)pcs_malloc(sz + 1);
-	assert(p);
-	memset(p, 0, sz + 1);
-	strcpy(p, base);
-	if (p[basesz - 1] != '/') {
-		p[basesz] = '/';
-		p[basesz + 1] = '\0';
+	else {
+		basesz = strlen(base);
+		filenamesz = strlen(filename);
+		sz = basesz + filenamesz + 1;
+		p = (char *)pcs_malloc(sz + 1);
+		assert(p);
+		memset(p, 0, sz + 1);
+		strcpy(p, base);
+		if (p[basesz - 1] != '/') {
+			p[basesz] = '/';
+			p[basesz + 1] = '\0';
+		}
+		strcat(p, filename);
 	}
-	strcat(p, filename);
+	p2 = p;
+	while (*p2) {
+		if (*p2 == '\\') *p2 = '/';
+		p2++;
+	}
 	return p;
 }
 
 /*把文件大小转换成字符串*/
-static const char *size_tostr(UInt64 size, int *fix_width, char ch)
+static const char *size_tostr(size_t size, int *fix_width, char ch)
 {
 	static char str[128], *p;
-	UInt64 i;
+	int i;
 	int j, cn, mod;
+	size_t sz;
 
 	if (size == 0) {
 		i = 0;
@@ -701,13 +781,13 @@ static const char *size_tostr(UInt64 size, int *fix_width, char ch)
 		return str;
 	}
 
-	i = size;
+	sz = size;
 	j = 127;
 	str[j] = '\0';
 	cn = 0;
-	while (i != 0) {
-		mod = i % 10;
-		i = i / 10;
+	while (sz != 0) {
+		mod = sz % 10;
+		sz = sz / 10;
 		str[--j] = (char)('0' + mod);
 		cn++;
 	}
@@ -729,13 +809,14 @@ static const char *size_tostr(UInt64 size, int *fix_width, char ch)
 }
 
 /*打印文件时间*/
-static void print_time(const char *format, UInt64 time)
+static void print_time(const char *format, time_t time)
 {
-	struct tm *tm;
+	struct tm *tm = NULL;
 	time_t t = time;
 	char tmp[64];
 
-	tm = localtime(&t);
+	if (time)
+		tm = localtime(&t);
 
 	if (tm) {
 		sprintf(tmp, "%d-%02d-%02d %02d:%02d:%02d",
@@ -753,7 +834,7 @@ static void print_time(const char *format, UInt64 time)
 }
 
 /*打印可读的文件大小*/
-static void print_size(const char *format, UInt64 size)
+static void print_size(const char *format, size_t size)
 {
 	char tmp[64];
 	tmp[63] = '\0';
@@ -1069,7 +1150,7 @@ static void usage_copy(ShellContext *context)
 static void usage_compare(ShellContext *context)
 {
 	version(context);
-	printf("\nUsage: %s compare [-f] <local path> <net disk path>\n", context->name);
+	printf("\nUsage: %s compare [-r] <local path> <net disk path>\n", context->name);
 	printf("\nDescription:\n");
 	printf("  Print the differents between local and net disk\n");
 	printf("\nOptions:\n");
@@ -1384,6 +1465,23 @@ static inline int is_print_usage(int argc, char *argv[])
 	return (argc == 1 && (strcmp(argv[0], "-h") == 0 || strcmp(argv[0], "-?") == 0 || strcmp(argv[0], "--help") == 0));
 }
 
+/*找到指向文件名的指针*/
+static inline const char *find_filename(const char *path)
+{
+	const char *p;
+	size_t sz;
+
+	sz = strlen(path);
+	p = path + sz;
+	while (p > path) {
+		if (*p == '/' || *p == '\\')
+			break;
+		p--;
+	}
+	if (*p == '/' || *p == '\\') p++;
+	return p;
+}
+
 /*
  * 检查是否登录，如果未登录则登录
  *   msg   - 检测到未登录时的打印消息。传入NULL的话，则使用默认消息。
@@ -1524,18 +1622,24 @@ static int set_secure_enable(ShellContext *context, const char *val)
 	return 0;
 }
 
+/*尝试维护一份自己的元数据 - 开始*/
 
 /*创建一个MyMeta*/
-static MyMeta *meta_create(const char *path, time_t mtime, const char *md5, size_t size)
+static MyMeta *meta_create(const char *path, const char *filename, time_t mtime, const char *md5, size_t size, int isdir, UInt64 fs_id, time_t upload_time)
 {
 	MyMeta *rc;
 	rc = (MyMeta *)pcs_malloc(sizeof(MyMeta));
 	assert(rc);
 	memset(rc, 0, sizeof(MyMeta));
 	if (path) rc->path = pcs_utils_strdup(path);
+	if (filename) rc->filename = pcs_utils_strdup(filename);
 	rc->mtime = mtime;
 	if (md5) rc->md5 = pcs_utils_strdup(md5);
 	rc->size = size;
+	rc->isdir = isdir;
+	rc->fs_id = fs_id;
+	rc->upload_time = upload_time;
+
 	return rc;
 }
 
@@ -1544,11 +1648,14 @@ static void meta_destroy(MyMeta *meta)
 {
 	if (!meta) return;
 	if (meta->path) pcs_free(meta->path);
+	if (meta->filename) pcs_free(meta->filename);
 	if (meta->md5) pcs_free(meta->md5);
+	if (meta->current_md5) pcs_free(meta->current_md5);
 	pcs_free(meta);
 }
 
 static void rb_destory_string(void *a);
+static void rb_destory_key_for_meta(void *a);
 static void rb_destory_meta(void *a);
 static int rb_compare_string(const void *a, const void *b);
 static void rb_print_string(const void *a);
@@ -1612,59 +1719,151 @@ static MyMeta *meta_read(const char **ptr)
 	char *num;
 	MyMeta *meta;
 
-	meta = meta_create(NULL, 0, NULL, 0);
+	meta = meta_create(NULL, NULL, 0, NULL, 0, 0, 0, 0);
 	assert(meta);
-	p = parse_string(p, &meta->path);
+
+	p = parse_string(p, &meta->filename);
 	if (!p) {
 		meta_destroy(meta);
 		return NULL;
 	}
+
 	p = parse_string(p, &num);
 	if (!p) {
 		meta_destroy(meta);
 		return NULL;
 	}
 	str2time(num, &meta->mtime);
+
+	p = parse_string(p, &num);
+	if (!p) {
+		meta_destroy(meta);
+		return NULL;
+	}
+	str2time(num, &meta->upload_time);
+
 	p = parse_numeric(p, &num);
 	if (!p) {
 		meta_destroy(meta);
 		return NULL;
 	}
 	meta->size = (size_t)((unsigned long)atol(num));
+
+	p = parse_numeric(p, &num);
+	if (!p) {
+		meta_destroy(meta);
+		return NULL;
+	}
+	meta->isdir = atoi(num);
+
+	p = parse_numeric(p, &num);
+	if (!p) {
+		meta_destroy(meta);
+		return NULL;
+	}
+	meta->fs_id = (UInt64)atoll(num);
+
 	*ptr = p;
 	return meta;
 }
 
-/*从网盘中下载dir指定目录中文件的元数据*/
-static rb_red_blk_tree *meta_download(ShellContext *context, const char *dir)
+/*从本地文件系统中加载元数据*/
+static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 {
 	rb_red_blk_tree *rb = NULL;
-	char *path;
-	const char *res, *p;
-	size_t sz;
-	MyMeta *meta;
-	if (!is_login(context, "")) {
-		printf("Error: Can't get meta file. Your session is time out.\n");
-		return NULL;
-	}
-	path = combin_unix_path(context->workdir, MYMETA_FILENAME);
-	assert(path);
-	res = pcs_cat(context->pcs, path, &sz);
-	if (res == NULL) {
-		printf("Error: Can't get meta file. %s\n", path, pcs_strerror(context->pcs));
-		pcs_free(path);
-		return NULL;
-	}
-	pcs_free(path);
+	rb_red_blk_node *rbn;
+	my_dirent *ent, *e;
+	size_t sz, fsz;
+	MyMeta *meta, *tmp;
+	char *buf = NULL, *pb, *p;
 
-	rb = RBTreeCreate(&rb_compare_string, &rb_destory_string, &rb_destory_meta, &rb_print_string, &rb_print_meta);
+	ent = list_dir(dir, recursion);
+	if (!ent) {
+		printf("Error: Can't find the directory. %s\n", dir);
+		return NULL;
+	}
+	sz = strlen(dir);
+	if (dir[sz - 1] != '/' && dir[sz - 1] != '\\') sz++;
+	
+	/*e = ent;
+	while (e) {
+		printf("Path: %s, ", e->path + sz);
+		printf("Path2: %s, ", e->path);
+		printf("Filename: %s, ", e->filename);
+		print_time("Modify time: %s, ", e->mtime);
+		print_size("Size: %s, ", e->size);
+		printf("IsDir: %s\n", e->is_dir ? "Yes" : "No");
+		e = e->next;
+	}*/
+
+	rb = RBTreeCreate(&rb_compare_string, &rb_destory_key_for_meta, &rb_destory_meta, &rb_print_string, &rb_print_meta);
 	assert(rb);
-
-	p = res;
-	while ((meta = meta_read(&p)) != NULL) {
-		RBTreeInsert(rb, meta->path, meta);
+	e = ent;
+	while (e) {
+		if (strcmp(e->filename, MYMETA_FILENAME) == 0) {
+			fsz = readFileContent(e->path, &buf);
+			if (fsz > 0) {
+				pb = buf;
+				while ((meta = meta_read((const char **)&pb)) != NULL) {
+					p = e->path + strlen(e->path);
+					while (p > e->path) {
+						if (*p == '\\' || *p == '/') break;
+						p--;
+					}
+					if (*p == '\\' || *p == '/') {
+						meta->path = combin_path(e->path, p - e->path, meta->filename);
+					}
+					else {
+						meta->path = pcs_utils_strdup(meta->filename);
+					}
+					rbn = RBExactQuery(rb, (void *)meta->path);
+					if (rbn) {
+						tmp = (MyMeta *)rbn->info;
+						meta->exist_in_local = tmp->exist_in_local;
+						meta->current_isdir = tmp->current_isdir;
+						meta->current_mtime = tmp->current_mtime;
+						meta->current_md5 = tmp->current_md5;
+						meta->current_size = tmp->current_size;
+						tmp->current_md5 = NULL;
+						rbn->key = (void *)meta->path;
+						rbn->info = (void *)meta;
+						meta_destroy(tmp);
+					}
+					else {
+						RBTreeInsert(rb, (void *)meta->path, (void *)meta);
+					}
+				}
+			}
+			if (buf) {
+				pcs_free(buf);
+				buf = NULL;
+			}
+			e = e->next;
+			continue;
+		}
+		meta = meta_create(e->path + sz, e->filename, 0, NULL, 0, 0, 0, 0);
+		assert(meta);
+		meta->exist_in_local = 1;
+		meta->current_mtime = e->mtime;
+		meta->current_size = e->size;
+		meta->current_isdir = e->is_dir;
+		//tmp->current_md5 = NULL; /*新建立的meta中，current_md5本来就是NULL*/
+		rbn = RBExactQuery(rb, (void *)meta->path);
+		if (rbn) {
+			tmp = (MyMeta *)rbn->info;
+			tmp->exist_in_local = meta->exist_in_local;
+			tmp->current_isdir = meta->current_isdir;
+			tmp->current_mtime = meta->current_mtime;
+			tmp->current_md5 = meta->current_md5;
+			tmp->current_size = meta->current_size;
+			meta_destroy(meta);
+		}
+		else {
+			RBTreeInsert(rb, (void *)meta->path, (void *)meta);
+		}
+		e = e->next;
 	}
-	pcs_free(res);
+	my_dirent_destroy(ent);
 	return rb;
 }
 
@@ -1672,17 +1871,25 @@ static rb_red_blk_tree *meta_download(ShellContext *context, const char *dir)
 static MyMeta *meta_query(rb_red_blk_tree *rb, const char *path)
 {
 	rb_red_blk_node *node;
-	node = RBExactQuery(rb, path);
+	node = RBExactQuery(rb, (void *)path);
 	if (node) {
 		return (MyMeta *)node->info;
 	}
 	return NULL;
 }
 
+/*尝试维护一份自己的元数据 - 结束*/
+
 /*红黑树中用于释放 key */
 static void rb_destory_string(void *a)
 {
 	if (a) pcs_free(a);
+}
+
+/*红黑树中用于释放 key */
+static void rb_destory_key_for_meta(void *a)
+{
+	
 }
 
 /*红黑树中用于释放 info */
@@ -1694,7 +1901,11 @@ static void rb_destory_meta(void *a)
 /*红黑树中用于比较 key 值。当 *a > *b 时，返回 1; 当 *a < *b 时，返回 -1; 当相等时，返回 0。 */
 static int rb_compare_string(const void *a, const void *b)
 {
-	int rc = strcmp(a, b);
+	int rc;
+	if (!a && !b) return 0;
+	if (!a) return -1;
+	if (!b) return 1;
+	rc = pcs_utils_strcmpi(a, b);
 	return (rc < 0 ? -1 : (rc > 0 ? 1 : 0));
 }
 
@@ -1709,13 +1920,85 @@ static void rb_print_meta(void *a)
 {
 	MyMeta *meta = (MyMeta *)a;
 	if (!meta) {
-		printf("(null)\n");
+		printf("null\n");
 		return;
 	}
-	printf("Path:\t\t%s\n", meta->path);
-	print_time("Modify time:\t%s\n", meta->mtime);
-	print_size("Size:\t\t%s\n", meta->size);
-	printf("md5:\t\t%s\n", meta->md5);
+	printf("{\n");
+	printf("  path: \"%s\",\n", meta->path);
+	printf("  filename: \"%s\",\n", meta->filename);
+	print_time("  mtime: \"%s\",\n", meta->mtime);
+	print_size("  size: \"%s\"\n", meta->size);
+	printf("  md5: \"%s\",\n", meta->md5);
+	printf("  isdir: %s,\n", meta->isdir ? "true" : "false");
+	printf("  fs_id: %llu,\n", meta->fs_id);
+	print_time("  upload_time: \"%s\",\n", meta->upload_time);
+
+	printf("\n  exist_in_local: %s,\n", meta->exist_in_local ? "true" : "false");
+	print_time("  current_mtime: \"%s\",\n", meta->current_mtime); 
+	printf("  current_isdir: %s,\n", meta->current_isdir ? "true" : "false");
+	print_size("  current_size: \"%s\",\n", meta->current_size);
+	printf("  current_md5: \"%s\"\n", meta->current_md5);
+	printf("}\n");
+}
+
+static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const PcsFileInfo *netdiskfile)
+{
+	MyMeta *meta = NULL;
+	rb_red_blk_tree *rb;
+	rb_red_blk_node *rbn;
+	if (ent->filename == ent->path) {
+		rb = meta_load(".", 0);
+	}
+	else {
+		char *dir = pcs_utils_strdup(ent->path);
+		dir[ent->filename - ent->path] = '\0';
+		rb = meta_load(dir, 0);
+		pcs_free(dir);
+	}
+	if (rb) {
+		rbn = RBExactQuery(rb, (void *)ent->filename);
+		if (rbn) {
+			meta = (MyMeta *)rbn->info;
+			rbn->key = NULL;
+			rbn->info = NULL;
+		}
+		RBTreeDestroy(rb);
+	}
+	if (!meta) {
+		meta = meta_create(ent->filename, ent->filename, 0, NULL, 0, 0, 0, 0);
+		assert(meta);
+		meta->exist_in_local = 1;
+		//meta->current_md5 = NULL;
+		meta->current_mtime = ent->mtime;
+		meta->current_size = ent->size;
+		meta->current_isdir = ent->is_dir;
+	}
+
+	if (meta->fs_id == netdiskfile->fs_id && meta->upload_time == netdiskfile->server_mtime) {
+		if (meta->current_mtime < meta->mtime)
+			meta->op = OP_LEFT;
+		else if (meta->current_mtime > meta->mtime)
+			meta->op = OP_RIGHT;
+		else
+			meta->op = OP_EQ;
+	}
+	else {
+		if (meta->current_mtime < netdiskfile->server_mtime)
+			meta->op = OP_LEFT;
+		else if (meta->current_mtime > netdiskfile->server_mtime)
+			meta->op = OP_RIGHT;
+		else
+			meta->op = OP_EQ;
+	}
+	return meta;
+}
+
+static rb_red_blk_tree *compare_dir(ShellContext *context, const char *locPath, const char *diskPath, int recursive)
+{
+	rb_red_blk_tree *rb;
+	rb = meta_load(locPath, recursive);
+	RBTreePrint(rb);
+	return rb;
 }
 
 /*打印网盘文件内容*/
@@ -1832,8 +2115,10 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 	int i;
 
 	int ft;
-	PcsFileInfo *meta;
-	PcsRes res;
+	my_dirent *ent = NULL;
+	PcsFileInfo *meta = NULL;
+	rb_red_blk_tree *rb = NULL;
+	MyMeta *mm = NULL;
 
 	if (is_print_usage(argc, argv)) {
 		usage_compare(context);
@@ -1845,7 +2130,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 	}
 	/*解析参数 - 开始*/
 	if (argc == 2){
-		if (strcmp(argv[0], "-f") == 0 || strcmp(argv[1], "-f") == 0) {
+		if (strcmp(argv[0], "-r") == 0 || strcmp(argv[1], "-r") == 0) {
 			usage_compare(context);
 			return -1;
 		}
@@ -1854,7 +2139,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 	}
 	else if (argc == 3) {
 		for (i = 0; i < argc; i++) {
-			if (is_recursive == 0 && strcmp(argv[i], "-f") == 0) {
+			if (is_recursive == 0 && strcmp(argv[i], "-r") == 0) {
 				is_recursive = 1;
 			}
 			else if (locPath == NULL) {
@@ -1880,54 +2165,88 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 	/*解析参数 - 结束*/
 
 	/*检查本地文件 - 开始*/
-	ft = is_dir_or_file(locPath);
+	ft = get_file_ent(&ent, locPath);
 	if (ft == 0) {
-		printf("Error: The local %s not exist, and it's a directory.\n", locPath);
+		printf("Error: The local %s not exist.\n", locPath);
+		if (ent) my_dirent_destroy(ent);
 		return -1;
 	}
 	/*检查本地文件 - 结束*/
 
 	//检查是否已经登录
 	if (!is_login(context, NULL)) {
+		if (ent) my_dirent_destroy(ent);
 		return -1;
 	}
 
 	path = combin_unix_path(context->workdir, relPath);
 	if (!path) {
 		assert(path);
+		if (ent) my_dirent_destroy(ent);
 		return -1;
 	}
 
-	/*检查网盘文件 - 开始*/
+	/*检查网盘文件*/
 	meta = pcs_meta(context->pcs, path);
 	if (!meta) {
-		printf("Error: Can't find the meta for %s\n", pcs_strerror(context->pcs));
+		printf("Error: Can't find the meta for %s: %s\n", path, pcs_strerror(context->pcs));
 		pcs_free(path);
+		if (ent) my_dirent_destroy(ent);
 		return -1;
 	}
 
 	if (ft == 1) {
 		if (meta->isdir) {
-			printf("Error: local %s is file, but remote %s is directory.\n", locPath, path);
+			printf("Error: Can't compare the file with directory.\n");
+			pcs_fileinfo_destroy(meta);
 			pcs_free(path);
+			if (ent) my_dirent_destroy(ent);
 			return -1;
 		}
 		else {
 			/*比较文件异同*/
+			mm = compare_file(context, ent, meta);
+			if (mm) {
+				ft = strlen(mm->filename);
+				if (ft < 10) ft = 10;
+				printf("Local File");
+				for (i = 10; i < ft; i++) putchar(' ');
+				printf("  OP  Net Disk File\n");
+				for (i = 0; i < ft + 20; i++) putchar('-');
+				putchar('\n');
+				printf(mm->filename);
+				for (i = strlen(mm->filename); i < ft; i++) putchar(' ');
+				printf("  %s  %s\n", mm->op == OP_LEFT ? "<-"
+					: (mm->op == OP_RIGHT ? "->"
+					: (mm->op == OP_EQ ? "=="
+					: " ")),
+					meta->server_filename);
+				printf("\n< - means left \n");
+			}
+			else{
+				printf("Error: Can't compare...\n");
+			}
+		}
+	}
+	else {
+		if (!meta->isdir) {
+			printf("Error: Can't compare the directory with file.\n");
+			pcs_fileinfo_destroy(meta);
+			pcs_free(path);
+			if (ent) my_dirent_destroy(ent);
+			return -1;
+		}
+		else {
+			/*比较目录异同*/
+			rb = compare_dir(context, locPath, path, is_recursive);
 
 		}
 	}
-
-	if (meta->isdir) {
-		printf("Error: The net disk file %s is directory.\n", path);
-		pcs_fileinfo_destroy(meta);
-		pcs_free(path);
-		return -1;
-	}
 	pcs_fileinfo_destroy(meta);
-	/*检查网盘文件 - 结束*/
-
-	
+	if (mm) meta_destroy(mm);
+	if (rb) RBTreeDestroy(rb);
+	if (ent) my_dirent_destroy(ent);
+	pcs_free(path);
 	return 0;
 }
 
@@ -2418,7 +2737,7 @@ static int cmd_pwd(ShellContext *context, int argc, char *argv[])
 static int cmd_quota(ShellContext *context, int argc, char *argv[])
 {
 	PcsRes pcsres;
-	UInt64 quota, used;
+	size_t quota, used;
 	char str[32] = { 0 };
 	if (is_print_usage(argc, argv)) {
 		usage_quota(context);
@@ -2865,7 +3184,7 @@ static int exec_cmd(ShellContext *context, int argc, char *argv[])
 	else if (strcmp(cmd, "copy") == 0 || strcmp(cmd, "cp") == 0) {
 		rc = cmd_copy(context, cmd_argc, cmd_argv);
 	}
-	else if (strcmp(cmd, "compare") == 0) {
+	else if (strcmp(cmd, "compare") == 0 || strcmp(cmd, "c") == 0) {
 		rc = cmd_compare(context, cmd_argc, cmd_argv);
 	}
 	else if (strcmp(cmd, "context") == 0 || strcmp(cmd, "config") == 0) {
