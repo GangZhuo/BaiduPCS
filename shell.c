@@ -1,4 +1,4 @@
-#include <stdio.h>
+ï»¿#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -37,12 +37,12 @@
 #define OP_RIGHT	5
 
 #define FLAG_NONE			0 
-#define FLAG_EXIST_ON_LOCAL	1 /*ÔÚ±¾µØÎÄ¼şÏµÍ³ÖĞ´æÔÚ*/
-#define FLAG_EXIST_ON_META	2 /*ÔÚ±¾µØMyMetaÎÄ¼şÖĞ´æÔÚ*/
-#define FLAG_EXIST_ON_NET	4 /*ÔÚÍøÅÌÖĞ´æÔÚ*/
+#define FLAG_EXIST_ON_LOCAL	1 /*åœ¨æœ¬åœ°æ–‡ä»¶ç³»ç»Ÿä¸­å­˜åœ¨*/
+#define FLAG_EXIST_ON_META	2 /*åœ¨æœ¬åœ°MyMetaæ–‡ä»¶ä¸­å­˜åœ¨*/
+#define FLAG_EXIST_ON_NET	4 /*åœ¨ç½‘ç›˜ä¸­å­˜åœ¨*/
 
 
-/*MyMeta£¬ÓÃÓÚÎ¬»¤Ò»·İ×Ô¼ºµÄÎÄ¼şÔªÊı¾İ*/
+/*MyMetaï¼Œç”¨äºç»´æŠ¤ä¸€ä»½è‡ªå·±çš„æ–‡ä»¶å…ƒæ•°æ®*/
 typedef struct MyMeta MyMeta;
 struct MyMeta
 {
@@ -55,15 +55,15 @@ struct MyMeta
 	int			isdir;
 	UInt64		fs_id;
 
-	time_t		current_mtime; /*µ±Ç°µÄ×îºóĞŞ¸ÄÊ±¼ä*/
+	time_t		current_mtime; /*å½“å‰çš„æœ€åä¿®æ”¹æ—¶é—´*/
 	char		*current_md5;
 	size_t		current_size;
 	int			current_isdir;
 
-	int			flag; /*±ê¼Ç*/
+	int			flag; /*æ ‡è®°*/
 
-	void		*tag; /*¸½ÊôÖµ£¬ÁÙÊ±ÓÃÍ¾¡£*/
-	int			op; /*¸½ÊôÖµ£¬ÁÙÊ±ÓÃÍ¾¡£*/
+	void		*tag; /*é™„å±å€¼ï¼Œä¸´æ—¶ç”¨é€”ã€‚*/
+	int			op; /*é™„å±å€¼ï¼Œä¸´æ—¶ç”¨é€”ã€‚*/
 };
 
 struct DownloadState
@@ -78,9 +78,9 @@ static PcsBool is_login(ShellContext *context, const char *msg);
 #ifdef WIN32
 
 /*
- * ´Ó±ê×¼ÊäÈëÖĞÊäÈë×Ö·û´®
- * str  - ÊäÈëµÄ×Ö·û´®½«Ìî³äµ½ str ÖĞ
- * size - ×î¶àÊäÈë size ¸ö×Ö½Ú¡£
+ * ä»æ ‡å‡†è¾“å…¥ä¸­è¾“å…¥å­—ç¬¦ä¸²
+ * str  - è¾“å…¥çš„å­—ç¬¦ä¸²å°†å¡«å……åˆ° str ä¸­
+ * size - æœ€å¤šè¾“å…¥ size ä¸ªå­—èŠ‚ã€‚
 */
 static void std_string(char *str, int size)
 {
@@ -110,9 +110,9 @@ static void std_string(char *str, int size)
 }
 
 /*
- * ´Ó±ê×¼ÊäÈëÖĞÊäÈëÃÜÂë£¬ÊäÈëµÄ×Ö·û²»»ØÏÔ
- * password  - ÊäÈëµÄÃÜÂë½«Ìî³äµ½ password ÖĞ
- * size      - ×î¶àÊäÈësize¸ö×Ö½Ú¡£
+ * ä»æ ‡å‡†è¾“å…¥ä¸­è¾“å…¥å¯†ç ï¼Œè¾“å…¥çš„å­—ç¬¦ä¸å›æ˜¾
+ * password  - è¾“å…¥çš„å¯†ç å°†å¡«å……åˆ° password ä¸­
+ * size      - æœ€å¤šè¾“å…¥sizeä¸ªå­—èŠ‚ã€‚
  */
 static void std_password(char *password, int size)
 {
@@ -152,9 +152,9 @@ static int is_absolute_path(const char *path)
 #include <unistd.h>
 
 /*
-* ´Ó±ê×¼ÊäÈëÖĞÊäÈë×Ö·û´®
-* str  - ÊäÈëµÄ×Ö·û´®½«Ìî³äµ½ str ÖĞ
-* size - ×î¶àÊäÈë size ¸ö×Ö½Ú¡£
+* ä»æ ‡å‡†è¾“å…¥ä¸­è¾“å…¥å­—ç¬¦ä¸²
+* str  - è¾“å…¥çš„å­—ç¬¦ä¸²å°†å¡«å……åˆ° str ä¸­
+* size - æœ€å¤šè¾“å…¥ size ä¸ªå­—èŠ‚ã€‚
 */
 static void std_string(char *str, int size)
 {
@@ -185,9 +185,9 @@ static void std_string(char *str, int size)
 }
 
 /*
-* ´Ó±ê×¼ÊäÈëÖĞÊäÈëÃÜÂë£¬ÊäÈëµÄ×Ö·û²»»ØÏÔ
-* password  - ÊäÈëµÄÃÜÂë½«Ìî³äµ½ password ÖĞ
-* size      - ×î¶àÊäÈësize¸ö×Ö½Ú¡£
+* ä»æ ‡å‡†è¾“å…¥ä¸­è¾“å…¥å¯†ç ï¼Œè¾“å…¥çš„å­—ç¬¦ä¸å›æ˜¾
+* password  - è¾“å…¥çš„å¯†ç å°†å¡«å……åˆ° password ä¸­
+* size      - æœ€å¤šè¾“å…¥sizeä¸ªå­—èŠ‚ã€‚
 */
 static void std_password(char *password, int size)
 {
@@ -230,7 +230,7 @@ static int is_absolute_path(const char *path)
 
 /*
 string to time_t
-Ê±¼ä¸ñÊ½ 2009-3-24 0:00:08 »ò 2009-3-24
+æ—¶é—´æ ¼å¼ 2009-3-24 0:00:08 æˆ– 2009-3-24
 */
 int str2time(const char *str, time_t *timeData)
 {
@@ -254,7 +254,7 @@ int str2time(const char *str, time_t *timeData)
 	iMin = 0;
 	iSec = 0;
 	pPos = strstr(pPos + 1, " ");
-	//ÎªÁË¼æÈİÓĞĞ©Ã»¾«È·µ½Ê±·ÖÃëµÄ
+	//ä¸ºäº†å…¼å®¹æœ‰äº›æ²¡ç²¾ç¡®åˆ°æ—¶åˆ†ç§’çš„
 	if (pPos != NULL) {
 		iHour = atoi(pPos + 1);
 		pPos = strstr(pPos + 1, ":");
@@ -278,7 +278,7 @@ int str2time(const char *str, time_t *timeData)
 }
 
 /*
-time_t to string Ê±¼ä¸ñÊ½ 2009-3-24 0:00:08
+time_t to string æ—¶é—´æ ¼å¼ 2009-3-24 0:00:08
 */
 char *time2str(char *buf, const time_t *t)
 {
@@ -294,11 +294,11 @@ char *time2str(char *buf, const time_t *t)
 	return 0;
 }
 
-/*·µ»ØCOOKIEÎÄ¼şÂ·¾¶*/
+/*è¿”å›COOKIEæ–‡ä»¶è·¯å¾„*/
 static const char *cookiefile()
 {
 	static char filename[1024] = { 0 };
-	if (!filename[0]){ /*Èç¹ûÒÑ¾­´¦Àí¹ı£¬ÔòÖ±½Ó·µ»Ø*/
+	if (!filename[0]){ /*å¦‚æœå·²ç»å¤„ç†è¿‡ï¼Œåˆ™ç›´æ¥è¿”å›*/
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
 		strcat(filename, "\\.pcs");
@@ -316,11 +316,11 @@ static const char *cookiefile()
 	return filename;
 }
 
-/*·µ»ØÑéÖ¤ÂëÍ¼Æ¬ÎÄ¼şÂ·¾¶*/
+/*è¿”å›éªŒè¯ç å›¾ç‰‡æ–‡ä»¶è·¯å¾„*/
 static const char *captchafile()
 {
 	static char filename[1024] = { 0 };
-	if (!filename[0]){ /*Èç¹ûÒÑ¾­´¦Àí¹ı£¬ÔòÖ±½Ó·µ»Ø*/
+	if (!filename[0]){ /*å¦‚æœå·²ç»å¤„ç†è¿‡ï¼Œåˆ™ç›´æ¥è¿”å›*/
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
 		strcat(filename, "\\.pcs");
@@ -338,7 +338,7 @@ static const char *captchafile()
 	return filename;
 }
 
-/*Êä³öÑéÖ¤ÂëÍ¼Æ¬£¬²¢µÈ´ıÓÃ»§ÊäÈëÊ¶±ğ½á¹û*/
+/*è¾“å‡ºéªŒè¯ç å›¾ç‰‡ï¼Œå¹¶ç­‰å¾…ç”¨æˆ·è¾“å…¥è¯†åˆ«ç»“æœ*/
 static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
 {
 	static char filename[1024] = { 0 };
@@ -368,7 +368,7 @@ static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t
 	return PcsTrue;
 }
 
-/*ÏÔÊ¾ÉÏ´«½ø¶È*/
+/*æ˜¾ç¤ºä¸Šä¼ è¿›åº¦*/
 static int upload_progress(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
 {
 	char *path = (char *)clientp;
@@ -384,7 +384,7 @@ static int upload_progress(void *clientp, double dltotal, double dlnow, double u
 	return 0;
 }
 
-/*ÏÂÔØÎÄ¼şÊ±£¬Ğ´ÈëÎÄ¼ş²¢ÏÔÊ¾½ø¶È*/
+/*ä¸‹è½½æ–‡ä»¶æ—¶ï¼Œå†™å…¥æ–‡ä»¶å¹¶æ˜¾ç¤ºè¿›åº¦*/
 static int download_write(char *ptr, size_t size, size_t contentlength, void *userdata)
 {
 	struct DownloadState *ds = (struct DownloadState *)userdata;
@@ -403,10 +403,10 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 }
 
 /*
- * ¶ÁÈ¡È«²¿ÎÄ¼şÄÚÈİ
- * file    - ´ı¶ÁÈ¡µÄÎÄ¼ş
- * pBuffer - ÎÄ¼şµÄÄÚÈİËùÔÚµÄÄÚ´æÖ¸Õë½«´æÈëpBufferÖ¸¶¨µÄÄÚ´æÖĞ
- * ·µ»Ø¶ÁÈ¡µ½µÄ×Ö½Ú´óĞ¡¡£Ê¹ÓÃÍê³Éºó£¬Ğèµ÷ÓÃpcs_free(*pBuffer)
+ * è¯»å–å…¨éƒ¨æ–‡ä»¶å†…å®¹
+ * file    - å¾…è¯»å–çš„æ–‡ä»¶
+ * pBuffer - æ–‡ä»¶çš„å†…å®¹æ‰€åœ¨çš„å†…å­˜æŒ‡é’ˆå°†å­˜å…¥pBufferæŒ‡å®šçš„å†…å­˜ä¸­
+ * è¿”å›è¯»å–åˆ°çš„å­—èŠ‚å¤§å°ã€‚ä½¿ç”¨å®Œæˆåï¼Œéœ€è°ƒç”¨pcs_free(*pBuffer)
 */
 static int readFileContent(const char *file, char **pBuffer)
 {
@@ -452,7 +452,7 @@ static int readFileContent(const char *file, char **pBuffer)
 	return size_of_file;
 }
 
-/*»ñÈ¡ÉÏÏÂÎÄ´æ´¢ÎÄ¼şÂ·¾¶*/
+/*è·å–ä¸Šä¸‹æ–‡å­˜å‚¨æ–‡ä»¶è·¯å¾„*/
 static const char *contextfile()
 {
 	static char filename[1024] = { 0 };
@@ -485,7 +485,7 @@ static void hook_cjson()
 	cJSON_InitHooks(&hooks);
 }
 
-/*°ÑÉÏÏÂÎÄ×ª»»Îª×Ö·û´®*/
+/*æŠŠä¸Šä¸‹æ–‡è½¬æ¢ä¸ºå­—ç¬¦ä¸²*/
 static char *context2str(ShellContext *context)
 {
 	char *json;
@@ -537,7 +537,7 @@ static char *context2str(ShellContext *context)
 	return json;
 }
 
-/*±£´æÉÏÏÂÎÄ*/
+/*ä¿å­˜ä¸Šä¸‹æ–‡*/
 static void save_context(ShellContext *context)
 {
 	const char *filename;
@@ -559,7 +559,7 @@ static void save_context(ShellContext *context)
 	pcs_free(json);
 }
 
-/*»¹Ô­±£´æµÄÉÏÏÂÎÄ*/
+/*è¿˜åŸä¿å­˜çš„ä¸Šä¸‹æ–‡*/
 static void restore_context(ShellContext *context)
 {
 	const char *filename;
@@ -671,7 +671,7 @@ static void restore_context(ShellContext *context)
 	pcs_free(filecontent);
 }
 
-/*´Ó³ÌĞòÂ·¾¶ÖĞ»ñÈ¡ÎÄ¼şµÄÃû×Ö*/
+/*ä»ç¨‹åºè·¯å¾„ä¸­è·å–æ–‡ä»¶çš„åå­—*/
 static const char *filename(char *path)
 {
 	const char *p;
@@ -683,15 +683,15 @@ static const char *filename(char *path)
 }
 
 /*
-* ºÏ²¢unix¸ñÊ½µÄÂ·¾¶£¬Èç¹ûfilename´«ÈëµÄÊÇ¾ø¶ÔÂ·¾¶£¬ÔòÖ±½Ó·µ»ØfilenameµÄ¿½±´¡£
-* Ê¹ÓÃÍêºó£¬Ğèµ÷ÓÃpcs_freeÀ´ÊÍ·Å·µ»ØÖµ
+* åˆå¹¶unixæ ¼å¼çš„è·¯å¾„ï¼Œå¦‚æœfilenameä¼ å…¥çš„æ˜¯ç»å¯¹è·¯å¾„ï¼Œåˆ™ç›´æ¥è¿”å›filenameçš„æ‹·è´ã€‚
+* ä½¿ç”¨å®Œåï¼Œéœ€è°ƒç”¨pcs_freeæ¥é‡Šæ”¾è¿”å›å€¼
 */
 static char *combin_path(const char *base, int basesz, const char *filename)
 {
 	char *p, *p2;
 	size_t filenamesz, sz;
 
-	if (is_absolute_path(filename)) { /*Èç¹ûÊÇ¾ø¶ÔÂ·¾¶*/
+	if (is_absolute_path(filename)) { /*å¦‚æœæ˜¯ç»å¯¹è·¯å¾„*/
 		p = pcs_utils_strdup(filename);
 	}
 	else {
@@ -733,15 +733,15 @@ static char *combin_path(const char *base, int basesz, const char *filename)
 }
 
 /*
- * ºÏ²¢unix¸ñÊ½µÄÂ·¾¶£¬Èç¹ûfilename´«ÈëµÄÊÇ¾ø¶ÔÂ·¾¶£¬ÔòÖ±½Ó·µ»ØfilenameµÄ¿½±´¡£
- * Ê¹ÓÃÍêºó£¬Ğèµ÷ÓÃpcs_freeÀ´ÊÍ·Å·µ»ØÖµ
+ * åˆå¹¶unixæ ¼å¼çš„è·¯å¾„ï¼Œå¦‚æœfilenameä¼ å…¥çš„æ˜¯ç»å¯¹è·¯å¾„ï¼Œåˆ™ç›´æ¥è¿”å›filenameçš„æ‹·è´ã€‚
+ * ä½¿ç”¨å®Œåï¼Œéœ€è°ƒç”¨pcs_freeæ¥é‡Šæ”¾è¿”å›å€¼
  */
 static char *combin_unix_path(const char *base, const char *filename)
 {
 	char *p, *p2;
 	size_t basesz, filenamesz, sz;
 
-	if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*Èç¹ûÊÇ¾ø¶ÔÂ·¾¶£¬Ö±½Ó·µ»Ø¸ÃÖµ*/
+	if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*å¦‚æœæ˜¯ç»å¯¹è·¯å¾„ï¼Œç›´æ¥è¿”å›è¯¥å€¼*/
 		p = pcs_utils_strdup(filename);
 	}
 	else {
@@ -766,7 +766,7 @@ static char *combin_unix_path(const char *base, const char *filename)
 	return p;
 }
 
-/*°ÑÎÄ¼ş´óĞ¡×ª»»³É×Ö·û´®*/
+/*æŠŠæ–‡ä»¶å¤§å°è½¬æ¢æˆå­—ç¬¦ä¸²*/
 static const char *size_tostr(size_t size, int *fix_width, char ch)
 {
 	static char str[128], *p;
@@ -815,7 +815,7 @@ static const char *size_tostr(size_t size, int *fix_width, char ch)
 	return str;
 }
 
-/*´òÓ¡ÎÄ¼şÊ±¼ä*/
+/*æ‰“å°æ–‡ä»¶æ—¶é—´*/
 static void print_time(const char *format, time_t time)
 {
 	struct tm *tm = NULL;
@@ -840,7 +840,7 @@ static void print_time(const char *format, time_t time)
 	}
 }
 
-/*´òÓ¡¿É¶ÁµÄÎÄ¼ş´óĞ¡*/
+/*æ‰“å°å¯è¯»çš„æ–‡ä»¶å¤§å°*/
 static void print_size(const char *format, size_t size)
 {
 	char tmp[64];
@@ -849,7 +849,7 @@ static void print_size(const char *format, size_t size)
 	printf(format, tmp);
 }
 
-/*´òÓ¡ÎÄ¼şÁĞ±íµÄÍ·*/
+/*æ‰“å°æ–‡ä»¶åˆ—è¡¨çš„å¤´*/
 static void print_filelist_head(int size_width)
 {
 	int i;
@@ -867,7 +867,7 @@ static void print_filelist_head(int size_width)
 	puts("File Name");
 }
 
-/*´òÓ¡ÎÄ¼şÁĞ±íµÄÊı¾İĞĞ*/
+/*æ‰“å°æ–‡ä»¶åˆ—è¡¨çš„æ•°æ®è¡Œ*/
 static void print_filelist_row(PcsFileInfo *f, int size_width)
 {
 	const char *p;
@@ -888,7 +888,7 @@ static void print_filelist_row(PcsFileInfo *f, int size_width)
 	puts(f->path);
 }
 
-/*´òÓ¡ÎÄ¼şÁĞ±í*/
+/*æ‰“å°æ–‡ä»¶åˆ—è¡¨*/
 static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCount, size_t *pTotalSize)
 {
 	char tmp[64] = { 0 };
@@ -933,7 +933,7 @@ static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCoun
 	if (pTotalSize) *pTotalSize += total;
 }
 
-/*´òÓ¡×Ö·û´®¡£Èç¹ûlen´«Èë-1£¬Ôò±¾º¯ÊıµÈ¼ÛÓÚputs£¬·ñÔò£¬Ö»´òÓ¡lenÖ¸¶¨´óĞ¡µÄ×Ö·û´®*/
+/*æ‰“å°å­—ç¬¦ä¸²ã€‚å¦‚æœlenä¼ å…¥-1ï¼Œåˆ™æœ¬å‡½æ•°ç­‰ä»·äºputsï¼Œå¦åˆ™ï¼Œåªæ‰“å°lenæŒ‡å®šå¤§å°çš„å­—ç¬¦ä¸²*/
 static void print_str(const char *str, int len)
 {
 	int i;
@@ -947,7 +947,7 @@ static void print_str(const char *str, int len)
 	}
 }
 
-/*´òÓ¡ÎÄ¼ş»òÄ¿Â¼µÄÔªÊı¾İ*/
+/*æ‰“å°æ–‡ä»¶æˆ–ç›®å½•çš„å…ƒæ•°æ®*/
 static void print_fileinfo(PcsFileInfo *f, const char *prex)
 {
 	if (!prex) prex = "";
@@ -968,11 +968,11 @@ static void print_fileinfo(PcsFileInfo *f, const char *prex)
 }
 
 /*
- * ÅĞ¶ÏÁ½¸ö×Ö·û´®ÊÇ·ñÏàµÈ¡£
- *  s1    - ÒÔ'\0'Îª½áÊø±ê¼ÇµÄ×Ö·û´®
- *  s2    - ´ı±È½ÏµÄ×Ö·û´®
- *  s2len - s2×Ö·û´®µÄ×Ö½Ú³¤¶È¡£Èç¹û´«Èë-1µÄ»°£¬ÔòÊ¹ÓÃ'\0'×÷ÎªÆä½áÊø±ê¼Ç
- * Èç¹ûÏàµÈ£¬Ôò·µ»Ø1£¬·ñÔò·µ»Ø0¡£
+ * åˆ¤æ–­ä¸¤ä¸ªå­—ç¬¦ä¸²æ˜¯å¦ç›¸ç­‰ã€‚
+ *  s1    - ä»¥'\0'ä¸ºç»“æŸæ ‡è®°çš„å­—ç¬¦ä¸²
+ *  s2    - å¾…æ¯”è¾ƒçš„å­—ç¬¦ä¸²
+ *  s2len - s2å­—ç¬¦ä¸²çš„å­—èŠ‚é•¿åº¦ã€‚å¦‚æœä¼ å…¥-1çš„è¯ï¼Œåˆ™ä½¿ç”¨'\0'ä½œä¸ºå…¶ç»“æŸæ ‡è®°
+ * å¦‚æœç›¸ç­‰ï¼Œåˆ™è¿”å›1ï¼Œå¦åˆ™è¿”å›0ã€‚
  */
 static int streq(const char *s1, const char *s2, int s2len)
 {
@@ -1011,11 +1011,11 @@ static int streq(const char *s1, const char *s2, int s2len)
 }
 
 /*
- * ÅĞ¶ÏarrÊı×éÖĞÊÇ·ñ´æÔÚ×Ö·û´®str£¬Èç¹û´æÔÚÔò·µ»ØÆä±êºÅ£¨±êºÅÎª [Ë÷Òı] + 1£©£¬·ñÔò·µ»Ø0¡£
- * ±È½ÏÊ±Çø·Ö´óĞ¡Ğ´¡£
- * arr  - ´æ´¢ºÜ¶à×Ö·û´®µÄÊı×é£¬Êı×é×îºóÒ»¸öÔªËØ±ØĞëÎªNULL¡£
- * str  - ÅĞ¶ÏÊÇ·ñ´æÔÚµÄ×Ö·û´®
- * len  - ×Ö·û´®³¤¶È¡£ Èç¹û´«Èë-1£¬Ôò'\0'×÷ÎªÆä½áÊø±ê¼Ç¡£
+ * åˆ¤æ–­arræ•°ç»„ä¸­æ˜¯å¦å­˜åœ¨å­—ç¬¦ä¸²strï¼Œå¦‚æœå­˜åœ¨åˆ™è¿”å›å…¶æ ‡å·ï¼ˆæ ‡å·ä¸º [ç´¢å¼•] + 1ï¼‰ï¼Œå¦åˆ™è¿”å›0ã€‚
+ * æ¯”è¾ƒæ—¶åŒºåˆ†å¤§å°å†™ã€‚
+ * arr  - å­˜å‚¨å¾ˆå¤šå­—ç¬¦ä¸²çš„æ•°ç»„ï¼Œæ•°ç»„æœ€åä¸€ä¸ªå…ƒç´ å¿…é¡»ä¸ºNULLã€‚
+ * str  - åˆ¤æ–­æ˜¯å¦å­˜åœ¨çš„å­—ç¬¦ä¸²
+ * len  - å­—ç¬¦ä¸²é•¿åº¦ã€‚ å¦‚æœä¼ å…¥-1ï¼Œåˆ™'\0'ä½œä¸ºå…¶ç»“æŸæ ‡è®°ã€‚
 */
 static int str_in_array(const char **arr, const char *str, int len)
 {
@@ -1030,7 +1030,7 @@ static int str_in_array(const char **arr, const char *str, int len)
 	return rc;
 }
 
-/*³õÊ¼»¯ÉÏÏÂÎÄ*/
+/*åˆå§‹åŒ–ä¸Šä¸‹æ–‡*/
 static void init_context(ShellContext *context, int argc, char *argv[])
 {
 	memset(context, 0, sizeof(ShellContext));
@@ -1047,7 +1047,7 @@ static void init_context(ShellContext *context, int argc, char *argv[])
 	context->secure_enable = 0;
 }
 
-/*ÊÍ·ÅÉÏÏÂÎÄ*/
+/*é‡Šæ”¾ä¸Šä¸‹æ–‡*/
 static void free_context(ShellContext *context)
 {
 	if (context->name) pcs_free(context->name);
@@ -1062,7 +1062,7 @@ static void free_context(ShellContext *context)
 	memset(context, 0, sizeof(ShellContext));
 }
 
-/*³õÊ¼»¯PCSµÄ°²È«Ñ¡Ïî*/
+/*åˆå§‹åŒ–PCSçš„å®‰å…¨é€‰é¡¹*/
 static void init_pcs_secure(ShellContext *context)
 {
 	int method = 0;
@@ -1096,7 +1096,7 @@ static void init_pcs_secure(ShellContext *context)
 	}
 }
 
-/*³õÊ¼»¯PCS*/
+/*åˆå§‹åŒ–PCS*/
 static void init_pcs(ShellContext *context)
 {
 	context->pcs = pcs_create(context->cookiefile);
@@ -1108,13 +1108,13 @@ static void init_pcs(ShellContext *context)
 	init_pcs_secure(context);
 }
 
-/*´òÓ¡°æ±¾*/
+/*æ‰“å°ç‰ˆæœ¬*/
 static void version(ShellContext *context)
 {
 	printf(program_full_name "\n", context->name);
 }
 
-/*´òÓ¡catÃüÁîÓÃ·¨*/
+/*æ‰“å°catå‘½ä»¤ç”¨æ³•*/
 static void usage_cat(ShellContext *context)
 {
 	version(context);
@@ -1127,7 +1127,7 @@ static void usage_cat(ShellContext *context)
 	printf("  %s cat \"/music/Europe and America/list.txt\"\n", context->name);
 }
 
-/*´òÓ¡cdÃüÁîÓÃ·¨*/
+/*æ‰“å°cdå‘½ä»¤ç”¨æ³•*/
 static void usage_cd(ShellContext *context)
 {
 	version(context);
@@ -1140,7 +1140,7 @@ static void usage_cd(ShellContext *context)
 	printf("  %s cd \"/music/Europe and America\"\n", context->name);
 }
 
-/*´òÓ¡copyÃüÁîÓÃ·¨*/
+/*æ‰“å°copyå‘½ä»¤ç”¨æ³•*/
 static void usage_copy(ShellContext *context)
 {
 	version(context);
@@ -1153,7 +1153,7 @@ static void usage_copy(ShellContext *context)
 	printf("  %s copy /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", context->name);
 }
 
-/*´òÓ¡compareÃüÁîÓÃ·¨*/
+/*æ‰“å°compareå‘½ä»¤ç”¨æ³•*/
 static void usage_compare(ShellContext *context)
 {
 	version(context);
@@ -1168,7 +1168,7 @@ static void usage_compare(ShellContext *context)
 	printf("  %s compare -r music /music\n", context->name);
 }
 
-/*´òÓ¡contextÃüÁîÓÃ·¨*/
+/*æ‰“å°contextå‘½ä»¤ç”¨æ³•*/
 static void usage_context(ShellContext *context)
 {
 	version(context);
@@ -1179,7 +1179,7 @@ static void usage_context(ShellContext *context)
 	printf("  %s context\n", context->name);
 }
 
-/*´òÓ¡downloadÃüÁîÓÃ·¨*/
+/*æ‰“å°downloadå‘½ä»¤ç”¨æ³•*/
 static void usage_download(ShellContext *context)
 {
 	version(context);
@@ -1195,7 +1195,7 @@ static void usage_download(ShellContext *context)
 	printf("  %s download \"/music/dst.mp3\" \"/home/pcs/music/dst.mp3\"\n", context->name);
 }
 
-/*´òÓ¡echoÃüÁîÓÃ·¨*/
+/*æ‰“å°echoå‘½ä»¤ç”¨æ³•*/
 static void usage_echo(ShellContext *context)
 {
 	version(context);
@@ -1210,7 +1210,7 @@ static void usage_echo(ShellContext *context)
 	printf("  %s echo -a \"for test/src.txt\" \"This is from 'echo' command.\"\n", context->name);
 }
 
-/*´òÓ¡helpÃüÁîÓÃ·¨*/
+/*æ‰“å°helpå‘½ä»¤ç”¨æ³•*/
 static void usage_help(ShellContext *context)
 {
 	version(context);
@@ -1221,7 +1221,7 @@ static void usage_help(ShellContext *context)
 	printf("  %s help\n", context->name);
 }
 
-/*´òÓ¡listÃüÁîÓÃ·¨*/
+/*æ‰“å°listå‘½ä»¤ç”¨æ³•*/
 static void usage_list(ShellContext *context)
 {
 	version(context);
@@ -1234,7 +1234,7 @@ static void usage_list(ShellContext *context)
 	printf("  %s list \"/music/Europe and America\"\n", context->name);
 }
 
-/*´òÓ¡loginÃüÁîÓÃ·¨*/
+/*æ‰“å°loginå‘½ä»¤ç”¨æ³•*/
 static void usage_login(ShellContext *context)
 {
 	version(context);
@@ -1247,7 +1247,7 @@ static void usage_login(ShellContext *context)
 	printf("  %s login gang \"password\"\n", context->name);
 }
 
-/*´òÓ¡logoutÃüÁîÓÃ·¨*/
+/*æ‰“å°logoutå‘½ä»¤ç”¨æ³•*/
 static void usage_logout(ShellContext *context)
 {
 	version(context);
@@ -1258,7 +1258,7 @@ static void usage_logout(ShellContext *context)
 	printf("  %s logout\n", context->name);
 }
 
-/*´òÓ¡metaÃüÁîÓÃ·¨*/
+/*æ‰“å°metaå‘½ä»¤ç”¨æ³•*/
 static void usage_meta(ShellContext *context)
 {
 	version(context);
@@ -1271,7 +1271,7 @@ static void usage_meta(ShellContext *context)
 	printf("  %s meta \"/music/Europe and America\"\n", context->name);
 }
 
-/*´òÓ¡mkdirÃüÁîÓÃ·¨*/
+/*æ‰“å°mkdirå‘½ä»¤ç”¨æ³•*/
 static void usage_mkdir(ShellContext *context)
 {
 	version(context);
@@ -1284,7 +1284,7 @@ static void usage_mkdir(ShellContext *context)
 	printf("  %s mkdir \"/music/Europe and America\"\n", context->name);
 }
 
-/*´òÓ¡moveÃüÁîÓÃ·¨*/
+/*æ‰“å°moveå‘½ä»¤ç”¨æ³•*/
 static void usage_move(ShellContext *context)
 {
 	version(context);
@@ -1297,7 +1297,7 @@ static void usage_move(ShellContext *context)
 	printf("  %s move /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", context->name);
 }
 
-/*´òÓ¡pwdÃüÁîÓÃ·¨*/
+/*æ‰“å°pwdå‘½ä»¤ç”¨æ³•*/
 static void usage_pwd(ShellContext *context)
 {
 	version(context);
@@ -1308,7 +1308,7 @@ static void usage_pwd(ShellContext *context)
 	printf("  %s pwd\n", context->name);
 }
 
-/*´òÓ¡quotaÃüÁîÓÃ·¨*/
+/*æ‰“å°quotaå‘½ä»¤ç”¨æ³•*/
 static void usage_quota(ShellContext *context)
 {
 	version(context);
@@ -1319,7 +1319,7 @@ static void usage_quota(ShellContext *context)
 	printf("  %s quota\n", context->name);
 }
 
-/*´òÓ¡removeÃüÁîÓÃ·¨*/
+/*æ‰“å°removeå‘½ä»¤ç”¨æ³•*/
 static void usage_remove(ShellContext *context)
 {
 	version(context);
@@ -1332,7 +1332,7 @@ static void usage_remove(ShellContext *context)
 	printf("  %s remove \"/music/Europe and America/dst.mp3\"\n", context->name);
 }
 
-/*´òÓ¡renameÃüÁîÓÃ·¨*/
+/*æ‰“å°renameå‘½ä»¤ç”¨æ³•*/
 static void usage_rename(ShellContext *context)
 {
 	version(context);
@@ -1345,7 +1345,7 @@ static void usage_rename(ShellContext *context)
 	printf("  %s rename \"/music/Europe and America/src.mp3\" \"dst 2.mp3\"\n", context->name);
 }
 
-/*´òÓ¡listÃüÁîÓÃ·¨*/
+/*æ‰“å°listå‘½ä»¤ç”¨æ³•*/
 static void usage_set(ShellContext *context)
 {
 	version(context);
@@ -1369,7 +1369,7 @@ static void usage_set(ShellContext *context)
 	printf("  %s set list_page_size=20 list_sort_name=name list_sort_direction=desc\n", context->name);
 }
 
-/*´òÓ¡searchÃüÁîÓÃ·¨*/
+/*æ‰“å°searchå‘½ä»¤ç”¨æ³•*/
 static void usage_search(ShellContext *context)
 {
 	version(context);
@@ -1386,7 +1386,7 @@ static void usage_search(ShellContext *context)
 	printf("  %s search \"/music/Europe and America\" \"dst 2.mp3\"\n", context->name);
 }
 
-/*´òÓ¡uploadÃüÁîÓÃ·¨*/
+/*æ‰“å°uploadå‘½ä»¤ç”¨æ³•*/
 static void usage_upload(ShellContext *context)
 {
 	version(context);
@@ -1402,7 +1402,7 @@ static void usage_upload(ShellContext *context)
 	printf("  %s upload \"/home/pcs/music/dst.mp3\" \"/music/dst.mp3\"\n", context->name);
 }
 
-/*´òÓ¡versionÃüÁîÓÃ·¨*/
+/*æ‰“å°versionå‘½ä»¤ç”¨æ³•*/
 static void usage_version(ShellContext *context)
 {
 	version(context);
@@ -1413,7 +1413,7 @@ static void usage_version(ShellContext *context)
 	printf("  %s version\n", context->name);
 }
 
-/*´òÓ¡whoÃüÁîÓÃ·¨*/
+/*æ‰“å°whoå‘½ä»¤ç”¨æ³•*/
 static void usage_who(ShellContext *context)
 {
 	version(context);
@@ -1424,7 +1424,7 @@ static void usage_who(ShellContext *context)
 	printf("  %s who\n", context->name);
 }
 
-/*´òÓ¡ÓÃ·¨*/
+/*æ‰“å°ç”¨æ³•*/
 static void usage(ShellContext *context)
 {
 	version(context);
@@ -1466,13 +1466,13 @@ static void usage(ShellContext *context)
 	printf("  %s cd /temp\n", context->name);
 }
 
-/*ÅĞ¶ÏÊÇ·ñĞèÒª´òÓ¡usage*/
+/*åˆ¤æ–­æ˜¯å¦éœ€è¦æ‰“å°usage*/
 static inline int is_print_usage(int argc, char *argv[])
 {
 	return (argc == 1 && (strcmp(argv[0], "-h") == 0 || strcmp(argv[0], "-?") == 0 || strcmp(argv[0], "--help") == 0));
 }
 
-/*ÕÒµ½Ö¸ÏòÎÄ¼şÃûµÄÖ¸Õë*/
+/*æ‰¾åˆ°æŒ‡å‘æ–‡ä»¶åçš„æŒ‡é’ˆ*/
 static inline const char *find_filename(const char *path)
 {
 	const char *p;
@@ -1490,8 +1490,8 @@ static inline const char *find_filename(const char *path)
 }
 
 /*
- * ¼ì²éÊÇ·ñµÇÂ¼£¬Èç¹ûÎ´µÇÂ¼ÔòµÇÂ¼
- *   msg   - ¼ì²âµ½Î´µÇÂ¼Ê±µÄ´òÓ¡ÏûÏ¢¡£´«ÈëNULLµÄ»°£¬ÔòÊ¹ÓÃÄ¬ÈÏÏûÏ¢¡£
+ * æ£€æŸ¥æ˜¯å¦ç™»å½•ï¼Œå¦‚æœæœªç™»å½•åˆ™ç™»å½•
+ *   msg   - æ£€æµ‹åˆ°æœªç™»å½•æ—¶çš„æ‰“å°æ¶ˆæ¯ã€‚ä¼ å…¥NULLçš„è¯ï¼Œåˆ™ä½¿ç”¨é»˜è®¤æ¶ˆæ¯ã€‚
 */
 static PcsBool is_login(ShellContext *context, const char *msg)
 {
@@ -1511,7 +1511,7 @@ static PcsBool is_login(ShellContext *context, const char *msg)
 	return PcsFalse;
 }
 
-/*ÉèÖÃÉÏÏÂÎÄÖĞµÄcookiefileÖµ*/
+/*è®¾ç½®ä¸Šä¸‹æ–‡ä¸­çš„cookiefileå€¼*/
 static int set_cookiefile(ShellContext *context, const char *val)
 {
 	if (!val || !val[0]) return -1;
@@ -1526,7 +1526,7 @@ static int set_cookiefile(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*ÉèÖÃÉÏÏÂÎÄÖĞµÄcaptchafileÖµ*/
+/*è®¾ç½®ä¸Šä¸‹æ–‡ä¸­çš„captchafileå€¼*/
 static int set_captchafile(ShellContext *context, const char *val)
 {
 	if (!val || !val[0]) return -1;
@@ -1536,7 +1536,7 @@ static int set_captchafile(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*ÉèÖÃÉÏÏÂÎÄÖĞµÄlist_page_sizeÖµ*/
+/*è®¾ç½®ä¸Šä¸‹æ–‡ä¸­çš„list_page_sizeå€¼*/
 static int set_list_page_size(ShellContext *context, const char *val)
 {
 	const char *p = val;
@@ -1553,7 +1553,7 @@ static int set_list_page_size(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*ÉèÖÃÉÏÏÂÎÄÖĞµÄlist_sort_nameÖµ*/
+/*è®¾ç½®ä¸Šä¸‹æ–‡ä¸­çš„list_sort_nameå€¼*/
 static int set_list_sort_name(ShellContext *context, const char *val)
 {
 	if (!val || !val[0]) return -1;
@@ -1566,7 +1566,7 @@ static int set_list_sort_name(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*ÉèÖÃÉÏÏÂÎÄÖĞµÄlist_sort_directionÖµ*/
+/*è®¾ç½®ä¸Šä¸‹æ–‡ä¸­çš„list_sort_directionå€¼*/
 static int set_list_sort_direction(ShellContext *context, const char *val)
 {
 	if (!val || !val[0]) return -1;
@@ -1579,7 +1579,7 @@ static int set_list_sort_direction(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*ÉèÖÃÉÏÏÂÎÄÖĞµÄsecure_methodÖµ*/
+/*è®¾ç½®ä¸Šä¸‹æ–‡ä¸­çš„secure_methodå€¼*/
 static int set_secure_method(ShellContext *context, const char *val)
 {
 	if (!val || !val[0]) return -1;
@@ -1596,7 +1596,7 @@ static int set_secure_method(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*ÉèÖÃÉÏÏÂÎÄÖĞµÄsecure_keyÖµ*/
+/*è®¾ç½®ä¸Šä¸‹æ–‡ä¸­çš„secure_keyå€¼*/
 static int set_secure_key(ShellContext *context, const char *val)
 {
 	if (!val || !val[0]) return -1;
@@ -1610,7 +1610,7 @@ static int set_secure_key(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*ÉèÖÃÉÏÏÂÎÄÖĞµÄsecure_enableÖµ*/
+/*è®¾ç½®ä¸Šä¸‹æ–‡ä¸­çš„secure_enableå€¼*/
 static int set_secure_enable(ShellContext *context, const char *val)
 {
 	if (!val || !val[0]) return -1;
@@ -1629,9 +1629,9 @@ static int set_secure_enable(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*³¢ÊÔÎ¬»¤Ò»·İ×Ô¼ºµÄÔªÊı¾İ - ¿ªÊ¼*/
+/*å°è¯•ç»´æŠ¤ä¸€ä»½è‡ªå·±çš„å…ƒæ•°æ® - å¼€å§‹*/
 
-/*´´½¨Ò»¸öMyMeta*/
+/*åˆ›å»ºä¸€ä¸ªMyMeta*/
 static MyMeta *meta_create(const char *path, const char *filename, time_t mtime, const char *md5, size_t size, int isdir, UInt64 fs_id, time_t upload_time)
 {
 	MyMeta *rc;
@@ -1650,7 +1650,7 @@ static MyMeta *meta_create(const char *path, const char *filename, time_t mtime,
 	return rc;
 }
 
-/*ÊÍ·ÅµôÒ»¸öMyMeta*/
+/*é‡Šæ”¾æ‰ä¸€ä¸ªMyMeta*/
 static void meta_destroy(MyMeta *meta)
 {
 	if (!meta) return;
@@ -1676,7 +1676,7 @@ static const char *skip_space(const char *in)
 	return in;
 }
 
-/*¶ÁÈ¡Ò»¸ö×Ö·û´®*/
+/*è¯»å–ä¸€ä¸ªå­—ç¬¦ä¸²*/
 static const char *parse_string(const char *in, char **ptr)
 {
 	const char *p = in, *start, *end, *result = NULL;
@@ -1700,7 +1700,7 @@ static const char *parse_string(const char *in, char **ptr)
 	return p + 1;
 }
 
-/*¶ÁÈ¡Ò»¸ö×Ö·û´®*/
+/*è¯»å–ä¸€ä¸ªå­—ç¬¦ä¸²*/
 static const char *parse_numeric(const char *in, char **ptr)
 {
 	const char *p = in, *start, *end, *result = NULL;
@@ -1774,7 +1774,7 @@ static MyMeta *meta_read(const char **ptr)
 	return meta;
 }
 
-/*´Ó±¾µØÎÄ¼şÏµÍ³ÖĞ¼ÓÔØÔªÊı¾İ*/
+/*ä»æœ¬åœ°æ–‡ä»¶ç³»ç»Ÿä¸­åŠ è½½å…ƒæ•°æ®*/
 static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 {
 	rb_red_blk_tree *rb = NULL;
@@ -1875,7 +1875,7 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 	return rb;
 }
 
-/*²éÑ¯pathÖ¸¶¨ÎÄ¼şµÄÔªÊı¾İ*/
+/*æŸ¥è¯¢pathæŒ‡å®šæ–‡ä»¶çš„å…ƒæ•°æ®*/
 static MyMeta *meta_query(rb_red_blk_tree *rb, const char *path)
 {
 	rb_red_blk_node *node;
@@ -1886,27 +1886,27 @@ static MyMeta *meta_query(rb_red_blk_tree *rb, const char *path)
 	return NULL;
 }
 
-/*³¢ÊÔÎ¬»¤Ò»·İ×Ô¼ºµÄÔªÊı¾İ - ½áÊø*/
+/*å°è¯•ç»´æŠ¤ä¸€ä»½è‡ªå·±çš„å…ƒæ•°æ® - ç»“æŸ*/
 
-/*ºìºÚÊ÷ÖĞÓÃÓÚÊÍ·Å key */
+/*çº¢é»‘æ ‘ä¸­ç”¨äºé‡Šæ”¾ key */
 static void rb_destory_string(void *a)
 {
 	if (a) pcs_free(a);
 }
 
-/*ºìºÚÊ÷ÖĞÓÃÓÚÊÍ·Å key */
+/*çº¢é»‘æ ‘ä¸­ç”¨äºé‡Šæ”¾ key */
 static void rb_destory_key_for_meta(void *a)
 {
 	
 }
 
-/*ºìºÚÊ÷ÖĞÓÃÓÚÊÍ·Å info */
+/*çº¢é»‘æ ‘ä¸­ç”¨äºé‡Šæ”¾ info */
 static void rb_destory_meta(void *a)
 {
 	if (a) meta_destroy((MyMeta *)a);
 }
 
-/*ºìºÚÊ÷ÖĞÓÃÓÚ±È½Ï key Öµ¡£µ± *a > *b Ê±£¬·µ»Ø 1; µ± *a < *b Ê±£¬·µ»Ø -1; µ±ÏàµÈÊ±£¬·µ»Ø 0¡£ */
+/*çº¢é»‘æ ‘ä¸­ç”¨äºæ¯”è¾ƒ key å€¼ã€‚å½“ *a > *b æ—¶ï¼Œè¿”å› 1; å½“ *a < *b æ—¶ï¼Œè¿”å› -1; å½“ç›¸ç­‰æ—¶ï¼Œè¿”å› 0ã€‚ */
 static int rb_compare_string(const void *a, const void *b)
 {
 	int rc;
@@ -1917,13 +1917,13 @@ static int rb_compare_string(const void *a, const void *b)
 	return (rc < 0 ? -1 : (rc > 0 ? 1 : 0));
 }
 
-/*ºìºÚÊ÷ÖĞÓÃÓÚ´òÓ¡ key */
+/*çº¢é»‘æ ‘ä¸­ç”¨äºæ‰“å° key */
 static void rb_print_string(const void *a)
 {
 	printf("%s", a);
 }
 
-/*ºìºÚÊ÷ÖĞÓÃÓÚ´òÓ¡ info */
+/*çº¢é»‘æ ‘ä¸­ç”¨äºæ‰“å° info */
 static void rb_print_meta(void *a)
 {
 	MyMeta *meta = (MyMeta *)a;
@@ -2009,7 +2009,7 @@ static rb_red_blk_tree *compare_dir(ShellContext *context, const char *locPath, 
 	return rb;
 }
 
-/*´òÓ¡ÍøÅÌÎÄ¼şÄÚÈİ*/
+/*æ‰“å°ç½‘ç›˜æ–‡ä»¶å†…å®¹*/
 static int cmd_cat(ShellContext *context, int argc, char *argv[])
 {
 	char *path;
@@ -2037,7 +2037,7 @@ static int cmd_cat(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*¸ü¸ÄÍøÅÌµ±Ç°¹¤×÷Ä¿Â¼*/
+/*æ›´æ”¹ç½‘ç›˜å½“å‰å·¥ä½œç›®å½•*/
 static int cmd_cd(ShellContext *context, int argc, char *argv[])
 {
 	char *p;
@@ -2072,7 +2072,7 @@ static int cmd_cd(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*¸´ÖÆÍøÅÌÎÄ¼ş*/
+/*å¤åˆ¶ç½‘ç›˜æ–‡ä»¶*/
 static int cmd_copy(ShellContext *context, int argc, char *argv[])
 {
 	PcsPanApiRes *res;
@@ -2114,7 +2114,7 @@ static int cmd_copy(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*±È½Ï±¾µØºÍÍøÅÌÄ¿Â¼µÄÒìÍ¬*/
+/*æ¯”è¾ƒæœ¬åœ°å’Œç½‘ç›˜ç›®å½•çš„å¼‚åŒ*/
 static int cmd_compare(ShellContext *context, int argc, char *argv[])
 {
 	int is_recursive = 0;
@@ -2136,7 +2136,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 		usage_compare(context);
 		return -1;
 	}
-	/*½âÎö²ÎÊı - ¿ªÊ¼*/
+	/*è§£æå‚æ•° - å¼€å§‹*/
 	if (argc == 2){
 		if (strcmp(argv[0], "-r") == 0 || strcmp(argv[1], "-r") == 0) {
 			usage_compare(context);
@@ -2170,18 +2170,18 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 		usage_compare(context);
 		return -1;
 	}
-	/*½âÎö²ÎÊı - ½áÊø*/
+	/*è§£æå‚æ•° - ç»“æŸ*/
 
-	/*¼ì²é±¾µØÎÄ¼ş - ¿ªÊ¼*/
+	/*æ£€æŸ¥æœ¬åœ°æ–‡ä»¶ - å¼€å§‹*/
 	ft = get_file_ent(&ent, locPath);
 	if (ft == 0) {
 		printf("Error: The local %s not exist.\n", locPath);
 		if (ent) my_dirent_destroy(ent);
 		return -1;
 	}
-	/*¼ì²é±¾µØÎÄ¼ş - ½áÊø*/
+	/*æ£€æŸ¥æœ¬åœ°æ–‡ä»¶ - ç»“æŸ*/
 
-	//¼ì²éÊÇ·ñÒÑ¾­µÇÂ¼
+	//æ£€æŸ¥æ˜¯å¦å·²ç»ç™»å½•
 	if (!is_login(context, NULL)) {
 		if (ent) my_dirent_destroy(ent);
 		return -1;
@@ -2194,7 +2194,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 		return -1;
 	}
 
-	/*¼ì²éÍøÅÌÎÄ¼ş*/
+	/*æ£€æŸ¥ç½‘ç›˜æ–‡ä»¶*/
 	meta = pcs_meta(context->pcs, path);
 	if (!meta) {
 		printf("Error: Can't find the meta for %s: %s\n", path, pcs_strerror(context->pcs));
@@ -2212,7 +2212,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 			return -1;
 		}
 		else {
-			/*±È½ÏÎÄ¼şÒìÍ¬*/
+			/*æ¯”è¾ƒæ–‡ä»¶å¼‚åŒ*/
 			mm = compare_file(context, ent, meta);
 			if (mm) {
 				ft = strlen(mm->filename);
@@ -2245,7 +2245,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 			return -1;
 		}
 		else {
-			/*±È½ÏÄ¿Â¼ÒìÍ¬*/
+			/*æ¯”è¾ƒç›®å½•å¼‚åŒ*/
 			rb = compare_dir(context, locPath, path, is_recursive);
 
 		}
@@ -2258,7 +2258,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*´òÓ¡³öÉÏÏÂÎÄ*/
+/*æ‰“å°å‡ºä¸Šä¸‹æ–‡*/
 static int cmd_context(ShellContext *context, int argc, char *argv[])
 {
 	char *json;
@@ -2273,7 +2273,7 @@ static int cmd_context(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*ÏÂÔØ*/
+/*ä¸‹è½½*/
 static int cmd_download(ShellContext *context, int argc, char *argv[])
 {
 	int is_force = 0;
@@ -2295,7 +2295,7 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 		usage_download(context);
 		return -1;
 	}
-	/*½âÎö²ÎÊı - ¿ªÊ¼*/
+	/*è§£æå‚æ•° - å¼€å§‹*/
 	if (argc == 2){
 		if (strcmp(argv[0], "-f") == 0 || strcmp(argv[1], "-f") == 0) {
 			usage_download(context);
@@ -2329,9 +2329,9 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 		usage_download(context);
 		return -1;
 	}
-	/*½âÎö²ÎÊı - ½áÊø*/
+	/*è§£æå‚æ•° - ç»“æŸ*/
 
-	/*¼ì²é±¾µØÎÄ¼ş - ¿ªÊ¼*/
+	/*æ£€æŸ¥æœ¬åœ°æ–‡ä»¶ - å¼€å§‹*/
 	ft = is_dir_or_file(locPath);
 	if (ft == 2) {
 		printf("Error: The local %s exist, and it's a directory.\n", locPath);
@@ -2348,9 +2348,9 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 		printf("Error: Can't %s the local file: %s\n", (ft == 0 ? "create" : "open"), locPath);
 		return -1;
 	}
-	/*¼ì²é±¾µØÎÄ¼ş - ½áÊø*/
+	/*æ£€æŸ¥æœ¬åœ°æ–‡ä»¶ - ç»“æŸ*/
 
-	//¼ì²éÊÇ·ñÒÑ¾­µÇÂ¼
+	//æ£€æŸ¥æ˜¯å¦å·²ç»ç™»å½•
 	if (!is_login(context, NULL)) {
 		fclose(ds.pf);
 		return -1;
@@ -2363,7 +2363,7 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 		return -1;
 	}
 
-	/*¼ì²éÍøÅÌÎÄ¼ş - ¿ªÊ¼*/
+	/*æ£€æŸ¥ç½‘ç›˜æ–‡ä»¶ - å¼€å§‹*/
 	meta = pcs_meta(context->pcs, path);
 	if (!meta) {
 		printf("Error: Can't find the meta for %s\n", pcs_strerror(context->pcs));
@@ -2380,9 +2380,9 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 	}
 	mtime = (time_t)meta->server_mtime;
 	pcs_fileinfo_destroy(meta);
-	/*¼ì²éÍøÅÌÎÄ¼ş - ½áÊø*/
+	/*æ£€æŸ¥ç½‘ç›˜æ–‡ä»¶ - ç»“æŸ*/
 
-	/*¿ªÊ¼ÏÂÔØ*/
+	/*å¼€å§‹ä¸‹è½½*/
 	pcs_setopts(context->pcs, 
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
@@ -2400,7 +2400,7 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*Êä³öÎÄ±¾µ½ÍøÅÌÄ³Ò»¸öÎÄ¼ş*/
+/*è¾“å‡ºæ–‡æœ¬åˆ°ç½‘ç›˜æŸä¸€ä¸ªæ–‡ä»¶*/
 static int cmd_echo(ShellContext *context, int argc, char *argv[])
 {
 	int is_append = 0;
@@ -2417,7 +2417,7 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 		usage_echo(context);
 		return -1;
 	}
-	/*½âÎö²ÎÊı - ¿ªÊ¼*/
+	/*è§£æå‚æ•° - å¼€å§‹*/
 	if (argc == 2) {
 		relPath = argv[0];
 		text = argv[1];
@@ -2443,7 +2443,7 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 			return -1;
 		}
 	}
-	/*½âÎö²ÎÊı - ½áÊø*/
+	/*è§£æå‚æ•° - ç»“æŸ*/
 	if (!is_login(context, NULL)) return -1;
 	path = combin_unix_path(context->workdir, relPath);
 	assert(path);
@@ -2451,14 +2451,14 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 	if (is_append) {
 		const char *org;
 		size_t len;
-		//»ñÈ¡ÎÄ¼şµÄÄÚÈİ
+		//è·å–æ–‡ä»¶çš„å†…å®¹
 		org = pcs_cat(context->pcs, path, &len);
 		if (org == NULL) {
 			printf("Error: path=%s. %s\n", path, pcs_strerror(context->pcs));
 			pcs_free(path);
 			return -1;
 		}
-		//Æ´½ÓÁ½¸ö×Ö·û´®
+		//æ‹¼æ¥ä¸¤ä¸ªå­—ç¬¦ä¸²
 		t = (char *)pcs_malloc(sz + len + 1);
 		assert(t);
 		memcpy(t, org, len);
@@ -2482,7 +2482,7 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*´òÓ¡°ïÖúĞÅÏ¢*/
+/*æ‰“å°å¸®åŠ©ä¿¡æ¯*/
 static int cmd_help(ShellContext *context, int argc, char *argv[])
 {
 	if (is_print_usage(argc, argv)) {
@@ -2497,7 +2497,7 @@ static int cmd_help(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*ÁĞ³öÄ¿Â¼*/
+/*åˆ—å‡ºç›®å½•*/
 static int cmd_list(ShellContext *context, int argc, char *argv[])
 {
 	char *path;
@@ -2562,7 +2562,7 @@ static int cmd_list(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*µÇÂ¼*/
+/*ç™»å½•*/
 static int cmd_login(ShellContext *context, int argc, char *argv[])
 {
 	PcsRes pcsres;
@@ -2604,7 +2604,7 @@ static int cmd_login(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*×¢Ïú*/
+/*æ³¨é”€*/
 static int cmd_logout(ShellContext *context, int argc, char *argv[])
 {
 	PcsRes pcsres;
@@ -2626,7 +2626,7 @@ static int cmd_logout(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*´òÓ¡ÎÄ¼ş»òÄ¿Â¼µÄÔªÊı¾İ*/
+/*æ‰“å°æ–‡ä»¶æˆ–ç›®å½•çš„å…ƒæ•°æ®*/
 static int cmd_meta(ShellContext *context, int argc, char *argv[])
 {
 	char *path;
@@ -2657,7 +2657,7 @@ static int cmd_meta(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*´´½¨Ä¿Â¼*/
+/*åˆ›å»ºç›®å½•*/
 static int cmd_mkdir(ShellContext *context, int argc, char *argv[])
 {
 	PcsRes res;
@@ -2684,7 +2684,7 @@ static int cmd_mkdir(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*ÒÆ¶¯ÎÄ¼ş*/
+/*ç§»åŠ¨æ–‡ä»¶*/
 static int cmd_move(ShellContext *context, int argc, char *argv[])
 {
 	PcsPanApiRes *res;
@@ -2725,7 +2725,7 @@ static int cmd_move(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*´òÓ¡µ±Ç°¹¤×÷Ä¿Â¼*/
+/*æ‰“å°å½“å‰å·¥ä½œç›®å½•*/
 static int cmd_pwd(ShellContext *context, int argc, char *argv[])
 {
 	if (is_print_usage(argc, argv)) {
@@ -2741,7 +2741,7 @@ static int cmd_pwd(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*´òÓ¡Åä¶î*/
+/*æ‰“å°é…é¢*/
 static int cmd_quota(ShellContext *context, int argc, char *argv[])
 {
 	PcsRes pcsres;
@@ -2773,7 +2773,7 @@ static int cmd_quota(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*É¾³ıÎÄ¼ş*/
+/*åˆ é™¤æ–‡ä»¶*/
 static int cmd_remove(ShellContext *context, int argc, char *argv[])
 {
 	PcsPanApiRes *res;
@@ -2810,7 +2810,7 @@ static int cmd_remove(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*ÖØÃüÃûÎÄ¼ş*/
+/*é‡å‘½åæ–‡ä»¶*/
 static int cmd_rename(ShellContext *context, int argc, char *argv[])
 {
 	PcsPanApiRes *res;
@@ -2857,7 +2857,7 @@ static int cmd_rename(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*¸ü¸ÄÉÏÏÂÎÄÉèÖÃ*/
+/*æ›´æ”¹ä¸Šä¸‹æ–‡è®¾ç½®*/
 static int cmd_set(ShellContext *context, int argc, char *argv[])
 {
 	int i, key_len;
@@ -2936,7 +2936,7 @@ static int cmd_set(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*ËÑË÷ÎÄ¼ş*/
+/*æœç´¢æ–‡ä»¶*/
 static int cmd_search(ShellContext *context, int argc, char *argv[])
 {
 	int is_recursive = 0;
@@ -2954,7 +2954,7 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 		usage_search(context);
 		return -1;
 	}
-	/*½âÎö²ÎÊı - ¿ªÊ¼*/
+	/*è§£æå‚æ•° - å¼€å§‹*/
 	if (argc == 1) {
 		if (strcmp(argv[0], "-r") == 0) {
 			usage_search(context);
@@ -2995,7 +2995,7 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 			return -1;
 		}
 	}
-	/*½âÎö²ÎÊı - ½áÊø*/
+	/*è§£æå‚æ•° - ç»“æŸ*/
 
 	if (!is_login(context, NULL)) return -1;
 
@@ -3023,7 +3023,7 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*ÉÏ´«*/
+/*ä¸Šä¼ */
 static int cmd_upload(ShellContext *context, int argc, char *argv[])
 {
 	int is_force = 0;
@@ -3042,7 +3042,7 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 		usage_upload(context);
 		return -1;
 	}
-	/*½âÎö²ÎÊı - ¿ªÊ¼*/
+	/*è§£æå‚æ•° - å¼€å§‹*/
 	if (argc == 2){
 		if (strcmp(argv[0], "-f") == 0 || strcmp(argv[1], "-f") == 0) {
 			usage_upload(context);
@@ -3076,9 +3076,9 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 		usage_upload(context);
 		return -1;
 	}
-	/*½âÎö²ÎÊı - ½áÊø*/
+	/*è§£æå‚æ•° - ç»“æŸ*/
 
-	/*¼ì²é±¾µØÎÄ¼ş - ¿ªÊ¼*/
+	/*æ£€æŸ¥æœ¬åœ°æ–‡ä»¶ - å¼€å§‹*/
 	ft = is_dir_or_file(locPath);
 	if (ft == 0) {
 		printf("Error: The local %s not exist.\n", locPath);
@@ -3088,9 +3088,9 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 		printf("Error: The local %s is directory.\n", locPath);
 		return -1;
 	}
-	/*¼ì²é±¾µØÎÄ¼ş - ½áÊø*/
+	/*æ£€æŸ¥æœ¬åœ°æ–‡ä»¶ - ç»“æŸ*/
 
-	//¼ì²éÊÇ·ñÒÑ¾­µÇÂ¼
+	//æ£€æŸ¥æ˜¯å¦å·²ç»ç™»å½•
 	if (!is_login(context, NULL)) {
 		return -1;
 	}
@@ -3101,7 +3101,7 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 		return -1;
 	}
 
-	/*¼ì²éÍøÅÌÎÄ¼ş - ¿ªÊ¼*/
+	/*æ£€æŸ¥ç½‘ç›˜æ–‡ä»¶ - å¼€å§‹*/
 	meta = pcs_meta(context->pcs, path);
 	if (meta && meta->isdir) {
 		printf("Error: The net disk file %s is directory.\n", path);
@@ -3116,9 +3116,9 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 		return -1;
 	}
 	if (meta) pcs_fileinfo_destroy(meta);
-	/*¼ì²éÍøÅÌÎÄ¼ş - ½áÊø*/
+	/*æ£€æŸ¥ç½‘ç›˜æ–‡ä»¶ - ç»“æŸ*/
 
-	/*¿ªÊ¼ÉÏ´«*/
+	/*å¼€å§‹ä¸Šä¼ */
 	pcs_setopts(context->pcs,
 		PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
 		PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
@@ -3137,7 +3137,7 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*´òÓ¡°æ±¾*/
+/*æ‰“å°ç‰ˆæœ¬*/
 static int cmd_version(ShellContext *context, int argc, char *argv[])
 {
 	if (is_print_usage(argc, argv)) {
@@ -3152,7 +3152,7 @@ static int cmd_version(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*´òÓ¡µ±Ç°µÇÂ¼ÓÃ»§*/
+/*æ‰“å°å½“å‰ç™»å½•ç”¨æˆ·*/
 static int cmd_who(ShellContext *context, int argc, char *argv[])
 {
 	if (is_print_usage(argc, argv)) {
@@ -3168,7 +3168,7 @@ static int cmd_who(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*Â·ÓÉµ½¾ßÌåµÄÃüÁîº¯Êı*/
+/*è·¯ç”±åˆ°å…·ä½“çš„å‘½ä»¤å‡½æ•°*/
 static int exec_cmd(ShellContext *context, int argc, char *argv[])
 {
 	const char *cmd;
