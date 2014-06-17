@@ -8,11 +8,11 @@ typedef struct PcsFileInfo {
 	UInt64		fs_id;
 	char		*path;
 	char		*server_filename;
-	UInt64		server_ctime;
-	UInt64		server_mtime;
-	UInt64		local_ctime;
-	UInt64		local_mtime;
-	UInt64		size;
+	time_t		server_ctime;
+	time_t		server_mtime;
+	time_t		local_ctime;
+	time_t		local_mtime;
+	size_t		size;
 	int			category;
 	PcsBool		isdir;
 	PcsBool		dir_empty;
