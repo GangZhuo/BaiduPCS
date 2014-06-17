@@ -1753,8 +1753,6 @@ static int set_secure_enable(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*尝试维护一份自己的元数据 - 开始*/
-
 /*创建一个MyMeta*/
 static MyMeta *meta_create(const char *path, const char *filename, time_t mtime, const char *md5, size_t size, int isdir, UInt64 fs_id, time_t upload_time)
 {
@@ -1844,6 +1842,7 @@ static const char *parse_numeric(const char *in, char **ptr)
 	return p;
 }
 
+/*从字符串中读取一个元数据，读取完成后更新字符串指针到下一条记录的位置*/
 static MyMeta *meta_read(const char **ptr)
 {
 	const char *p = *ptr;
@@ -1898,6 +1897,7 @@ static MyMeta *meta_read(const char **ptr)
 	return meta;
 }
 
+/*从文件中读取元数据，并插入到红黑树中。*/
 static rb_red_blk_tree *meta_load_from_file(const char *file)
 {
 	rb_red_blk_tree *rb;
@@ -1928,6 +1928,7 @@ static rb_red_blk_tree *meta_load_from_file(const char *file)
 	return rb;
 }
 
+/*保存红黑树中的元数据到一个文件*/
 static int meta_save_to_file(const char *file, rb_red_blk_tree *rb)
 {
 	return 0;
@@ -2071,8 +2072,6 @@ static MyMeta *meta_query(rb_red_blk_tree *rb, const char *path)
 	}
 	return NULL;
 }
-
-/*尝试维护一份自己的元数据 - 结束*/
 
 /*红黑树中用于释放 key */
 static void rb_destory_string(void *a, void *state)
