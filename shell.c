@@ -1251,11 +1251,12 @@ static void usage_compare(ShellContext *context)
 	version(context);
 	printf("\nUsage: %s compare [-redu] <local path> <net disk path>\n", context->name);
 	printf("\nDescription:\n");
-	printf("  Print the differents between local and net disk. Default options is '-du' \n");
+	printf("  Print the differents between local and net disk. \n"
+		   "  Default options is '-du'. \n");
 	printf("\nOptions:\n");
-	printf("  -r    Recursive compare the sub directories.\n");
-	printf("  -e    Print the files that is same between local and net disk.\n");
 	printf("  -d    Print the files that is old than the net disk.\n");
+	printf("  -e    Print the files that is same between local and net disk.\n");
+	printf("  -r    Recursive compare the sub directories.\n");
 	printf("  -u    Print the files that is newer than the net disk.\n");
 	printf("\nSamples:\n");
 	printf("  %s compare ~/music /music\n", context->name);
@@ -1450,14 +1451,14 @@ static void usage_set(ShellContext *context)
 	printf("\nOptions:\n");
 	printf("  Option Name         Type       Possible Values \n");
 	printf("  -----------------------------------------------\n");
-	printf("  cookiefile          String     not null\n");
 	printf("  captchafile         String     not null\n");
+	printf("  cookiefile          String     not null\n");
 	printf("  list_page_size      UInt       >0\n");
-	printf("  list_sort_name      Enum       name|time|size\n");
 	printf("  list_sort_direction Enum       asc|desc\n");
-	printf("  secure_method       Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
-	printf("  secure_key          String     not null when 'secure_method' is not 'plaintext'\n");
+	printf("  list_sort_name      Enum       name|time|size\n");
 	printf("  secure_enable       Boolean    true|false\n");
+	printf("  secure_key          String     not null when 'secure_method' is not 'plaintext'\n");
+	printf("  secure_method       Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("\nSamples:\n");
 	printf("  %s set cookiefile=\"/tmp/pcs.cookie\"\n", context->name);
 	printf("  %s set cookiefile=\"/tmp/pcs.cookie\" captchafile=\"/tmp/vc.git\"\n", context->name);
@@ -1479,6 +1480,33 @@ static void usage_search(ShellContext *context)
 	printf("  %s search /music dst.mp3\n", context->name);
 	printf("  %s search -r /music dst.mp3\n", context->name);
 	printf("  %s search \"/music/Europe and America\" \"dst 2.mp3\"\n", context->name);
+}
+
+/*打印synch命令用法*/
+static void usage_synch(ShellContext *context)
+{
+	version(context);
+	printf("\nUsage: %s synch [-redu] <local path> <net disk path>\n", context->name);
+	printf("\nDescription:\n");
+	printf("  Synch between local and net disk. You can 'compare' first. \n"
+		   "  Default options is '-du'. Default, the command will save meta data\n"
+		   "  into " MYMETA_FILENAME " file per local directory, \n"
+		   "  you can use '-p' to prevent the behavior.\n");
+	printf("\nOptions:\n");
+	printf("  -d    Synch the new files from the net disk. \n"
+		   "        This option will download the new files from the net disk.\n"
+		   "        You can use 'compare -dr <local dir> <disk dir>' to view \n"
+		   "        how many and which files will download.\n");
+	printf("  -p    Prevent the default behavior that saves meta data per directory.\n");
+	printf("  -r    Recursive synch the sub directories.\n");
+	printf("  -u    Synch the new files to the net disk.\n \n"
+		   "        This option will upload new files from the net disk.\n"
+		   "        You can use 'compare -ur <local dir> <disk dir>' to view \n"
+		   "        how many and which files will upload.\n");
+	printf("\nSamples:\n");
+	printf("  %s synch ~/music /music\n", context->name);
+	printf("  %s synch music /music\n", context->name);
+	printf("  %s synch -r music /music\n", context->name);
 }
 
 /*打印upload命令用法*/
@@ -1551,6 +1579,7 @@ static void usage(ShellContext *context)
 		"  rename   Rename the file|directory\n"
 		"  set      Change the context, you can print the context by 'context' command\n"
 		"  search   Search the files in the specify directory\n"
+		"  synch    Synch between local and net disk. You can 'compare' first.\n"
 		"  upload   Upload the file\n"
 		"  version  Print the version\n"
 		"  who      Print the current user\n"
@@ -1869,6 +1898,41 @@ static MyMeta *meta_read(const char **ptr)
 	return meta;
 }
 
+static rb_red_blk_tree *meta_load_from_file(const char *file)
+{
+	rb_red_blk_tree *rb;
+	rb_red_blk_node *rbn;
+	MyMeta *meta, *tmp;
+	size_t fsz;
+	char *buf = NULL, *p;
+
+	rb = RBTreeCreate(&rb_compare_string, &rb_destory_key_for_meta, &rb_destory_meta, &rb_print_string, &rb_print_meta);
+	assert(rb);
+	fsz = readFileContent(file, &buf);
+	if (fsz > 0) {
+		p = buf;
+		while ((meta = meta_read((const char **)&p)) != NULL) {
+			rbn = RBExactQuery(rb, (void *)meta->filename);
+			if (rbn) {
+				tmp = (MyMeta *)rbn->info;
+				rbn->key = (void *)meta->filename;
+				rbn->info = (void *)meta;
+				meta_destroy(tmp);
+			}
+			else {
+				RBTreeInsert(rb, (void *)meta->filename, (void *)meta);
+			}
+		}
+	}
+	if (buf) pcs_free(buf);
+	return rb;
+}
+
+static int meta_save_to_file(const char *file, rb_red_blk_tree *rb)
+{
+	return 0;
+}
+
 /*从本地文件系统中加载元数据*/
 static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 {
@@ -1969,6 +2033,32 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 	}
 	my_dirent_destroy(ent);
 	return rb;
+}
+
+/*更新文件的元数据*/
+static void meta_update(const char *filename, MyMeta *meta)
+{
+	rb_red_blk_tree *rb;
+	rb_red_blk_node *rbn;
+	MyMeta *tmp;
+	char *p;
+	p = (char *)find_filename(filename);
+	p = combin_path(filename, p - filename, MYMETA_FILENAME);
+	assert(p);
+	rb = meta_load_from_file(p);
+	assert(rb);
+	rbn = RBExactQuery(rb, (void *)meta->filename);
+	if (rbn) {
+		tmp = (MyMeta *)rbn->info;
+		rbn->key = (void *)meta->filename;
+		rbn->info = (void *)meta;
+		meta_destroy(tmp);
+	}
+	else {
+		RBTreeInsert(rb, (void *)meta->filename, (void *)meta);
+	}
+	meta_save_to_file(p, rb);
+	pcs_free(p);
 }
 
 /*查询path指定文件的元数据*/
@@ -2207,11 +2297,12 @@ static int rb_print_meta_for_compare_static(void *a, void *state)
  *   ent         - 本地文件对象
  *   netdiskfile - 网盘文件对象
 */
-static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const PcsFileInfo *netdiskfile)
+static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const PcsFileInfo *netdiskfile, rb_red_blk_tree **prb)
 {
 	MyMeta *meta = NULL;
 	rb_red_blk_tree *rb;
 	rb_red_blk_node *rbn;
+	if (prb) *prb = NULL;
 	if (ent->filename == ent->path) {
 		rb = meta_load(".", 0);
 	}
@@ -2229,7 +2320,12 @@ static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const P
 			rbn->key = NULL;
 			rbn->info = NULL;
 		}
-		RBTreeDestroy(rb);
+		if (prb) {
+			*prb = rb;
+		}
+		else {
+			RBTreeDestroy(rb);
+		}
 	}
 	if (!meta) {
 		meta = meta_create(ent->filename, ent->filename, 0, NULL, 0, 0, 0, 0);
@@ -2498,12 +2594,12 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 			while (*p) {
 				switch (*p)
 				{
-				case 'r':
-					if (is_recursive) {
+				case 'd':
+					if (print_left) {
 						usage_compare(context);
 						return -1;
 					}
-					is_recursive = 1;
+					print_left = 1;
 					break;
 				case 'e':
 					if (print_eq) {
@@ -2512,12 +2608,12 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 					}
 					print_eq = 1;
 					break;
-				case 'd':
-					if (print_left) {
+				case 'r':
+					if (is_recursive) {
 						usage_compare(context);
 						return -1;
 					}
-					print_left = 1;
+					is_recursive = 1;
 					break;
 				case 'u':
 					if (print_right) {
@@ -2591,7 +2687,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 		}
 		else {
 			/*比较文件异同*/
-			mm = compare_file(context, ent, meta);
+			mm = compare_file(context, ent, meta, NULL);
 			if (mm) {
 				ft = strlen(mm->filename);
 				if (ft < 10) ft = 10;
@@ -2608,8 +2704,8 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 					: "><")),
 					meta->server_filename);
 				//for (i = 0; i < ft + 20; i++) putchar('-');
-				printf("\nNotes:\n  <- means left file older than right file. \n");
-				printf("  -> means left file newer than right file. \n");
+				printf("\nNotes:\n  <- means the right file will download into the local file system. \n");
+				printf("  -> means the left file will upload into the disk. \n");
 				printf("  == means left file same as right file. \n");
 			}
 			else{
@@ -2658,8 +2754,8 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 				printf("\nTotal: %d, Download: %d, Upload: %d, Same: %d\n", 
 					state.cnt_total, state.cnt_left, state.cnt_right, state.cnt_eq);
 				//for (i = 0; i < state.ft + 20; i++) putchar('-');
-				printf("\nNotes:\n  <- means left file older than right file. \n");
-				printf("  -> means left file newer than right file. \n");
+				printf("\nNotes:\n  <- means the right file will download into the local file system. \n");
+				printf("  -> means the left file will upload into the disk. \n");
 				printf("  == means left file same as right file. \n");
 			}
 			else {
@@ -3441,6 +3537,284 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
+
+/*解析synch的参数*/
+static int synch_parse_args(ShellContext *context, int argc, char *argv[],
+	int *is_recursive, int *print_left, int *print_right, int *prevent_meta_cache,
+	const char **locPath, const char **relPath)
+{
+	int i;
+	char *p;
+	if (argc < 2) {
+		usage_synch(context);
+		return -1;
+	}
+	for (i = 0; i < argc; i++) {
+		p = argv[i];
+		if (*p == '-') {
+			p++;
+			while (*p) {
+				switch (*p)
+				{
+				case 'd':
+					if (*print_left) {
+						usage_synch(context);
+						return -1;
+					}
+					*print_left = 1;
+					break;
+				case 'p':
+					if (*prevent_meta_cache) {
+						usage_synch(context);
+						return -1;
+					}
+					*prevent_meta_cache = 1;
+					break;
+				case 'r':
+					if (*is_recursive) {
+						usage_synch(context);
+						return -1;
+					}
+					*is_recursive = 1;
+					break;
+				case 'u':
+					if (*print_right) {
+						usage_synch(context);
+						return -1;
+					}
+					*print_right = 1;
+					break;
+				default:
+					usage_synch(context);
+					return -1;
+				}
+				p++;
+			}
+		}
+		else if (*locPath == NULL) {
+			*locPath = argv[i];
+		}
+		else if (*relPath == NULL) {
+			*relPath = argv[i];
+		}
+		else {
+			usage_synch(context);
+			return -1;
+		}
+	}
+	if (!(*locPath) || !(*relPath)) {
+		usage_synch(context);
+		return -1;
+	}
+	return 0;
+}
+
+static int synch_file(ShellContext *context, MyMeta *mm, PcsFileInfo *meta,
+	int print_left, int print_right,
+	const char *locPath, const char *relPath)
+{
+	if (mm->op == OP_LEFT) {
+		if (print_left) {
+			PcsRes res;
+			struct DownloadState ds = { 0 };
+			ds.pf = fopen(locPath, "wb");
+			if (!ds.pf) {
+				printf("Error: Can't open the local file: %s\n", locPath);
+				return -1;
+			}
+			pcs_setopts(context->pcs,
+				PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
+				PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
+				PCS_OPTION_END);
+			res = pcs_download(context->pcs, meta->path);
+			fclose(ds.pf);
+			if (res != PCS_OK) {
+				printf("Error: %s\n", pcs_strerror(context->pcs));
+				return -1;
+			}
+			my_dirent_utime(locPath, meta->server_mtime);
+			printf("Download %s Success.\n", meta->path);
+			return 0;
+		}
+		else {
+			printf("The local file is older than the disk file, you can use '-d' option to download the file.\n"
+				"See more details by execute '%s synch -h' \n", context->name);
+		}
+	}
+	else if (mm->op == OP_RIGHT) {
+		if (print_right) {
+
+		}
+		else {
+			printf("The local file is newer than the disk file, you can use '-u' option to upload the file.\n"
+				"See more details by execute '%s synch -h' \n", context->name);
+		}
+	}
+	else if (mm->op == OP_EQ) {
+		printf("The file have no change, nothing to do.\n");
+	}
+	else {
+		printf("It is not possible, you can delete the " MYMETA_FILENAME " file, and retry.\n");
+	}
+	return -1;
+}
+
+/*同步本地和网盘目录*/
+static int cmd_synch(ShellContext *context, int argc, char *argv[])
+{
+	int is_recursive = 0, print_left = 0, print_right = 0, prevent_meta_cache = 0;
+	char *path = NULL;
+	const char *relPath = NULL, *locPath = NULL;
+	int i;
+
+	int ft;
+	my_dirent *ent = NULL;
+	PcsFileInfo *meta = NULL;
+	rb_red_blk_tree *rb = NULL;
+	MyMeta *mm = NULL;
+
+	if (is_print_usage(argc, argv)) {
+		usage_synch(context);
+		return 0;
+	}
+	/*解析参数 - 开始*/
+	if (synch_parse_args(context, argc, argv, 
+		&is_recursive, &print_left, &print_right, &prevent_meta_cache, 
+		&locPath, &relPath))
+		return -1;
+	if (!print_left && !print_right) {
+		print_left = print_right = 1;
+	}
+	/*解析参数 - 结束*/
+
+	/*检查本地文件 - 开始*/
+	ft = get_file_ent(&ent, locPath);
+	if (ft == 0) {
+		printf("Error: The local %s not exist.\n", locPath);
+		if (ent) my_dirent_destroy(ent);
+		return -1;
+	}
+	/*检查本地文件 - 结束*/
+
+	//检查是否已经登录
+	if (!is_login(context, NULL)) {
+		if (ent) my_dirent_destroy(ent);
+		return -1;
+	}
+
+	path = combin_unix_path(context->workdir, relPath);
+	if (!path) {
+		assert(path);
+		if (ent) my_dirent_destroy(ent);
+		return -1;
+	}
+
+	/*检查网盘文件*/
+	meta = pcs_meta(context->pcs, path);
+	if (!meta) {
+		printf("Error: Can't find the meta for %s: %s\n", path, pcs_strerror(context->pcs));
+		pcs_free(path);
+		if (ent) my_dirent_destroy(ent);
+		return -1;
+	}
+
+	if (ft == 1) {
+		if (meta->isdir) {
+			printf("Error: Can't compare the file with directory.\n");
+			pcs_fileinfo_destroy(meta);
+			pcs_free(path);
+			if (ent) my_dirent_destroy(ent);
+			return -1;
+		}
+		else {
+			/*比较文件异同*/
+			mm = compare_file(context, ent, meta, &rb);
+			if (mm) {
+				if (synch_file(context, mm, meta, print_left, print_right, locPath, relPath)) {
+					pcs_fileinfo_destroy(meta);
+					if (ent) my_dirent_destroy(ent);
+					meta_destroy(mm);
+					if (rb) RBTreeDestroy(rb);
+					pcs_free(path);
+					return -1;
+				}
+				if (!prevent_meta_cache) {
+					if (rb) {
+
+					}
+					else {
+						//if (mm->filename) pcs_free(mm->filename);
+						//mm->filename = pcs_utils_strdup(meta->server_filename);
+						mm->mtime = meta->server_mtime;
+						mm->upload_time = meta->server_mtime;
+						mm->size = meta->size;
+						mm->isdir = 0;
+						mm->fs_id = meta->fs_id;
+						meta_update(locPath, mm);
+					}
+				}
+			}
+			else{
+				printf("Error: Can't compare...\n");
+			}
+		}
+	}
+	else {
+		if (!meta->isdir) {
+			printf("Error: Can't compare the directory with file.\n");
+			pcs_fileinfo_destroy(meta);
+			pcs_free(path);
+			if (ent) my_dirent_destroy(ent);
+			return -1;
+		}
+		else {
+			/*比较目录异同*/
+			rb = compare_dir(context, ent, meta, is_recursive);
+			if (rb) {
+				struct RBPrintCompareItemState state = { 0 };
+				if (!print_left && !print_right)
+					state.op_flag = OP_LEFT | OP_RIGHT;
+				if (print_left) state.op_flag |= OP_LEFT;
+				if (print_right) state.op_flag |= OP_RIGHT;
+				state.status_flag = FLAG_EXIST_ON_LOCAL | FLAG_EXIST_ON_NET;
+				state.tree = rb;
+				state.page_size = context->list_page_size;
+				state.page_index = 1;
+				rb->printInfoState = &state;
+				rb->PrintInfo = &rb_print_meta_for_compare_static;
+				RBTreePrintEx(rb);
+				if (state.ft < 10) {
+					if (print_right)
+						state.ft = 10;
+					else
+						state.ft = 1;
+				}
+				rb->PrintInfo = &rb_print_meta_for_compare;
+				RBTreePrintEx(rb);
+				if (state.printed_count == 0) {
+					rb_print_meta_for_compare_head(&state);
+				}
+				putchar('\n');
+				for (i = 0; i < state.ft + 20; i++) putchar('-');
+				printf("\nTotal: %d, Download: %d, Upload: %d\n",
+					state.cnt_left + state.cnt_right, state.cnt_left, state.cnt_right);
+				//for (i = 0; i < state.ft + 20; i++) putchar('-');
+				printf("\nNotes:\n  <- means the right file will download into the local file system. \n");
+				printf("  -> means the left file will upload into the disk. \n");
+			}
+			else {
+				printf("Error: Can't compare...\n");
+			}
+		}
+	}
+	pcs_fileinfo_destroy(meta);
+	if (mm) meta_destroy(mm);
+	if (rb) RBTreeDestroy(rb);
+	if (ent) my_dirent_destroy(ent);
+	pcs_free(path);
+	return 0;
+}
+
 /*上传*/
 static int cmd_upload(ShellContext *context, int argc, char *argv[])
 {
@@ -3657,6 +4031,9 @@ static int exec_cmd(ShellContext *context, int argc, char *argv[])
 	}
 	else if (strcmp(cmd, "search") == 0) {
 		rc = cmd_search(context, cmd_argc, cmd_argv);
+	}
+	else if (strcmp(cmd, "synch") == 0 || strcmp(cmd, "s") == 0) {
+		rc = cmd_synch(context, cmd_argc, cmd_argv);
 	}
 	else if (strcmp(cmd, "upload") == 0 || strcmp(cmd, "u") == 0) {
 		rc = cmd_upload(context, cmd_argc, cmd_argv);
