@@ -20,11 +20,11 @@
 /*  Modifies Input: none */
 /***********************************************************************/
 
-rb_red_blk_tree* RBTreeCreate( int (*CompFunc) (const void*,const void*),
-			      void (*DestFunc) (void*),
-			      void (*InfoDestFunc) (void*),
-			      void (*PrintFunc) (const void*),
-			      void (*PrintInfo)(void*)) {
+rb_red_blk_tree* RBTreeCreate(int (*CompFunc) (const void*, const void*, void*),
+	void (*DestFunc) (void*, void*),
+	void (*InfoDestFunc) (void*, void*),
+	void (*PrintFunc) (const void*, void*),
+	int  (*PrintInfo)(void*, void*)) {
   rb_red_blk_tree* newTree;
   rb_red_blk_node* temp;
 
@@ -182,7 +182,7 @@ void TreeInsertHelp(rb_red_blk_tree* tree, rb_red_blk_node* z) {
   x=tree->root->left;
   while( x != nil) {
     y=x;
-    if (1 == tree->Compare(x->key,z->key)) { /* x.key > z.key */
+    if (1 == tree->Compare(x->key,z->key, tree->compareState)) { /* x.key > z.key */
       x=x->left;
     } else { /* x,key <= z.key */
       x=x->right;
@@ -190,7 +190,7 @@ void TreeInsertHelp(rb_red_blk_tree* tree, rb_red_blk_node* z) {
   }
   z->parent=y;
   if ( (y == tree->root) ||
-       (1 == tree->Compare(y->key,z->key))) { /* y.key > z.key */
+	  (1 == tree->Compare(y->key, z->key, tree->compareState))) { /* y.key > z.key */
     y->left=z;
   } else {
     y->right=z;
@@ -368,18 +368,34 @@ void InorderTreePrint(rb_red_blk_tree* tree, rb_red_blk_node* x) {
   if (x != tree->nil) {
     InorderTreePrint(tree,x->left);
     printf("info=");
-    tree->PrintInfo(x->info);
+	tree->PrintInfo(x->info, tree->printInfoState);
     printf("  key="); 
-    tree->PrintKey(x->key);
+    tree->PrintKey(x->key, tree->printKeyState);
     printf("  l->key=");
-    if( x->left == nil) printf("NULL"); else tree->PrintKey(x->left->key);
+	if (x->left == nil) printf("NULL"); else tree->PrintKey(x->left->key, tree->printKeyState);
     printf("  r->key=");
-    if( x->right == nil) printf("NULL"); else tree->PrintKey(x->right->key);
+	if (x->right == nil) printf("NULL"); else tree->PrintKey(x->right->key, tree->printKeyState);
     printf("  p->key=");
-    if( x->parent == root) printf("NULL"); else tree->PrintKey(x->parent->key);
+	if (x->parent == root) printf("NULL"); else tree->PrintKey(x->parent->key, tree->printKeyState);
     printf("  red=%i\n",x->red);
     InorderTreePrint(tree,x->right);
   }
+}
+
+int InorderTreePrintEx(rb_red_blk_tree* tree, rb_red_blk_node* x) {
+	int rc;
+	rb_red_blk_node* nil = tree->nil;
+	rb_red_blk_node* root = tree->root;
+	if (x != tree->nil) {
+		if ((rc = InorderTreePrintEx(tree, x->left)) != 0)
+			return rc;
+		if ((rc = tree->PrintInfo(x->info, tree->printInfoState)) != 0) {
+			return rc;
+		}
+		if ((rc = InorderTreePrintEx(tree, x->right)) != 0)
+			return rc;
+	}
+	return 0;
 }
 
 
@@ -403,8 +419,8 @@ void TreeDestHelper(rb_red_blk_tree* tree, rb_red_blk_node* x) {
   if (x != nil) {
     TreeDestHelper(tree,x->left);
     TreeDestHelper(tree,x->right);
-    tree->DestroyKey(x->key);
-    tree->DestroyInfo(x->info);
+    tree->DestroyKey(x->key, tree->destroyKeyState);
+    tree->DestroyInfo(x->info, tree->destroyInfoState);
     free(x);
   }
 }
@@ -451,6 +467,25 @@ void RBTreePrint(rb_red_blk_tree* tree) {
 
 
 /***********************************************************************/
+/*  FUNCTION:  RBTreePrintEx */
+/**/
+/*    INPUTS:  tree is the tree to print */
+/**/
+/*    OUTPUT:  none */
+/**/
+/*    EFFECT:  This function recursively prints the node's Info of the tree */
+/*             inorder using the PrintInfo functions. */
+/**/
+/*    Modifies Input: none */
+/**/
+/***********************************************************************/
+
+int RBTreePrintEx(rb_red_blk_tree* tree) {
+	return InorderTreePrintEx(tree, tree->root->left);
+}
+
+
+/***********************************************************************/
 /*  FUNCTION:  RBExactQuery */
 /**/
 /*    INPUTS:  tree is the tree to print and q is a pointer to the key */
@@ -469,7 +504,7 @@ rb_red_blk_node* RBExactQuery(rb_red_blk_tree* tree, void* q) {
   rb_red_blk_node* nil=tree->nil;
   int compVal;
   if (x == nil) return(0);
-  compVal=tree->Compare(x->key,(int*) q);
+  compVal=tree->Compare(x->key, q, tree->compareState);
   while(0 != compVal) {/*assignemnt*/
     if (1 == compVal) { /* x->key > q */
       x=x->left;
@@ -477,7 +512,7 @@ rb_red_blk_node* RBExactQuery(rb_red_blk_tree* tree, void* q) {
       x=x->right;
     }
     if ( x == nil) return(0);
-    compVal=tree->Compare(x->key,(int*) q);
+	compVal = tree->Compare(x->key, q, tree->compareState);
   }
   return(x);
 }
@@ -604,8 +639,8 @@ void RBDelete(rb_red_blk_tree* tree, rb_red_blk_node* z){
 
     if (!(y->red)) RBDeleteFixUp(tree,x);
   
-    tree->DestroyKey(z->key);
-    tree->DestroyInfo(z->info);
+    tree->DestroyKey(z->key, tree->destroyKeyState);
+    tree->DestroyInfo(z->info, tree->destroyInfoState);
     y->left=z->left;
     y->right=z->right;
     y->parent=z->parent;
@@ -618,8 +653,8 @@ void RBDelete(rb_red_blk_tree* tree, rb_red_blk_node* z){
     }
     free(z); 
   } else {
-    tree->DestroyKey(y->key);
-    tree->DestroyInfo(y->info);
+    tree->DestroyKey(y->key, tree->destroyKeyState);
+    tree->DestroyInfo(y->info, tree->destroyInfoState);
     if (!(y->red)) RBDeleteFixUp(tree,x);
     free(y);
   }
@@ -649,14 +684,14 @@ stk_stack* RBEnumerate(rb_red_blk_tree* tree, void* low, void* high) {
 
   enumResultStack=StackCreate();
   while(nil != x) {
-    if ( 1 == (tree->Compare(x->key,high)) ) { /* x->key > high */
+    if ( 1 == (tree->Compare(x->key,high, tree->compareState)) ) { /* x->key > high */
       x=x->left;
     } else {
       lastBest=x;
       x=x->right;
     }
   }
-  while ( (lastBest != nil) && (1 != tree->Compare(low,lastBest->key))) {
+  while ( (lastBest != nil) && (1 != tree->Compare(low,lastBest->key, tree->compareState))) {
     StackPush(enumResultStack,lastBest);
     lastBest=TreePredecessor(tree,lastBest);
   }
