@@ -1249,14 +1249,14 @@ static void usage_copy(ShellContext *context)
 static void usage_compare(ShellContext *context)
 {
 	version(context);
-	printf("\nUsage: %s compare [-r] <local path> <net disk path>\n", context->name);
+	printf("\nUsage: %s compare [-redu] <local path> <net disk path>\n", context->name);
 	printf("\nDescription:\n");
-	printf("  Print the differents between local and net disk\n");
+	printf("  Print the differents between local and net disk. Default options is '-du' \n");
 	printf("\nOptions:\n");
 	printf("  -r    Recursive compare the sub directories.\n");
-	//printf("  -e    Recursive compare the sub directories.\n");
-	//printf("  -d    Recursive compare the sub directories.\n");
-	//printf("  -u    Recursive compare the sub directories.\n");
+	printf("  -e    Print the files that is same between local and net disk.\n");
+	printf("  -d    Print the files that is old than the net disk.\n");
+	printf("  -u    Print the files that is newer than the net disk.\n");
 	printf("\nSamples:\n");
 	printf("  %s compare ~/music /music\n", context->name);
 	printf("  %s compare music /music\n", context->name);
@@ -2471,8 +2471,8 @@ static int cmd_copy(ShellContext *context, int argc, char *argv[])
 /*比较本地和网盘目录的异同*/
 static int cmd_compare(ShellContext *context, int argc, char *argv[])
 {
-	int is_recursive = 0;
-	char *path = NULL;
+	int is_recursive = 0, print_eq = 0, print_left = 0, print_right = 0;
+	char *path = NULL, *p;
 	const char *relPath = NULL, *locPath = NULL;
 	int i;
 
@@ -2486,36 +2486,60 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 		usage_compare(context);
 		return 0;
 	}
-	if (argc != 2 && argc != 3) {
+	if (argc < 2) {
 		usage_compare(context);
 		return -1;
 	}
 	/*解析参数 - 开始*/
-	if (argc == 2){
-		if (strcmp(argv[0], "-r") == 0 || strcmp(argv[1], "-r") == 0) {
-			usage_compare(context);
-			return -1;
+	for (i = 0; i < argc; i++) {
+		p = argv[i];
+		if (*p == '-') {
+			p++;
+			while (*p) {
+				switch (*p)
+				{
+				case 'r':
+					if (is_recursive) {
+						usage_compare(context);
+						return -1;
+					}
+					is_recursive = 1;
+					break;
+				case 'e':
+					if (print_eq) {
+						usage_compare(context);
+						return -1;
+					}
+					print_eq = 1;
+					break;
+				case 'd':
+					if (print_left) {
+						usage_compare(context);
+						return -1;
+					}
+					print_left = 1;
+					break;
+				case 'u':
+					if (print_right) {
+						usage_compare(context);
+						return -1;
+					}
+					print_right = 1;
+					break;
+				default:
+					usage_compare(context);
+					return -1;
+				}
+				p++;
+			}
 		}
-		locPath = argv[0];
-		relPath = argv[1];
-	}
-	else if (argc == 3) {
-		for (i = 0; i < argc; i++) {
-			if (is_recursive == 0 && strcmp(argv[i], "-r") == 0) {
-				is_recursive = 1;
-			}
-			else if (locPath == NULL) {
-				locPath = argv[i];
-			}
-			else if (relPath == NULL) {
-				relPath = argv[i];
-			}
-			else {
-				usage_compare(context);
-				return -1;
-			}
+		else if (locPath == NULL) {
+			locPath = argv[i];
 		}
-		if (is_recursive == 0) {
+		else if (relPath == NULL) {
+			relPath = argv[i];
+		}
+		else {
 			usage_compare(context);
 			return -1;
 		}
@@ -2586,7 +2610,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 				//for (i = 0; i < ft + 20; i++) putchar('-');
 				printf("\nNotes:\n  <- means left file older than right file. \n");
 				printf("  -> means left file newer than right file. \n");
-				printf("  == means left file equal right file. \n");
+				printf("  == means left file same as right file. \n");
 			}
 			else{
 				printf("Error: Can't compare...\n");
@@ -2606,7 +2630,11 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 			rb = compare_dir(context, ent, meta, is_recursive);
 			if (rb) {
 				struct RBPrintCompareItemState state = { 0 };
-				state.op_flag = OP_EQ | OP_LEFT | OP_RIGHT;
+				if (!print_eq && !print_left && !print_right)
+					state.op_flag = OP_LEFT | OP_RIGHT;
+				if (print_eq) state.op_flag |= OP_EQ;
+				if (print_left) state.op_flag |= OP_LEFT;
+				if (print_right) state.op_flag |= OP_RIGHT;
 				state.status_flag = FLAG_EXIST_ON_LOCAL | FLAG_EXIST_ON_NET;
 				state.tree = rb;
 				state.page_size = context->list_page_size;
@@ -2614,17 +2642,25 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 				rb->printInfoState = &state;
 				rb->PrintInfo = &rb_print_meta_for_compare_static;
 				RBTreePrintEx(rb);
-				if (state.ft < 10) state.ft = 10;
+				if (state.ft < 10) {
+					if (print_eq || print_right)
+						state.ft = 10;
+					else
+						state.ft = 1;
+				}
 				rb->PrintInfo = &rb_print_meta_for_compare;
 				RBTreePrintEx(rb);
+				if (state.printed_count == 0) {
+					rb_print_meta_for_compare_head(&state);
+				}
 				putchar('\n');
 				for (i = 0; i < state.ft + 20; i++) putchar('-');
-				printf("\nTotal: %d, Download: %d, Upload: %d, Equal: %d\n", 
+				printf("\nTotal: %d, Download: %d, Upload: %d, Same: %d\n", 
 					state.cnt_total, state.cnt_left, state.cnt_right, state.cnt_eq);
 				//for (i = 0; i < state.ft + 20; i++) putchar('-');
 				printf("\nNotes:\n  <- means left file older than right file. \n");
 				printf("  -> means left file newer than right file. \n");
-				printf("  == means left file equal right file. \n");
+				printf("  == means left file same as right file. \n");
 			}
 			else {
 				printf("Error: Can't compare...\n");
