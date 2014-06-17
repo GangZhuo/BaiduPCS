@@ -38,11 +38,17 @@ typedef struct rb_red_blk_node {
 /* Compare(a,b) should return 1 if *a > *b, -1 if *a < *b, and 0 otherwise */
 /* Destroy(a) takes a pointer to whatever key might be and frees it accordingly */
 typedef struct rb_red_blk_tree {
-  int (*Compare)(const void* a, const void* b); 
-  void (*DestroyKey)(void* a);
-  void (*DestroyInfo)(void* a);
-  void (*PrintKey)(const void* a);
-  void (*PrintInfo)(void* a);
+  int  (*Compare)(const void* a, const void* b, void *state); 
+  void (*DestroyKey)(void* a, void *state);
+  void (*DestroyInfo)(void* a, void *state);
+  void (*PrintKey)(const void* a, void *state);
+  int  (*PrintInfo)(void* a, void *state); /*返回0表示继续执行，返回非0值表示中断执行。
+										     只有RBTreePrintEx()函数才会使用返回值。*/
+  void *compareState;
+  void *destroyKeyState;
+  void *destroyInfoState;
+  void *printKeyState;
+  void *printInfoState;
   /*  A sentinel is used for root and for nil.  These sentinels are */
   /*  created when RBTreeCreate is caled.  root->left should always */
   /*  point to the node which is the root of the tree.  nil points to a */
@@ -53,13 +59,14 @@ typedef struct rb_red_blk_tree {
   rb_red_blk_node* nil;              
 } rb_red_blk_tree;
 
-rb_red_blk_tree* RBTreeCreate(int  (*CompFunc)(const void*, const void*),
-			     void (*DestFunc)(void*), 
-			     void (*InfoDestFunc)(void*), 
-			     void (*PrintFunc)(const void*),
-			     void (*PrintInfo)(void*));
+rb_red_blk_tree* RBTreeCreate(int (*CompFunc)(const void*, const void*, void*),
+	void (*DestFunc)(void*, void*),
+	void (*InfoDestFunc)(void*, void*),
+	void (*PrintFunc)(const void*, void*),
+	int  (*PrintInfo)(void*, void*));
 rb_red_blk_node * RBTreeInsert(rb_red_blk_tree*, void* key, void* info);
 void RBTreePrint(rb_red_blk_tree*);
+int  RBTreePrintEx(rb_red_blk_tree* tree);
 void RBDelete(rb_red_blk_tree* , rb_red_blk_node* );
 void RBTreeDestroy(rb_red_blk_tree*);
 rb_red_blk_node* TreePredecessor(rb_red_blk_tree*,rb_red_blk_node*);
