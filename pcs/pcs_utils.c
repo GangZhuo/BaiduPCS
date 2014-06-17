@@ -104,17 +104,16 @@ PCS_API char *pcs_utils_basedir(const char *path)
 		return NULL;
 	strcpy(dir, path);
 	p = dir + i - 1;
-	while(p >= dir) {
-		if (*p == '/')
+	while(p > dir) {
+		if (*p == '/' || *p == '\\')
 			break;
 		p--;
 	}
-	if (p > dir) {
-		*p = '\0';
-	}
-	else {
+	if (p == dir) {
 		*p = '/';
 		p++;
+		*p = '\0';
+	} else {
 		*p = '\0';
 	}
 	return dir;
@@ -127,12 +126,12 @@ PCS_API char *pcs_utils_filename(const char *path)
 	int i;
 	i = strlen(path);
 	p = path + i - 1;
-	while(p >= path) {
-		if (*p == '/')
+	while(p > path) {
+		if (*p == '/' || *p == '\\')
 			break;
 		p--;
 	}
-	if (*p == '/')
+	if (*p == '/' || *p == '\\')
 		p++;
 	i = strlen(p);
 	name = (char *) pcs_malloc(i + 1);
