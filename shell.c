@@ -27,20 +27,22 @@
 # define snprintf _snprintf
 #endif
 
+#define PRINT_PAGE_SIZE			20
+
 #define MYMETA_FILENAME		".pcs_meta"
 
 #define OP_NONE		0
-#define OP_DOWN		1
-#define OP_UP		2
-#define OP_EQ		3
-#define OP_LEFT		4
-#define OP_RIGHT	5
+#define OP_EQ		1
+#define OP_LEFT		2
+#define OP_RIGHT	4
 
 #define FLAG_NONE			0 
 #define FLAG_EXIST_ON_LOCAL	1 /*在本地文件系统中存在*/
 #define FLAG_EXIST_ON_META	2 /*在本地MyMeta文件中存在*/
 #define FLAG_EXIST_ON_NET	4 /*在网盘中存在*/
 
+static char HIGH;
+static char LOW;
 
 /*MyMeta，用于维护一份自己的文件元数据*/
 typedef struct MyMeta MyMeta;
@@ -60,6 +62,9 @@ struct MyMeta
 	size_t		current_size;
 	int			current_isdir;
 
+	UInt64		server_fs_id; /*对应的网盘中文件的fs_id*/
+	time_t		server_mtime; /*对应的网盘中文件的最后修改时间*/
+
 	int			flag; /*标记*/
 
 	void		*tag; /*附属值，临时用途。*/
@@ -71,6 +76,32 @@ struct DownloadState
 	FILE *pf;
 	char *msg;
 	size_t size;
+};
+
+struct RBPrintCompareItemState
+{
+	int		ft;			/*第一列宽度*/
+	int		op_flag;	/* 允许打印的 OP 标记。
+						 * 例如："OP_EQ | OP_LEFT | OP_RIGHT" 
+						 * 将只打印 op 为 OP_EQ, OP_LEFT 和 OP_RIGHT 三项的节点
+						 */
+	int		status_flag; /*允许打印的 status 标记。
+						  * 例如：FLAG_EXIST_ON_LOCAL | FLAG_EXIST_ON_NET，
+						  * 将只打印具有 FLAG_EXIST_ON_LOCAL 和 FLAG_EXIST_ON_NET 标记的节点 
+						  */
+	rb_red_blk_tree *tree;
+
+	int		page_size;
+
+	int		cnt_total;
+	int		cnt_valid_total;
+	int		cnt_left;
+	int		cnt_right;
+	int		cnt_eq;
+	int		cnt_none;
+
+	int		printed_count;
+	int		page_index;
 };
 
 static PcsBool is_login(ShellContext *context, const char *msg);
@@ -691,7 +722,7 @@ static char *combin_path(const char *base, int basesz, const char *filename)
 	char *p, *p2;
 	size_t filenamesz, sz;
 
-	if (is_absolute_path(filename)) { /*如果是绝对路径*/
+	if (is_absolute_path(filename) || !base || basesz == 0 || !base[0]) {
 		p = pcs_utils_strdup(filename);
 	}
 	else {
@@ -764,6 +795,67 @@ static char *combin_unix_path(const char *base, const char *filename)
 		p2++;
 	}
 	return p;
+}
+
+/*
+ * 修正路径。
+ * 即把路径中正斜杠或反斜杠替换为正确的斜杠
+*/
+static char *fix_path(char *path)
+{
+	char *p = path;
+	while (*p) {
+#ifdef WIN32
+		if (*p == '/') *p = '\\';
+#else
+		if (*p == '\\') *p = '/';
+#endif
+		p++;
+	}
+	return path;
+}
+
+/*
+* 修正路径。
+* 即把路径中反斜杠替换为正斜杠。
+* 需要调用pcs_free释放返回值
+*/
+static char *fix_unix_path(char *path)
+{
+	char *result = pcs_utils_strdup(path),
+		*p = result;
+	while (*p) {
+		if (*p == '\\') *p = '/';
+		p++;
+	}
+	return result;
+}
+
+/*
+* 修正路径。
+* 即把路径中反斜杠替换为正斜杠，同时判断最后一个字符是否是'/'，如果不是的话，则添加'/'。
+* 需要调用pcs_free释放返回值
+*/
+static char *fix_unix_dir_path(char *path)
+{
+	char *result, *p;
+	int sz = strlen(path);
+	if (path[sz - 1] != '/' && path[sz - 1] != '\\') {
+		result = (char *)pcs_malloc(strlen(path) + 2);
+		strcpy(result, path);
+		result[sz] = '/';
+		result[sz + 1] = '\0';
+	}
+	else {
+		result = (char *)pcs_malloc(strlen(path) + 1);
+		strcpy(result, path);
+	}
+	p = result;
+	while (*p) {
+		if (*p == '\\') *p = '/';
+		p++;
+	}
+	return result;
 }
 
 /*把文件大小转换成字符串*/
@@ -1038,7 +1130,7 @@ static void init_context(ShellContext *context, int argc, char *argv[])
 	context->cookiefile = pcs_utils_strdup(cookiefile());
 	context->captchafile = pcs_utils_strdup(captchafile());
 	context->workdir = pcs_utils_strdup("/");
-	context->list_page_size = 20;
+	context->list_page_size = PRINT_PAGE_SIZE;
 	context->list_sort_name = pcs_utils_strdup("name");
 	context->list_sort_direction = pcs_utils_strdup("asc");
 	
@@ -1661,12 +1753,12 @@ static void meta_destroy(MyMeta *meta)
 	pcs_free(meta);
 }
 
-static void rb_destory_string(void *a);
-static void rb_destory_key_for_meta(void *a);
-static void rb_destory_meta(void *a);
-static int rb_compare_string(const void *a, const void *b);
-static void rb_print_string(const void *a);
-static void rb_print_meta(void *a);
+static void rb_destory_string(void *a, void *state);
+static void rb_destory_key_for_meta(void *a, void *state);
+static void rb_destory_meta(void *a, void *state);
+static int rb_compare_string(const void *a, const void *b, void *state);
+static void rb_print_string(const void *a, void *state);
+static int rb_print_meta(void *a, void *state);
 
 /* Utility to jump whitespace and cr/lf and comma */
 static const char *skip_space(const char *in)
@@ -1782,7 +1874,7 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 	my_dirent *ent, *e;
 	size_t sz, fsz;
 	MyMeta *meta, *tmp;
-	char *buf = NULL, *pb, *p;
+	char *buf = NULL, *pb, *p, *fixed_path;
 
 	ent = list_dir(dir, recursion);
 	if (!ent) {
@@ -1807,21 +1899,21 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 	assert(rb);
 	e = ent;
 	while (e) {
-		if (strcmp(e->filename, MYMETA_FILENAME) == 0) {
+		fixed_path = e->is_dir ? fix_unix_dir_path(e->path) : fix_unix_path(e->path);
+		if (!e->is_dir && strcmp(e->filename, MYMETA_FILENAME) == 0) {
 			fsz = readFileContent(e->path, &buf);
 			if (fsz > 0) {
 				pb = buf;
 				while ((meta = meta_read((const char **)&pb)) != NULL) {
-					p = e->path + strlen(e->path);
-					while (p > e->path) {
-						if (*p == '\\' || *p == '/') break;
-						p--;
-					}
-					if (*p == '\\' || *p == '/') {
-						meta->path = combin_path(e->path, p - e->path, meta->filename);
+					p = (char *)find_filename(fixed_path);
+					p = combin_path(fixed_path + sz, p - fixed_path - sz, meta->filename);
+					if (meta->isdir) {
+						meta->path = fix_unix_dir_path(p);
+						pcs_free(p);
 					}
 					else {
-						meta->path = pcs_utils_strdup(meta->filename);
+						meta->path = fix_unix_path(p);
+						pcs_free(p);
 					}
 					rbn = RBExactQuery(rb, (void *)meta->path);
 					if (rbn) {
@@ -1846,30 +1938,31 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 				pcs_free(buf);
 				buf = NULL;
 			}
-			e = e->next;
-			continue;
-		}
-		rbn = RBExactQuery(rb, (void *)meta->path);
-		if (rbn) {
-			tmp = (MyMeta *)rbn->info;
-			tmp->flag |= FLAG_EXIST_ON_LOCAL;
-			tmp->current_isdir = e->is_dir;
-			tmp->current_mtime = e->mtime;
-			//tmp->current_md5 = NULL;
-			tmp->current_size = e->size;
-			meta_destroy(meta);
 		}
 		else {
-			meta = meta_create(e->path + sz, e->filename, 0, NULL, 0, 0, 0, 0);
-			assert(meta);
-			meta->flag = FLAG_EXIST_ON_LOCAL;
-			meta->current_mtime = e->mtime;
-			meta->current_size = e->size;
-			meta->current_isdir = e->is_dir;
-			//tmp->current_md5 = NULL;
-			RBTreeInsert(rb, (void *)meta->path, (void *)meta);
+			rbn = RBExactQuery(rb, (void *)(fixed_path + sz));
+			if (rbn) {
+				tmp = (MyMeta *)rbn->info;
+				tmp->flag |= FLAG_EXIST_ON_LOCAL;
+				tmp->current_isdir = e->is_dir;
+				tmp->current_mtime = e->mtime;
+				//tmp->current_md5 = NULL;
+				tmp->current_size = e->size;
+				meta_destroy(meta);
+			}
+			else {
+				meta = meta_create(fixed_path + sz, e->filename, 0, NULL, 0, 0, 0, 0);
+				assert(meta);
+				meta->flag = FLAG_EXIST_ON_LOCAL;
+				meta->current_mtime = e->mtime;
+				meta->current_size = e->size;
+				meta->current_isdir = e->is_dir;
+				//tmp->current_md5 = NULL;
+				RBTreeInsert(rb, (void *)meta->path, (void *)meta);
+			}
 		}
 		e = e->next;
+		pcs_free(fixed_path);
 	}
 	my_dirent_destroy(ent);
 	return rb;
@@ -1889,27 +1982,31 @@ static MyMeta *meta_query(rb_red_blk_tree *rb, const char *path)
 /*尝试维护一份自己的元数据 - 结束*/
 
 /*红黑树中用于释放 key */
-static void rb_destory_string(void *a)
+static void rb_destory_string(void *a, void *state)
 {
 	if (a) pcs_free(a);
 }
 
 /*红黑树中用于释放 key */
-static void rb_destory_key_for_meta(void *a)
+static void rb_destory_key_for_meta(void *a, void *state)
 {
 	
 }
 
 /*红黑树中用于释放 info */
-static void rb_destory_meta(void *a)
+static void rb_destory_meta(void *a, void *state)
 {
 	if (a) meta_destroy((MyMeta *)a);
 }
 
 /*红黑树中用于比较 key 值。当 *a > *b 时，返回 1; 当 *a < *b 时，返回 -1; 当相等时，返回 0。 */
-static int rb_compare_string(const void *a, const void *b)
+static int rb_compare_string(const void *a, const void *b, void *state)
 {
 	int rc;
+	if (a == &LOW) return (b == &LOW ? 0 : - 1);
+	if (b == &LOW) return (a == &LOW ? 0 : 1);
+	if (a == &HIGH) return (b == &HIGH ? 0 : 1);
+	if (b == &HIGH) return (a == &HIGH ? 0 : -1);
 	if (!a && !b) return 0;
 	if (!a) return -1;
 	if (!b) return 1;
@@ -1918,18 +2015,18 @@ static int rb_compare_string(const void *a, const void *b)
 }
 
 /*红黑树中用于打印 key */
-static void rb_print_string(const void *a)
+static void rb_print_string(const void *a, void *state)
 {
 	printf("%s", a);
 }
 
 /*红黑树中用于打印 info */
-static void rb_print_meta(void *a)
+static int rb_print_meta(void *a, void *state)
 {
 	MyMeta *meta = (MyMeta *)a;
 	if (!meta) {
 		printf("null\n");
-		return;
+		return 0;
 	}
 	printf("{\n");
 	printf("  path: \"%s\",\n", meta->path);
@@ -1947,8 +2044,166 @@ static void rb_print_meta(void *a)
 	print_size("  current_size: \"%s\",\n", meta->current_size);
 	printf("  current_md5: \"%s\"\n", meta->current_md5);
 	printf("}\n");
+	return 0;
 }
 
+/* cmd_compare 比较目录时，用于打印列表头 */
+static inline void rb_print_meta_for_compare_head(struct RBPrintCompareItemState *s)
+{
+	int i;
+	printf("\nPAGE#%d\n", s->page_index);
+	printf("Local File");
+	for (i = 10; i < s->ft; i++)
+		putchar(' ');
+	printf("  OP  Net Disk File\n");
+	for (i = 0; i < s->ft + 20; i++)
+		putchar('-');
+	putchar('\n');
+}
+
+/* cmd_compare 比较目录时，用于打印每一项 */
+static int rb_print_meta_for_compare(void *a, void *state)
+{
+	MyMeta *meta = (MyMeta *)a;
+	struct RBPrintCompareItemState *s = (struct RBPrintCompareItemState *)state;
+	int i;
+	char tmp[8];
+	if (!meta) {
+		return 0;
+	}
+	if ((meta->op & s->op_flag) == 0)
+		return 0;
+	if ((meta->flag & s->status_flag) == 0)
+		return 0;
+
+	if (s->printed_count == 0) {
+		rb_print_meta_for_compare_head(s);
+	}
+	else if ((s->printed_count % s->page_size) == 0) {
+		s->page_index++;
+		printf("\nPrint next page#%d [Y|N]? ", s->page_index);
+		std_string(tmp, 8);
+		if (strlen(tmp) != 0 && pcs_utils_strcmpi(tmp, "y") && pcs_utils_strcmpi(tmp, "yes")) {
+			return -1;
+		}
+		rb_print_meta_for_compare_head(s);
+	}
+	
+	if ((meta->flag & FLAG_EXIST_ON_LOCAL) == FLAG_EXIST_ON_LOCAL) {
+		printf(meta->path);
+		i = strlen(meta->path);
+	}
+	else {
+		i = 0;
+	}
+	for (; i < s->ft; i++)
+		putchar(' ');
+	printf("  %s  ", meta->op == OP_LEFT ? "<-"
+		: (meta->op == OP_RIGHT ? "->"
+		: (meta->op == OP_EQ ? "=="
+		: "><")));
+	if ((meta->flag & FLAG_EXIST_ON_NET) == FLAG_EXIST_ON_NET) {
+		printf("%s\n", meta->path);
+	}
+	else {
+		putchar('\n');
+	}
+
+	s->printed_count++;
+	return 0;
+}
+
+/*
+* 决定文件执行何种操作。
+*   1) 当文件在本地和网盘中都存在时，比较本地和网盘的元数据。
+*      I) 如果本地有存储文件的备份历史资料，则：
+*           a) 如果本地文件在上次备份后修改过，则需要上传
+*           b) 如果本地文件在上次备份后又被旧版本覆盖，则需要下载
+*           c) 其他情况，则认为文件一样，不做任何操作
+*      II) 如果本地未存储文件的备份历史资料，则：
+*           a) 如果本地文件修改时间小于网盘文件创建时间，则需要下载
+*           b) 如果本地文件修改时间大于网盘文件创建时间，则需要上传
+*           c) 其他情况，则认为文件一样，不做任何操作
+*  2) 当文件在本地存在，但是在网盘中不存在时，则需要上传
+*  3) 当文件在本地不存在，但是在网盘中存在时，则需要下载
+*  4) 其他情况，不做任何操作。（出现此情况的原因，可能是文件已经从本地和网盘中删除，
+*     但是存储备份历史资料的文件未更新）
+*/
+static inline void decide_op(MyMeta *meta)
+{
+	if ((meta->flag & FLAG_EXIST_ON_LOCAL) == FLAG_EXIST_ON_LOCAL
+		&& (meta->flag & FLAG_EXIST_ON_NET) == FLAG_EXIST_ON_NET) { /*文件在本地和网盘中都存在*/
+		if (meta->fs_id == meta->server_fs_id && meta->upload_time == meta->server_mtime) {
+			if (meta->current_mtime < meta->mtime)
+				meta->op = OP_LEFT;
+			else if (meta->current_mtime > meta->mtime)
+				meta->op = OP_RIGHT;
+			else
+				meta->op = OP_EQ;
+		}
+		else {
+			if (meta->current_mtime < meta->server_mtime)
+				meta->op = OP_LEFT;
+			else if (meta->current_mtime > meta->server_mtime)
+				meta->op = OP_RIGHT;
+			else
+				meta->op = OP_EQ;
+		}
+	}
+	else if ((meta->flag & FLAG_EXIST_ON_LOCAL) == FLAG_EXIST_ON_LOCAL) {
+		meta->op = OP_RIGHT;
+	}
+	else if ((meta->flag & FLAG_EXIST_ON_NET) == FLAG_EXIST_ON_NET) {
+		meta->op = OP_LEFT;
+	}
+	else {
+		meta->op = OP_NONE;
+	}
+}
+
+/* cmd_compare 比较目录时，统计第一列的打印宽度 */
+static int rb_print_meta_for_compare_static(void *a, void *state)
+{
+	MyMeta *meta = (MyMeta *)a;
+	struct RBPrintCompareItemState *s = (struct RBPrintCompareItemState *)state;
+	int len;
+	if (!meta || !s)
+		return 0;
+	decide_op(meta);
+	switch (meta->op)
+	{
+	case OP_EQ:
+		s->cnt_eq++;
+		break;
+	case OP_LEFT:
+		s->cnt_left++;
+		break;
+	case OP_RIGHT:
+		s->cnt_right++;
+		break;
+	default:
+		s->cnt_none++;
+		break;
+	}
+	s->cnt_total++;
+	if ((meta->op & s->op_flag) == 0)
+		return 0;
+	if ((meta->flag & s->status_flag) == 0)
+		return 0;
+	if ((meta->flag & FLAG_EXIST_ON_LOCAL) == FLAG_EXIST_ON_LOCAL) {
+		len = strlen(meta->path);
+		if (s->ft < len) s->ft = len;
+	}
+	s->cnt_valid_total++;
+	return 0;
+}
+
+/*
+ * 比较两个文件的异同。
+ *   context     - 上下文
+ *   ent         - 本地文件对象
+ *   netdiskfile - 网盘文件对象
+*/
 static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const PcsFileInfo *netdiskfile)
 {
 	MyMeta *meta = NULL;
@@ -1967,6 +2222,7 @@ static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const P
 		rbn = RBExactQuery(rb, (void *)ent->filename);
 		if (rbn) {
 			meta = (MyMeta *)rbn->info;
+			meta->flag |= FLAG_EXIST_ON_NET;
 			rbn->key = NULL;
 			rbn->info = NULL;
 		}
@@ -1975,37 +2231,132 @@ static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const P
 	if (!meta) {
 		meta = meta_create(ent->filename, ent->filename, 0, NULL, 0, 0, 0, 0);
 		assert(meta);
-		meta->flag = FLAG_EXIST_ON_LOCAL;
+		meta->flag = FLAG_EXIST_ON_LOCAL | FLAG_EXIST_ON_NET;
 		//meta->current_md5 = NULL;
 		meta->current_mtime = ent->mtime;
 		meta->current_size = ent->size;
 		meta->current_isdir = ent->is_dir;
 	}
 
-	if (meta->fs_id == netdiskfile->fs_id && meta->upload_time == netdiskfile->server_mtime) {
-		if (meta->current_mtime < meta->mtime)
-			meta->op = OP_LEFT;
-		else if (meta->current_mtime > meta->mtime)
-			meta->op = OP_RIGHT;
-		else
-			meta->op = OP_EQ;
-	}
-	else {
-		if (meta->current_mtime < netdiskfile->server_mtime)
-			meta->op = OP_LEFT;
-		else if (meta->current_mtime > netdiskfile->server_mtime)
-			meta->op = OP_RIGHT;
-		else
-			meta->op = OP_EQ;
-	}
+	meta->server_fs_id = netdiskfile->fs_id;
+	meta->server_mtime = netdiskfile->server_mtime;
+
+	decide_op(meta);
+
 	return meta;
 }
 
-static rb_red_blk_tree *compare_dir(ShellContext *context, const char *locPath, const char *diskPath, int recursive)
+/*
+ * 列出网盘目录文件，并把结果合并到代表本地文件元数据的红黑树中。
+ *   context     - 上下文
+ *   rb          - 自己维护的一个文件元数据
+ *   netdiskfile - 网盘文件对象
+ *   recursive   - 表示是否递归
+ *   base_sz     - 从什么位置开始截取路径，截取后的路径作为红黑树中项的Key
+ * 成功则返回0；否则返回非0值
+*/
+static int compare_dir_help(ShellContext *context, rb_red_blk_tree *rb, 
+	const PcsFileInfo *netdiskfile, int recursive, int base_sz, int *total_cnt)
+{
+	PcsFileInfoList *list = NULL;
+	PcsFileInfoListIterater iterater;
+	PcsFileInfo *info = NULL;
+	int page_index = 1,
+		page_size = 100;
+	int cnt = 0;
+	rb_red_blk_node *rbn;
+	MyMeta *meta;
+	char *fixed_path;
+
+	while (1) {
+		list = pcs_list(context->pcs, netdiskfile->path,
+			page_index, page_size,
+			"name", PcsFalse);
+
+		if (!list) {
+			if (pcs_strerror(context->pcs)) {
+				printf("Error: %s \n", pcs_strerror(context->pcs));
+				return -1;
+			}
+			return 0;
+		}
+
+		cnt = list->count;
+		if (total_cnt) (*total_cnt) += cnt;
+		if (total_cnt && cnt > 0) {
+			printf("Fetch %d Metas                     \r", *total_cnt);
+			fflush(stdout);
+		}
+
+		pcs_filist_iterater_init(list, &iterater, PcsFalse);
+		while (pcs_filist_iterater_next(&iterater)) {
+			info = iterater.current;
+			if (info->isdir) {
+				fixed_path = fix_unix_dir_path(info->path);
+				pcs_free(info->path);
+				info->path = fixed_path;
+			}
+			rbn = RBExactQuery(rb, (void *)(info->path + base_sz));
+			if (rbn) {
+				meta = (MyMeta *)rbn->info;
+				meta->flag |= FLAG_EXIST_ON_NET;
+				meta->server_fs_id = info->fs_id;
+				meta->server_mtime = info->server_mtime;
+				decide_op(meta);
+			}
+			else {
+				meta = meta_create(info->path + base_sz, info->server_filename, 0, NULL, 0, 0, 0, 0);
+				assert(meta);
+				meta->flag = FLAG_EXIST_ON_NET;
+				decide_op(meta);
+				RBTreeInsert(rb, (void *)meta->path, (void *)meta);
+			}
+		}
+
+		if (recursive) {
+			pcs_filist_iterater_init(list, &iterater, PcsFalse);
+			while (pcs_filist_iterater_next(&iterater)) {
+				info = iterater.current;
+				if (info->isdir) {
+					/*rbn = RBExactQuery(rb, (void *)(info->path + base_sz));
+					assert(rbn);
+					meta = (MyMeta *)rbn->info;
+					if ((meta->flag & FLAG_EXIST_ON_LOCAL) == FLAG_EXIST_ON_LOCAL) {
+						if (compare_dir_help(context, rb, info, recursive, base_sz, total_cnt)) {
+							return -1;
+						}
+					}*/
+					if (compare_dir_help(context, rb, info, recursive, base_sz, total_cnt)) {
+						return -1;
+					}
+				}
+			}
+		}
+		pcs_filist_destroy(list);
+		if (cnt < page_size) {
+			break;
+		}
+		page_index++;
+	}
+	return 0;
+}
+
+static rb_red_blk_tree *compare_dir(ShellContext *context, const my_dirent *ent, const PcsFileInfo *netdiskfile, int recursive)
 {
 	rb_red_blk_tree *rb;
-	rb = meta_load(locPath, recursive);
-	RBTreePrint(rb);
+	int base_sz;
+	int total_cnt;
+
+	rb = meta_load(ent->path, recursive);
+
+	if (!rb) return NULL;
+
+	base_sz = strlen(netdiskfile->path);
+	if (netdiskfile->path[base_sz - 1] != '/' && netdiskfile->path[base_sz - 1] != '\\') base_sz++;
+	if (compare_dir_help(context, rb, netdiskfile, recursive, base_sz, &total_cnt)) {
+		RBTreeDestroy(rb);
+		return NULL;
+	}
 	return rb;
 }
 
@@ -2227,9 +2578,13 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 				printf("  %s  %s\n", mm->op == OP_LEFT ? "<-"
 					: (mm->op == OP_RIGHT ? "->"
 					: (mm->op == OP_EQ ? "=="
-					: " ")),
+					: "><")),
 					meta->server_filename);
-				printf("\n< - means left \n");
+				//for (i = 0; i < ft + 20; i++) putchar('-');
+				printf("\nNotes:\n  <- means left file older than right file. \n");
+				printf("  -> means left file newer than right file. \n");
+				printf("  == means left file equal right file. \n");
+				printf("  >< means unavailable. \n");
 			}
 			else{
 				printf("Error: Can't compare...\n");
@@ -2246,8 +2601,33 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 		}
 		else {
 			/*比较目录异同*/
-			rb = compare_dir(context, locPath, path, is_recursive);
-
+			rb = compare_dir(context, ent, meta, is_recursive);
+			if (rb) {
+				struct RBPrintCompareItemState state = { 0 };
+				state.op_flag = OP_EQ | OP_LEFT | OP_RIGHT;
+				state.status_flag = FLAG_EXIST_ON_LOCAL | FLAG_EXIST_ON_NET;
+				state.tree = rb;
+				state.page_size = context->list_page_size;
+				state.page_index = 1;
+				rb->printInfoState = &state;
+				rb->PrintInfo = &rb_print_meta_for_compare_static;
+				RBTreePrintEx(rb);
+				if (state.ft < 10) state.ft = 10;
+				rb->PrintInfo = &rb_print_meta_for_compare;
+				RBTreePrintEx(rb);
+				putchar('\n');
+				for (i = 0; i < state.ft + 20; i++) putchar('-');
+				printf("\nTotal: %d, Download: %d, Upload: %d, Equal: %d, Unknow: %d\n", 
+					state.cnt_total, state.cnt_left, state.cnt_right, state.cnt_eq, state.cnt_none);
+				//for (i = 0; i < state.ft + 20; i++) putchar('-');
+				printf("\nNotes:\n  <- means left file older than right file. \n");
+				printf("  -> means left file newer than right file. \n");
+				printf("  == means left file equal right file. \n");
+				printf("  >< means unavailable. \n");
+			}
+			else {
+				printf("Error: Can't compare...\n");
+			}
 		}
 	}
 	pcs_fileinfo_destroy(meta);
@@ -2546,9 +2926,10 @@ static int cmd_list(ShellContext *context, int argc, char *argv[])
 		pcs_filist_destroy(list);
 		printf("Print next page#%d [Y|N]? ", page_index + 1);
 		std_string(tmp, 10);
-		printf("[%s] %d\n", tmp, strlen(tmp));
-		if (strlen(tmp) != 0 && pcs_utils_strcmpi(tmp, "y") && pcs_utils_strcmpi(tmp, "yes"))
+		//printf("[%s] %d\n", tmp, strlen(tmp));
+		if (strlen(tmp) != 0 && pcs_utils_strcmpi(tmp, "y") && pcs_utils_strcmpi(tmp, "yes")) {
 			break;
+		}
 		page_index++;
 	}
 	if (page_index > 1) {
