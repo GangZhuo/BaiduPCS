@@ -36,6 +36,11 @@
 #define OP_LEFT		4
 #define OP_RIGHT	5
 
+#define FLAG_NONE			0 
+#define FLAG_EXIST_ON_LOCAL	1 /*在本地文件系统中存在*/
+#define FLAG_EXIST_ON_META	2 /*在本地MyMeta文件中存在*/
+#define FLAG_EXIST_ON_NET	4 /*在网盘中存在*/
+
 
 /*MyMeta，用于维护一份自己的文件元数据*/
 typedef struct MyMeta MyMeta;
@@ -50,11 +55,12 @@ struct MyMeta
 	int			isdir;
 	UInt64		fs_id;
 
-	int			exist_in_local; /*本地是否存在*/
 	time_t		current_mtime; /*当前的最后修改时间*/
 	char		*current_md5;
 	size_t		current_size;
 	int			current_isdir;
+
+	int			flag; /*标记*/
 
 	void		*tag; /*附属值，临时用途。*/
 	int			op; /*附属值，临时用途。*/
@@ -141,6 +147,7 @@ static int is_absolute_path(const char *path)
 }
 
 #else
+
 #include <termios.h>
 #include <unistd.h>
 
@@ -1819,7 +1826,7 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 					rbn = RBExactQuery(rb, (void *)meta->path);
 					if (rbn) {
 						tmp = (MyMeta *)rbn->info;
-						meta->exist_in_local = tmp->exist_in_local;
+						meta->flag = (tmp->flag | FLAG_EXIST_ON_META);
 						meta->current_isdir = tmp->current_isdir;
 						meta->current_mtime = tmp->current_mtime;
 						meta->current_md5 = tmp->current_md5;
@@ -1830,6 +1837,7 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 						meta_destroy(tmp);
 					}
 					else {
+						meta->flag = FLAG_EXIST_ON_META;
 						RBTreeInsert(rb, (void *)meta->path, (void *)meta);
 					}
 				}
@@ -1841,24 +1849,24 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 			e = e->next;
 			continue;
 		}
-		meta = meta_create(e->path + sz, e->filename, 0, NULL, 0, 0, 0, 0);
-		assert(meta);
-		meta->exist_in_local = 1;
-		meta->current_mtime = e->mtime;
-		meta->current_size = e->size;
-		meta->current_isdir = e->is_dir;
-		//tmp->current_md5 = NULL; /*新建立的meta中，current_md5本来就是NULL*/
 		rbn = RBExactQuery(rb, (void *)meta->path);
 		if (rbn) {
 			tmp = (MyMeta *)rbn->info;
-			tmp->exist_in_local = meta->exist_in_local;
-			tmp->current_isdir = meta->current_isdir;
-			tmp->current_mtime = meta->current_mtime;
-			tmp->current_md5 = meta->current_md5;
-			tmp->current_size = meta->current_size;
+			tmp->flag |= FLAG_EXIST_ON_LOCAL;
+			tmp->current_isdir = e->is_dir;
+			tmp->current_mtime = e->mtime;
+			//tmp->current_md5 = NULL;
+			tmp->current_size = e->size;
 			meta_destroy(meta);
 		}
 		else {
+			meta = meta_create(e->path + sz, e->filename, 0, NULL, 0, 0, 0, 0);
+			assert(meta);
+			meta->flag = FLAG_EXIST_ON_LOCAL;
+			meta->current_mtime = e->mtime;
+			meta->current_size = e->size;
+			meta->current_isdir = e->is_dir;
+			//tmp->current_md5 = NULL;
 			RBTreeInsert(rb, (void *)meta->path, (void *)meta);
 		}
 		e = e->next;
@@ -1933,7 +1941,7 @@ static void rb_print_meta(void *a)
 	printf("  fs_id: %llu,\n", meta->fs_id);
 	print_time("  upload_time: \"%s\",\n", meta->upload_time);
 
-	printf("\n  exist_in_local: %s,\n", meta->exist_in_local ? "true" : "false");
+	printf("\n  flag: 0x%X,\n", meta->flag);
 	print_time("  current_mtime: \"%s\",\n", meta->current_mtime); 
 	printf("  current_isdir: %s,\n", meta->current_isdir ? "true" : "false");
 	print_size("  current_size: \"%s\",\n", meta->current_size);
@@ -1967,7 +1975,7 @@ static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const P
 	if (!meta) {
 		meta = meta_create(ent->filename, ent->filename, 0, NULL, 0, 0, 0, 0);
 		assert(meta);
-		meta->exist_in_local = 1;
+		meta->flag = FLAG_EXIST_ON_LOCAL;
 		//meta->current_md5 = NULL;
 		meta->current_mtime = ent->mtime;
 		meta->current_size = ent->size;
