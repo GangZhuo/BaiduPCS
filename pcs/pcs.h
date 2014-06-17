@@ -131,7 +131,7 @@ PCS_API const char *pcs_sysUID(Pcs handle);
  * 例2：
  *    PcsRes res;
  *    const char *err;
- *    UInt64 quota, used;
+ *    size_t quota, used;
  *    res = pcs_quota(handle, &quota, &used);
  *    if (res != PCS_OK) {
  *        err = pcs_strerror(handle);
@@ -194,7 +194,7 @@ PCS_API PcsRes pcs_logout(Pcs handle);
  *   used  用于接收已使用值
  * 成功后返回PCS_OK，失败则返回错误编号
 */
-PCS_API PcsRes pcs_quota(Pcs handle, UInt64 *quota, UInt64 *used);
+PCS_API PcsRes pcs_quota(Pcs handle, size_t *quota, size_t *used);
 
 /*
  * 创建一个目录

@@ -907,27 +907,27 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 
 	val = cJSON_GetObjectItem(item, "mtime");
 	if (val)
-		fi->server_mtime = (UInt64)val->valuedouble;
+		fi->server_mtime = (time_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "ctime");
 	if (val)
-		fi->server_ctime = (UInt64)val->valuedouble;
+		fi->server_ctime = (time_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "server_mtime");
 	if (val)
-		fi->server_mtime = (UInt64)val->valuedouble;
+		fi->server_mtime = (time_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "server_ctime");
 	if (val)
-		fi->server_ctime = (UInt64)val->valuedouble;
+		fi->server_ctime = (time_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "local_mtime");
 	if (val)
-		fi->local_mtime = (UInt64)val->valuedouble;
+		fi->local_mtime = (time_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "local_ctime");
 	if (val)
-		fi->local_ctime = (UInt64)val->valuedouble;
+		fi->local_ctime = (time_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "isdir");
 	if (val)
@@ -939,7 +939,7 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 
 	val = cJSON_GetObjectItem(item, "size");
 	if (val)
-		fi->size = (UInt64)val->valuedouble;
+		fi->size = (size_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "dir_empty");
 	if (val)
@@ -1799,7 +1799,7 @@ PCS_API PcsRes pcs_logout(Pcs handle)
 	return PCS_FAIL;
 }
 
-PCS_API PcsRes pcs_quota(Pcs handle, UInt64 *quota, UInt64 *used)
+PCS_API PcsRes pcs_quota(Pcs handle, size_t *quota, size_t *used)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	cJSON *json, *item;
@@ -1845,7 +1845,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, UInt64 *quota, UInt64 *used)
 		return PCS_WRONG_RESPONSE;
 	}
 	if (quota)
-		*quota = (UInt64)item->valuedouble;
+		*quota = (size_t)item->valuedouble;
 
 	item = cJSON_GetObjectItem(json, "used");
 	if (!item) {
@@ -1854,7 +1854,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, UInt64 *quota, UInt64 *used)
 		return PCS_WRONG_RESPONSE;
 	}
 	if (used)
-		*used = (UInt64)item->valuedouble;
+		*used = (size_t)item->valuedouble;
 
 	cJSON_Delete(json);
 
