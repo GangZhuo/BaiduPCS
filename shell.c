@@ -1254,6 +1254,9 @@ static void usage_compare(ShellContext *context)
 	printf("  Print the differents between local and net disk\n");
 	printf("\nOptions:\n");
 	printf("  -r    Recursive compare the sub directories.\n");
+	//printf("  -e    Recursive compare the sub directories.\n");
+	//printf("  -d    Recursive compare the sub directories.\n");
+	//printf("  -u    Recursive compare the sub directories.\n");
 	printf("\nSamples:\n");
 	printf("  %s compare ~/music /music\n", context->name);
 	printf("  %s compare music /music\n", context->name);
@@ -2584,7 +2587,6 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 				printf("\nNotes:\n  <- means left file older than right file. \n");
 				printf("  -> means left file newer than right file. \n");
 				printf("  == means left file equal right file. \n");
-				printf("  >< means unavailable. \n");
 			}
 			else{
 				printf("Error: Can't compare...\n");
@@ -2617,13 +2619,12 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 				RBTreePrintEx(rb);
 				putchar('\n');
 				for (i = 0; i < state.ft + 20; i++) putchar('-');
-				printf("\nTotal: %d, Download: %d, Upload: %d, Equal: %d, Unknow: %d\n", 
-					state.cnt_total, state.cnt_left, state.cnt_right, state.cnt_eq, state.cnt_none);
+				printf("\nTotal: %d, Download: %d, Upload: %d, Equal: %d\n", 
+					state.cnt_total, state.cnt_left, state.cnt_right, state.cnt_eq);
 				//for (i = 0; i < state.ft + 20; i++) putchar('-');
 				printf("\nNotes:\n  <- means left file older than right file. \n");
 				printf("  -> means left file newer than right file. \n");
 				printf("  == means left file equal right file. \n");
-				printf("  >< means unavailable. \n");
 			}
 			else {
 				printf("Error: Can't compare...\n");
