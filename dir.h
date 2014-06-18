@@ -1,63 +1,52 @@
 #ifndef _PCS_SHELL_DIR_H_
 #define _PCS_SHELL_DIR_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct LocalFileInfo LocalFileInfo;
 
-typedef struct my_dirent my_dirent;
-
-struct my_dirent
+struct LocalFileInfo
 {
-   char		 *path; /* File name */
-   char		 *filename;
-   int		 is_dir; /* File type */
-   time_t	 mtime;
-   size_t	 size;
-   int		user_flag;
-   my_dirent *next;
+   char				*path;
+   const char		*filename;
+   int				isdir;
+   time_t			mtime;
+   size_t			size;
+   LocalFileInfo	*parent;
+   LocalFileInfo	*next;
+
+   void				*userdata;
 };
 
-/*
- * 获取指定文件或目录的my_dirent对象
- *  pEnt  - 用于接收文件的my_dirent对象。可传入NULL，表示不接收my_dirent对象
- *  path  - 文件或目录的路径
- * 如果文件或目录不存在，则返回0；如果目标是目录则返回2；否则返回1。
- */
-int get_file_ent(my_dirent **pEnt, const char *path);
+/*释放掉LocalFileInfo对象*/
+void DestroyLocalFileInfo(LocalFileInfo *info);
+
+/*释放掉LocalFileInfo链表*/
+void DestroyLocalFileInfoLink(LocalFileInfo *link);
 
 /*
-* 判断本地文件是否存在，如果存在的话，判断是否文件还是目录。
-* 如果不存在，则返回0；如果是目录则返回2；否则返回1。
+* 获取指定文件或目录的信息
+*  file  - 文件或目录的路径
+* 如果文件或目录不存在，则返回NULL；否则返回其LocalFileInfo对象。
 */
-int is_dir_or_file(const char *path);
+LocalFileInfo *GetLocalFileInfo(const char *file);
 
 /*
- * 列出path指定目录下的所有文件或目录。
- *   path      - 指定目标目录
- *   recursion - 指定是否递归列出目录
- * 成功后返回一个my_dirent链表
+* 获取dir目录下的所有文件或目录。
+*   dir       - 目标目录路径
+*   recursion - 是否递归列出
+*   on        - 当获取到一个对象后的回调函数
+*      回调函数参数：
+*       info   - 当前获取到的文件
+*       parent - 当前获取到的文件的父目录
+*       state  - 状态值，有用户传入
+*   state     - 要传递到回调函数第三个参数的值
+* 成功后返回一个LocalFileInfo链表
 */
-my_dirent *list_dir(const char *path, int recursion);
+LocalFileInfo *GetDirectoryFiles(const char *dir, int recursive, 
+	void(*on)(LocalFileInfo *info, LocalFileInfo *parent, void *state), void *state);
 
-/*释放掉my_dirent链表*/
-void my_dirent_destroy(my_dirent *link);
-
-/*返回ent指定对象的最后修改时间。
-该函数会判断ent->mtime是否已经设值，
-如果已经设值，则直接返回，否则调用系统函数获取其最后修改时间。*/
-time_t my_dirent_get_mtime(my_dirent *ent);
-
-/*递归删除path指定的文件或目录。如果执行成功则返回0，否则返回非0值。*/
-int my_dirent_remove(const char *path);
-
-/*设置目标的最后修改时间。如果执行成功则返回0，否则返回非0值。*/
-int my_dirent_utime(const char *path, time_t mtime);
-
-#ifdef __cplusplus
-}
-#endif
-
-
+/*设置文件的最后修改时间。
+如果执行成功则返回0，
+否则返回非0值。*/
+int SetFileLastModifyTime(const char *file, time_t mtime);
 
 #endif
