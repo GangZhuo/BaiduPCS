@@ -1987,7 +1987,7 @@ static void meta_destroy(MyMeta *meta)
 {
 	if (!meta) return;
 	if (meta->path) pcs_free(meta->path);
-	//if (meta->filename) pcs_free(meta->filename);
+	if (meta->remote_path) pcs_free(meta->remote_path);
 	if (meta->msg) pcs_free(meta->msg);
 	pcs_free(meta);
 }
@@ -2156,9 +2156,9 @@ static void print_meta_list_foot(int first, int second, int other)
 /*判断是否允许打印。返回0表示不允许，返回非0值表示允许*/
 static inline int rb_print_enabled(MyMeta *meta, struct RBEnumerateState *s)
 {
-	if (!(meta->op & s->print_op) || !((~meta->op) & (s->no_print_op)))
+	if (!(meta->op & s->print_op) || !((meta->op) & (~(s->no_print_op))))
 		return 0;
-	if (!(meta->flag & s->print_flag) || !((~meta->flag) & (s->no_print_flag)))
+	if (!(meta->flag & s->print_flag) || !((meta->flag) & (~(s->no_print_flag))))
 		return 0;
 	return 1;
 }
