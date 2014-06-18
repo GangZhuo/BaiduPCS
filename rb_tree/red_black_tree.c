@@ -24,7 +24,7 @@ rb_red_blk_tree* RBTreeCreate(int (*CompFunc) (const void*, const void*, void*),
 	void (*DestFunc) (void*, void*),
 	void (*InfoDestFunc) (void*, void*),
 	void (*PrintFunc) (const void*, void*),
-	int  (*PrintInfo)(void*, void*)) {
+	void (*PrintInfo)(void*, void*)) {
   rb_red_blk_tree* newTree;
   rb_red_blk_node* temp;
 
@@ -382,17 +382,17 @@ void InorderTreePrint(rb_red_blk_tree* tree, rb_red_blk_node* x) {
   }
 }
 
-int InorderTreePrintEx(rb_red_blk_tree* tree, rb_red_blk_node* x) {
+int InorderRBTreeEnumerateInfo(rb_red_blk_tree* tree, rb_red_blk_node* x) {
 	int rc;
 	rb_red_blk_node* nil = tree->nil;
 	rb_red_blk_node* root = tree->root;
 	if (x != tree->nil) {
-		if ((rc = InorderTreePrintEx(tree, x->left)) != 0)
+		if ((rc = InorderRBTreeEnumerateInfo(tree, x->left)) != 0)
 			return rc;
-		if ((rc = tree->PrintInfo(x->info, tree->printInfoState)) != 0) {
+		if ((rc = tree->EnumerateInfo(x->info, tree->enumerateInfoState)) != 0) {
 			return rc;
 		}
-		if ((rc = InorderTreePrintEx(tree, x->right)) != 0)
+		if ((rc = InorderRBTreeEnumerateInfo(tree, x->right)) != 0)
 			return rc;
 	}
 	return 0;
@@ -480,8 +480,8 @@ void RBTreePrint(rb_red_blk_tree* tree) {
 /**/
 /***********************************************************************/
 
-int RBTreePrintEx(rb_red_blk_tree* tree) {
-	return InorderTreePrintEx(tree, tree->root->left);
+int RBTreeEnumerateInfo(rb_red_blk_tree* tree) {
+	return InorderRBTreeEnumerateInfo(tree, tree->root->left);
 }
 
 

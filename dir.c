@@ -38,330 +38,282 @@
 # define utime		_utime
 #endif
 
-int filesearch(const char *path, my_dirent **pCusor, int recursion);
-
-my_dirent *create_dirent(const char *basepath, const char *filename, int is_dir, time_t mtime, size_t size)
-{
-	my_dirent *ent;
-	char *p;
-	ent = (my_dirent *)pcs_malloc(sizeof(my_dirent));
-	if (!ent)
-		return NULL;
-	ent->path = (char *)pcs_malloc((basepath ? strlen(basepath) : 0) + (filename ? strlen(filename) : 0) + 2);
-	if (!ent->path) {
-		pcs_free(ent);
-		return NULL;
-	}
-	if (basepath)
-		strcpy(ent->path, basepath);
-	if (filename) {
-		if (basepath && ent->path[strlen(ent->path) - 1] != '/' && ent->path[strlen(ent->path) - 1] != '\\') {
-#ifdef WIN32
-			strcat(ent->path, "\\");
-#else
-			strcat(ent->path, "/");
-#endif
-			ent->filename = ent->path + strlen(basepath) + 1;
-		}
-		else {
-			ent->filename = ent->path + strlen(basepath);
-		}
-		strcat(ent->path, filename);
-	}
-	else {
-		p = ent->path;
-		if (basepath) p += strlen(basepath);
-		while (p > ent->path) {
-			if (*p == '\\' || *p == '/')
-				break;
-			p--;
-		}
-		if (*p == '\\' || *p == '/') p++;
-		ent->filename = p;
-	}
-	p = ent->path;
-	while (*p) {
-#ifdef WIN32
-		if (*p == '/') *p = '\\';
-#else
-		if (*p == '\\') *p = '/';
-#endif
-		p++;
-	}
-	ent->is_dir = is_dir;
-	ent->mtime = mtime;
-	ent->size = size;
-	ent->user_flag = 0;
-	ent->next = NULL;
-	return ent;
-}
-
-void my_dirent_destroy(my_dirent *link)
-{
-	my_dirent *cusor, *ent;
-	cusor = link;
-	while(cusor) {
-		ent = cusor;
-		cusor = cusor->next;
-		if (ent->path)
-			pcs_free(ent->path);
-		pcs_free(ent);
-	}
-}
-
-my_dirent *list_dir(const char *path, int recursion)
-{
-	my_dirent root = { 0 }, *cusor = &root;
-	if (filesearch(path, &cusor, recursion)) {
-		my_dirent_destroy(root.next);
-		root.next = NULL;
-	}
-	return root.next;
-}
-
-int my_dirent_remove(const char *path)
-{
-	my_dirent root = { 0 }, *i, *cusor = &root;
-	int res = 0;
-	int ft = is_dir_or_file(path);
-	if (ft == 2) {
-		if (filesearch(path, &cusor, 0)) {
-			res = -1;
-		}
-		else {
-			i = root.next;
-			while (i) {
-				if (my_dirent_remove(i->path)) {
-					res = -1;
-					break;
-				}
-				i = i->next;
-			}
-		}
-		my_dirent_destroy(root.next);
-		root.next = NULL;
-		if (!i) {
-#ifdef WIN32
-			res = _rmdir(path);
-#else
-			res = remove(path);
-#endif
-		}
-	}
-	else {
-		res = remove(path);
-	}
-	return res;
-
-}
-
-int my_dirent_utime(const char *path, time_t mtime)
-{
-	struct utimbuf ut;
-	ut.actime = mtime;
-	ut.modtime = mtime;
-	return utime(path, &ut);
-}
-
-time_t my_dirent_get_mtime(my_dirent *ent)
-{
-	return ent->mtime;
-}
-
 #ifdef WIN32
 
-time_t FileTimeToTime_t(FILETIME ft, time_t *t)  
-{  
+time_t FileTimeToTime_t(FILETIME ft, time_t *t)
+{
 	ULONGLONG  ll;
 	ULARGE_INTEGER ui;
 	time_t rc;
-	ui.LowPart =  ft.dwLowDateTime;
-	ui.HighPart =  ft.dwHighDateTime;
+	ui.LowPart = ft.dwLowDateTime;
+	ui.HighPart = ft.dwHighDateTime;
 	ll = (((ULONGLONG)ft.dwHighDateTime) << 32) + ft.dwLowDateTime;
 	rc = ((ULONGLONG)(ui.QuadPart - 116444736000000000) / 10000000);
 	if (t) *t = rc;
 	return rc;
 }
 
-int get_file_ent(my_dirent **pEnt, const char *path)
+#endif
+
+static char *combin_path(const char *base, const char *filename, const char **pName)
 {
-	WIN32_FIND_DATA fd;
-	HANDLE hFind = FindFirstFile(path, &fd);
-	FindClose(hFind);
-	//不存在同名的文件或文件夹
-	if (hFind == INVALID_HANDLE_VALUE) {
-		return 0;
+	char *p, *p2;
+	int sz_base;
+
+	sz_base = strlen(base);
+	p = (char *)pcs_malloc(sz_base + strlen(filename) + 2);
+	strcpy(p, base);
+#ifdef WIN32
+	p[sz_base] = '\\';
+#else
+	p[sz_base] = '/';
+#endif
+	sz_base++;
+	p[sz_base] = '\0';
+	if (pName) (*pName) = &p[sz_base];
+	strcat(p, filename);
+	return p;
+}
+
+static char *path_dup(const char *path, const char **pName)
+{
+	char *result, *p;
+	int len = strlen(path);
+	result = (char *)pcs_malloc(len + 1);
+	strcpy(result, path);
+	p = result;
+	p += len - 1;
+	if (*p == '/' || *p == '\\') *p = '\0'; //如果最后一个字符是'/'或者'\\'的话，则清掉
+	if (pName) {
+		while (p > result && *p != '/' && *p != '\\') p--; /*找到第一个'/'或'\\'的地方，用于设定pName值*/
+		if (*p == '/' || *p == '\\') {
+			p++;
+			(*pName) = p;
+		}
+		else {
+			(*pName) = p;
+		}
 	}
-	else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-		//判断是否为目录
-		if (pEnt) *pEnt = create_dirent(path, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL), 0);
-		return 2;
+#ifdef WIN32
+	while (p >= result) { if (*p == '/') *p = '\\'; p--; } /*继续修正斜杠*/
+#else
+	while (p >= result) { if (*p == '\\') *p = '/'; p--; }
+#endif
+	return result;
+}
+
+static char *filename_dup(const char *filename, const char **pName)
+{
+	char *result;
+	int len = strlen(filename);
+	result = (char *)pcs_malloc(len + 1);
+	strcpy(result, filename);
+	if (pName) (*pName) = result;
+	return result;
+}
+
+static LocalFileInfo *CreateLocalFileInfo(const char *parentPath, const char *filename, int isdir, time_t mtime, size_t size, LocalFileInfo *parent)
+{
+	LocalFileInfo *info;
+	char *p;
+	info = (LocalFileInfo *)pcs_malloc(sizeof(LocalFileInfo));
+	if (!parentPath || !parentPath[0]) {
+		if (filename && filename[0])
+			info->path = filename_dup(filename, &info->filename);
+		else 
+			info->filename = info->path = NULL;
 	}
 	else {
-		//判断为文件
-		if (pEnt) *pEnt = create_dirent(path, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL), fd.nFileSizeLow);
-		return 1;
+		if (filename && filename[0])
+			info->path = combin_path(parentPath, filename, &info->filename);
+		else
+			info->path = path_dup(parentPath, &info->filename);
+	}
+	info->isdir = isdir;
+	info->mtime = mtime;
+	info->size = size;
+	info->parent = parent;
+	info->next = NULL;
+	info->userdata = NULL;
+	return info;
+}
+
+void DestroyLocalFileInfo(LocalFileInfo *info)
+{
+	if (info->path) pcs_free(info->path);
+	pcs_free(info);
+}
+
+void DestroyLocalFileInfoLink(LocalFileInfo *link)
+{
+	LocalFileInfo *cusor, *info;
+	cusor = link;
+	while (cusor) {
+		info = cusor;
+		cusor = cusor->next;
+		DestroyLocalFileInfo(info);
 	}
 }
 
-int is_dir_or_file(const char *path)
+LocalFileInfo *GetLocalFileInfo(const char *file)
 {
+	LocalFileInfo *info = NULL;
+#ifdef WIN32
 	WIN32_FIND_DATA fd;
-	HANDLE hFind = FindFirstFile(path, &fd);
+	HANDLE hFind = FindFirstFile(file, &fd);
 	FindClose(hFind);
-	//不存在同名的文件或文件夹
-	if (hFind == INVALID_HANDLE_VALUE) {
-		return 0;
-	}
-	else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-		//判断是否为目录
-		return 2;
-	}
-	else {
-		//判断为文件
-		return 1;
-	}
+	if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) /*为目录*/
+		info = CreateLocalFileInfo(file, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL), 0, NULL);
+	else /*为文件*/
+		info = CreateLocalFileInfo(file, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL), fd.nFileSizeLow, NULL);
+#else
+	struct stat st;
+	stat(file, &st);
+	if (S_ISDIR(st.st_mode)) /*为目录*/
+		info = CreateLocalFileInfo(file, NULL, 1, st.st_mtime, 0, NULL);
+	else if (S_ISREG(st.st_mode)) /*为文件*/
+		info = CreateLocalFileInfo(file, NULL, 0, st.st_mtime, st.st_size, NULL);
+#endif
+	return info;
 }
 
-int filesearch(const char *path, my_dirent **pCusor, int recursion)
+static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int recursive, int skip, LocalFileInfo *parent,
+	void(*on)(LocalFileInfo *info, LocalFileInfo *parent, void *state), void *state)
 {
+#ifdef WIN32
 	struct _finddata_t filefind;
-	char *curr;
-	int done = 0, handle;
-	my_dirent *cusor, *ent;
+	char *curr, *subdir;
+	int done = 0, handle, len;
+	LocalFileInfo *cusor, *info;
 
-	curr = (char *)alloca(strlen(path) + 5);
-	if (!curr)
+	len = strlen(dir);
+	curr = (char *)pcs_malloc(len + 5);
+	strcpy(curr, dir);
+	if (dir[len - 1] == '/' || dir[len - 1] == '\\')
+		strcat(curr, "*.*");
+	else
+		strcat(curr, "\\*.*");
+	if ((handle = _findfirst(curr, &filefind)) == -1) {
+		pcs_free(curr);
 		return -1;
-	strcpy(curr, path);
-	strcat(curr, "\\*.*");
-	if((handle = _findfirst(curr, &filefind)) == -1)
-		return -1;
+	}
 	cusor = *pCusor;
-	while(!(done = _findnext(handle, &filefind))) {
-		if(!strcmp(filefind.name, ".."))
+	while (!(done = _findnext(handle, &filefind))) {
+		if (!strcmp(filefind.name, ".."))
 			continue;
 		if ((_A_SUBDIR == filefind.attrib)) {
-			ent = create_dirent(path, filefind.name, 1, filefind.time_write, 0);
-			if (!ent) {
-				_findclose(handle);
-				*pCusor = cusor;
-				return -1;
-			}
-			cusor->next = ent;
-			cusor = ent;
-			if (recursion) {
-				if (filesearch(ent->path, &cusor, recursion)) {
+			info = CreateLocalFileInfo(dir + skip, filefind.name, 1, filefind.time_write, 0, parent);
+			cusor->next = info;
+			cusor = info;
+			if (on) (*on)(info, parent, state);
+			if (recursive) {
+				subdir = (char *)pcs_malloc(len + strlen(filefind.name) + 2);
+				strcpy(subdir, dir);
+				if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "\\");
+				strcat(subdir, filefind.name);
+				if (GetDirectoryFilesHelp(subdir, &cusor, recursive, skip, info, on, state)) {
 					_findclose(handle);
 					*pCusor = cusor;
+					pcs_free(subdir);
 					return -1;
 				}
+				pcs_free(subdir);
 			}
 		}
 		else {
-			ent = create_dirent(path, filefind.name, 0, filefind.time_write, filefind.size);
-			if (!ent) {
-				_findclose(handle);
-				*pCusor = cusor;
-				return -1;
-			}
-			cusor->next = ent;
-			cusor = ent;
+			info = CreateLocalFileInfo(dir + skip, filefind.name, 0, filefind.time_write, filefind.size, parent);
+			cusor->next = info;
+			cusor = info;
+			if (on) (*on)(info, parent, state);
 		}
-	}    
+	}
 	_findclose(handle);
 	*pCusor = cusor;
-	return 0;
-}
-
+	pcs_free(curr);
 #else
-
-int get_file_ent(my_dirent **pEnt, const char *path)
-{
+	struct dirent* ent = NULL;
+	DIR* pDir;
+	LocalFileInfo *cusor, *info;
 	struct stat st;
-	stat(path, &st);
-	if (S_ISDIR(st.st_mode)) {
-		//为目录
-		if (pEnt) *pEnt = create_dirent(path, NULL, 1, st.st_mtime, 0);
-		return 2;
-	}
-	else if (S_ISREG(st.st_mode)) {
-		//为文件
-		if (pEnt) *pEnt = create_dirent(path, NULL, 0, st.st_mtime, st.st_size);
-		return 1;
-	}
-	return 0;
-}
+	char *subdir;
+	int len;
 
-int is_dir_or_file(const char *path)
-{
-	struct stat st;
-	stat(path, &st);
-	if (S_ISDIR(st.st_mode))
-		return 2;
-	else if (S_ISREG(st.st_mode))
-		return 1;
-	return 0;
-}
-
-int filesearch(const char *path, my_dirent **pCusor, int recursion)
-{
-    struct dirent* ent = NULL;
-    DIR* pDir;
-	my_dirent *cusor, *p;
-	struct stat st;
-
-	pDir = opendir(path);
-	if (pDir == NULL)
-		return -1;
+	len = strlen(dir);
+	pDir = opendir(dir);
+	if (pDir == NULL) return -1;
 	cusor = *pCusor;
-    while((ent = readdir(pDir)) != NULL) {
-        if (ent->d_type == 4) {
-			if(!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
+	while ((ent = readdir(pDir)) != NULL) {
+		if (ent->d_type == 4) {
+			if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
 				continue;
-			p = create_dirent(path, ent->d_name, 1, 0, 0);
-			if (!p) {
-				*pCusor = cusor;
-				return -1;
-			}
-			cusor->next = p;
-			cusor = p;
-			stat(p->path, &st);
-			p->mtime = st.st_mtime;
-			if (recursion) {
-				if (filesearch(p->path, &cusor, recursion)) {
+			info = CreateLocalFileInfo(dir + skip, ent->d_name, 1, 0, 0, parent);
+			cusor->next = info;
+			cusor = info;
+			subdir = (char *)pcs_malloc(len + strlen(ent->d_name) + 2);
+			strcpy(subdir, dir);
+			if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "\\");
+			strcat(subdir, ent->d_name);
+			stat(subdir, &st);
+			info->mtime = st.st_mtime;
+			if (on) (*on)(info, parent, state);
+			if (recursive) {
+				if (GetDirectoryFilesHelp(subdir, &cusor, recursive, skip, info, on, state)) {
 					*pCusor = cusor;
+					pcs_free(subdir);
 					return -1;
 				}
 			}
-        }
-        else if (ent->d_type == 8){
-			p = create_dirent(path, ent->d_name, 0, 0, 0);
-			if (!p) {
-				*pCusor = cusor;
-				return -1;
-			}
-			cusor->next = p;
-			cusor = p;
-			stat(p->path, &st);
-			p->mtime = st.st_mtime;
-			p->size = st.st_size;
+			pcs_free(subdir);
 		}
-    }    
-    closedir(pDir);
+		else if (ent->d_type == 8){
+			info = CreateLocalFileInfo(dir + skip, ent->d_name, 0, 0, 0, parent);
+			cusor->next = info;
+			cusor = info;
+			subdir = (char *)pcs_malloc(len + strlen(ent->d_name) + 2);
+			strcpy(subdir, dir);
+			if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "\\");
+			strcat(subdir, ent->d_name);
+			stat(subdir, &st);
+			info->mtime = st.st_mtime;
+			info->size = st.st_size;
+			pcs_free(subdir);
+			if (on) (*on)(info, parent, state);
+		}
+	}
+	closedir(pDir);
 	*pCusor = cusor;
+#endif
 	return 0;
 }
-//
-//time_t my_dirent_get_mtime(my_dirent *ent)
-//{
-//	struct stat st;
-//	if (ent->mtime)
-//		return ent->mtime;
-//	if (stat(ent->path, &st))
-//		return 0;
-//	ent->mtime = st.st_mtime;
-//	return ent->mtime;
-//}
 
+LocalFileInfo *GetDirectoryFiles(const char *dir, int recursive, void(*on)(LocalFileInfo *info, LocalFileInfo *parent, void *state), void *state)
+{
+	LocalFileInfo root = { 0 }, *cusor = &root;
+	int skip;
+	char *p;
+	skip = strlen(dir);
+	if (dir[skip - 1] != '/' && dir[skip - 1] != '\\') {
+		p = (char *)alloca(skip + 2);
+		strcpy(p, dir);
+#ifdef WIN32
+		p[skip++] = '\\';
+#else
+		p[skip++] = '/';
 #endif
+		p[skip] = '\0';
+		dir = p;
+	}
+	if (GetDirectoryFilesHelp(dir, &cusor, recursive, skip, NULL, on, state)) {
+		DestroyLocalFileInfoLink(root.next);
+		root.next = NULL;
+	}
+	return root.next;
+}
+
+int SetFileLastModifyTime(const char *file, time_t mtime)
+{
+	struct utimbuf ut;
+	ut.actime = mtime;
+	ut.modtime = mtime;
+	return utime(file, &ut);
+}
