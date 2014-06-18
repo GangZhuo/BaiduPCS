@@ -27,19 +27,33 @@
 # define snprintf _snprintf
 #endif
 
+#define DEFAULT_MKDIR_ACCESS 0750
+
 #define PRINT_PAGE_SIZE			20
 
 #define MYMETA_FILENAME		".pcs_meta"
 
 #define OP_NONE		0
-#define OP_EQ		1
-#define OP_LEFT		2
-#define OP_RIGHT	4
+#define OP_EQ		1  /*文件相同*/
+#define OP_LEFT		2  /*文件应更新到左边*/
+#define OP_RIGHT	4  /*文件应更新到右边*/
+#define OP_CONFUSE	8  /*困惑，不知道如何更新*/
+
+#define OP_ST_NONE		0
+#define OP_ST_SUCC		1
+#define OP_ST_FAIL		2
+#define OP_ST_SKIP		3
+#define OP_ST_CONFUSE	4
+
 
 #define FLAG_NONE			0 
 #define FLAG_EXIST_ON_LOCAL	1 /*在本地文件系统中存在*/
 #define FLAG_EXIST_ON_META	2 /*在本地MyMeta文件中存在*/
 #define FLAG_EXIST_ON_NET	4 /*在网盘中存在*/
+
+#define MKDIR_OK				0
+#define MKDIR_FAIL				1
+#define MKDIR_TARGET_IS_FILE	2
 
 static char HIGH;
 static char LOW;
@@ -64,11 +78,14 @@ struct MyMeta
 
 	UInt64		server_fs_id; /*对应的网盘中文件的fs_id*/
 	time_t		server_mtime; /*对应的网盘中文件的最后修改时间*/
+	time_t		server_isdir; /*对应的网盘中文件的目录标记*/
 
 	int			flag; /*标记*/
 
 	void		*tag; /*附属值，临时用途。*/
 	int			op; /*附属值，临时用途。*/
+	int			op_st; /*附属值，临时用途。*/
+	char		*msg; /*附属值，临时用途。*/
 };
 
 struct DownloadState
@@ -90,6 +107,7 @@ struct RBPrintCompareItemState
 						  * 将只打印具有 FLAG_EXIST_ON_LOCAL 和 FLAG_EXIST_ON_NET 标记的节点 
 						  */
 	rb_red_blk_tree *tree;
+	ShellContext   *context;
 
 	int		page_size;
 
@@ -98,10 +116,14 @@ struct RBPrintCompareItemState
 	int		cnt_left;
 	int		cnt_right;
 	int		cnt_eq;
+	int		cnt_confuse;
 	int		cnt_none;
 
 	int		printed_count;
 	int		page_index;
+
+	const char	*localBaseDir;
+	const char	*remoteBaseDir;
 };
 
 static PcsBool is_login(ShellContext *context, const char *msg);
@@ -339,7 +361,7 @@ static const char *cookiefile()
 #else
 		strcpy(filename, getenv("HOME"));
 		strcat(filename, "/.pcs");
-		mkdir(filename, 0777);
+		mkdir(filename, DEFAULT_MKDIR_ACCESS);
 		strcat(filename, "/");
 		strcat(filename, "default.cookie");
 #endif
@@ -361,7 +383,7 @@ static const char *captchafile()
 #else
 		strcpy(filename, getenv("HOME"));
 		strcat(filename, "/.pcs");
-		mkdir(filename, 0777);
+		mkdir(filename, DEFAULT_MKDIR_ACCESS);
 		strcat(filename, "/");
 		strcat(filename, "captcha.gif");
 #endif
@@ -384,7 +406,7 @@ static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t
 #else
 		strcpy(filename, getenv("HOME"));
 		strcat(filename, "/.pcs");
-		mkdir(filename, 0777);
+		mkdir(filename, DEFAULT_MKDIR_ACCESS);
 		strcat(filename, "/vc.gif");
 #endif
 	}
@@ -497,7 +519,7 @@ static const char *contextfile()
 #else
 		strcpy(filename, getenv("HOME"));
 		strcat(filename, "/.pcs");
-		mkdir(filename, 0777);
+		mkdir(filename, DEFAULT_MKDIR_ACCESS);
 		strcat(filename, "/pcs.context");
 #endif
 	}
@@ -715,14 +737,46 @@ static const char *filename(char *path)
 
 /*
 * 合并unix格式的路径，如果filename传入的是绝对路径，则直接返回filename的拷贝。
+*   base     - 基目录
+*   basesz   - base的字节长度，传入-1的话，将使用strlen()函数读取。
+*   filename - 文件名字
 * 使用完后，需调用pcs_free来释放返回值
 */
 static char *combin_path(const char *base, int basesz, const char *filename)
 {
 	char *p, *p2;
-	size_t filenamesz, sz;
+	int filenamesz, sz;
 
-	if (is_absolute_path(filename) || !base || basesz == 0 || !base[0]) {
+	if (strcmp(filename, ".") == 0) {
+		p = (char *)pcs_malloc(basesz + 1);
+		assert(p);
+		memset(p, 0, basesz + 1);
+		memcpy(p, base, basesz);
+		p[basesz] = '\0';
+	}
+	else if (strcmp(filename, "..") == 0) {
+		p = (char *)pcs_malloc(basesz + 1);
+		assert(p);
+		memset(p, 0, basesz + 1);
+		memcpy(p, base, basesz);
+		p[basesz] = '\0';
+		basesz--;
+		if (p[basesz] == '/' || p[basesz] == '\\') p[basesz] = '\0';
+		basesz--;
+		while (basesz >= 0 && p[basesz] != '/' && p[basesz] != '\\') {
+			basesz--;
+		}
+		if (basesz < 0) {
+			p[0] = '\0';
+		}
+		else if (basesz == 0) {
+			p[1] = '\0';
+		}
+		else {
+			p[basesz] = '\0';
+		}
+	}
+	else if (is_absolute_path(filename) || !base || basesz == 0 || !base[0]) {
 		p = pcs_utils_strdup(filename);
 	}
 	else {
@@ -770,9 +824,40 @@ static char *combin_path(const char *base, int basesz, const char *filename)
 static char *combin_unix_path(const char *base, const char *filename)
 {
 	char *p, *p2;
-	size_t basesz, filenamesz, sz;
+	int basesz, filenamesz, sz;
 
-	if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*如果是绝对路径，直接返回该值*/
+	if (strcmp(filename, ".") == 0) {
+		basesz = strlen(base);
+		p = (char *)pcs_malloc(basesz + 1);
+		assert(p);
+		memset(p, 0, basesz + 1);
+		memcpy(p, base, basesz);
+		p[basesz] = '\0';
+	}
+	else if (strcmp(filename, "..") == 0) {
+		basesz = strlen(base);
+		p = (char *)pcs_malloc(basesz + 1);
+		assert(p);
+		memset(p, 0, basesz + 1);
+		memcpy(p, base, basesz);
+		p[basesz] = '\0';
+		basesz--;
+		if (p[basesz] == '/' || p[basesz] == '\\') p[basesz] = '\0';
+		basesz--;
+		while (basesz >= 0 && p[basesz] != '/' && p[basesz] != '\\') {
+			basesz--;
+		}
+		if (basesz < 0) {
+			p[0] = '\0';
+		}
+		else if (basesz == 0) {
+			p[1] = '\0';
+		}
+		else {
+			p[basesz] = '\0';
+		}
+	}
+	else if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*如果是绝对路径，直接返回该值*/
 		p = pcs_utils_strdup(filename);
 	}
 	else {
@@ -856,6 +941,68 @@ static char *fix_unix_dir_path(char *path)
 		p++;
 	}
 	return result;
+}
+
+/*
+ * 获取路径的父路径，如果没有父路径则返回NULL。
+ *   path  - 当前路径
+ *   len   - path的字节长度，如果传入-1，则内部使用strlen()获取其长度
+ * 返回值需要调用pcs_free()
+*/
+static char *base_dir(const char *path, int len)
+{
+	char *dir, *p;
+	if (!path) return NULL;
+	if (len == -1) len = strlen(path);
+	if (len == 0) return NULL;
+	dir = (char *)pcs_malloc(len + 1);
+	strcpy(dir, path);
+	p = dir + len - 1;
+	while (p > dir && *p != '/' && *p != '\\') p--;
+	if (p == dir) {
+		if (*p != '/' && *p != '\\') {
+			pcs_free(dir);
+			return NULL;
+		}
+		p[1] = '\0';
+	}
+	*p = '\0';
+	return dir;
+}
+
+/*
+ * 递归创建目录
+ *    path - 待创建的目录
+ * 如果成功则返回0，否则返回错误码。
+ * 
+ */
+static int recursive_mkdir(const char *path)
+{
+	char *parent;
+	int rc, len;
+	if (!path || (len = strlen(path)) == 0)
+		return MKDIR_OK;
+	rc = is_dir_or_file(path);
+	if (rc == 1)
+		return MKDIR_TARGET_IS_FILE;
+	if (rc == 2)
+		return MKDIR_OK;
+	parent = base_dir(path, -1);
+	if (parent != NULL) {
+		rc = recursive_mkdir(parent);
+		pcs_free(parent);
+		if (rc != MKDIR_OK)
+			return rc;
+	}
+#ifdef WIN32
+	if (mkdir(path))
+#else
+	if (mkdir(path, DEFAULT_MKDIR_ACCESS))
+#endif
+		rc = MKDIR_FAIL;
+	else
+		rc = MKDIR_OK;
+	return rc;
 }
 
 /*把文件大小转换成字符串*/
@@ -1043,6 +1190,7 @@ static void print_str(const char *str, int len)
 static void print_fileinfo(PcsFileInfo *f, const char *prex)
 {
 	if (!prex) prex = "";
+	printf("%sfs_id:\t%llu\n", prex, f->fs_id);
 	printf("%sCategory:\t%d\n", prex, f->category);
 	printf("%sPath:\t\t%s\n", prex, f->path);
 	printf("%sFilename:\t%s\n", prex, f->server_filename);
@@ -1252,8 +1400,9 @@ static void usage_compare(ShellContext *context)
 	printf("\nUsage: %s compare [-redu] <local path> <net disk path>\n", context->name);
 	printf("\nDescription:\n");
 	printf("  Print the differents between local and net disk. \n"
-		   "  Default options is '-du'. \n");
+		   "  Default options is '-cdu'. \n");
 	printf("\nOptions:\n");
+	printf("  -c    Print the files that confuse, which is don't know how to do.\n");
 	printf("  -d    Print the files that is old than the net disk.\n");
 	printf("  -e    Print the files that is same between local and net disk.\n");
 	printf("  -r    Recursive compare the sub directories.\n");
@@ -1780,6 +1929,7 @@ static void meta_destroy(MyMeta *meta)
 	if (meta->filename) pcs_free(meta->filename);
 	if (meta->md5) pcs_free(meta->md5);
 	if (meta->current_md5) pcs_free(meta->current_md5);
+	if (meta->msg) pcs_free(meta->msg);
 	pcs_free(meta);
 }
 
@@ -1789,6 +1939,7 @@ static void rb_destory_meta(void *a, void *state);
 static int rb_compare_string(const void *a, const void *b, void *state);
 static void rb_print_string(const void *a, void *state);
 static int rb_print_meta(void *a, void *state);
+static int rb_print_meta_for_save(void *a, void *state);
 
 /* Utility to jump whitespace and cr/lf and comma */
 static const char *skip_space(const char *in)
@@ -1802,7 +1953,9 @@ static const char *skip_space(const char *in)
 static const char *parse_string(const char *in, char **ptr)
 {
 	const char *p = in, *start, *end, *result = NULL;
+	if (!(*p)) return NULL;
 	p = skip_space(p);
+	if (!(*p)) return NULL;
 	if (*p != '\"') {
 		printf("Error: Can't read. Wrong format.");
 		return NULL;
@@ -1815,10 +1968,10 @@ static const char *parse_string(const char *in, char **ptr)
 		return NULL;
 	}
 	end = p;
-	*ptr = (char *)pcs_malloc(end - start + 1);
+	(*ptr) = (char *)pcs_malloc(end - start + 1);
 	assert(*ptr);
 	memcpy(*ptr, start, end - start);
-	*ptr[end - start] = '\0';
+	(*ptr)[end - start] = '\0';
 	return p + 1;
 }
 
@@ -1826,7 +1979,9 @@ static const char *parse_string(const char *in, char **ptr)
 static const char *parse_numeric(const char *in, char **ptr)
 {
 	const char *p = in, *start, *end, *result = NULL;
+	if (!(*p)) return NULL;
 	p = skip_space(p);
+	if (!(*p)) return NULL;
 	if (*p != '-' && (*p < '0' || *p > '9')) {
 		printf("Error: Can't read. Wrong format.");
 		return NULL;
@@ -1835,10 +1990,10 @@ static const char *parse_numeric(const char *in, char **ptr)
 	if (*p == '-') p++;
 	while (*p && (*p >= '0' && *p <= '9')) p++;
 	end = p;
-	*ptr = (char *)pcs_malloc(end - start + 1);
+	(*ptr) = (char *)pcs_malloc(end - start + 1);
 	assert(*ptr);
 	memcpy(*ptr, start, end - start);
-	*ptr[end - start] = '\0';
+	(*ptr)[end - start] = '\0';
 	return p;
 }
 
@@ -1846,7 +2001,7 @@ static const char *parse_numeric(const char *in, char **ptr)
 static MyMeta *meta_read(const char **ptr)
 {
 	const char *p = *ptr;
-	char *num;
+	char *tmp = NULL;
 	MyMeta *meta;
 
 	meta = meta_create(NULL, NULL, 0, NULL, 0, 0, 0, 0);
@@ -1858,40 +2013,60 @@ static MyMeta *meta_read(const char **ptr)
 		return NULL;
 	}
 
-	p = parse_string(p, &num);
+	p = parse_string(p, &tmp);
 	if (!p) {
 		meta_destroy(meta);
 		return NULL;
 	}
-	str2time(num, &meta->mtime);
+	if (tmp){
+		if (tmp[0]) str2time(tmp, &meta->mtime);
+		pcs_free(tmp);
+		tmp = NULL;
+	}
 
-	p = parse_string(p, &num);
+	p = parse_string(p, &tmp);
 	if (!p) {
 		meta_destroy(meta);
 		return NULL;
 	}
-	str2time(num, &meta->upload_time);
+	if (tmp){
+		if (tmp[0]) str2time(tmp, &meta->upload_time);
+		pcs_free(tmp);
+		tmp = NULL;
+	}
 
-	p = parse_numeric(p, &num);
+	p = parse_numeric(p, &tmp);
 	if (!p) {
 		meta_destroy(meta);
 		return NULL;
 	}
-	meta->size = (size_t)((unsigned long)atol(num));
+	if (tmp) {
+		meta->size = (size_t)((unsigned long)atol(tmp));
+		pcs_free(tmp);
+		tmp = NULL;
+	}
 
-	p = parse_numeric(p, &num);
+	p = parse_numeric(p, &tmp);
 	if (!p) {
 		meta_destroy(meta);
 		return NULL;
 	}
-	meta->isdir = atoi(num);
+	if (tmp) {
+		meta->isdir = atoi(tmp);
+		pcs_free(tmp);
+		tmp = NULL;
+	}
 
-	p = parse_numeric(p, &num);
+	p = parse_numeric(p, &tmp);
 	if (!p) {
 		meta_destroy(meta);
 		return NULL;
 	}
-	meta->fs_id = (UInt64)atoll(num);
+	if (tmp) {
+		meta->fs_id = (UInt64)atoll(tmp);
+		pcs_free(tmp);
+		tmp = NULL;
+	}
 
 	*ptr = p;
 	return meta;
@@ -1903,7 +2078,7 @@ static rb_red_blk_tree *meta_load_from_file(const char *file)
 	rb_red_blk_tree *rb;
 	rb_red_blk_node *rbn;
 	MyMeta *meta, *tmp;
-	size_t fsz;
+	int fsz;
 	char *buf = NULL, *p;
 
 	rb = RBTreeCreate(&rb_compare_string, &rb_destory_key_for_meta, &rb_destory_meta, &rb_print_string, &rb_print_meta);
@@ -1915,9 +2090,15 @@ static rb_red_blk_tree *meta_load_from_file(const char *file)
 			rbn = RBExactQuery(rb, (void *)meta->filename);
 			if (rbn) {
 				tmp = (MyMeta *)rbn->info;
-				rbn->key = (void *)meta->filename;
-				rbn->info = (void *)meta;
-				meta_destroy(tmp);
+				tmp->flag |= FLAG_EXIST_ON_META;
+				tmp->mtime = meta->mtime;
+				tmp->upload_time = meta->upload_time;
+				if (tmp->md5) pcs_free(tmp->md5);
+				tmp->md5 = meta->md5;
+				tmp->size = meta->size;
+				tmp->isdir = meta->isdir;
+				tmp->fs_id = meta->fs_id;
+				meta_destroy(meta);
 			}
 			else {
 				RBTreeInsert(rb, (void *)meta->filename, (void *)meta);
@@ -1931,6 +2112,18 @@ static rb_red_blk_tree *meta_load_from_file(const char *file)
 /*保存红黑树中的元数据到一个文件*/
 static int meta_save_to_file(const char *file, rb_red_blk_tree *rb)
 {
+	FILE *pf;
+	pf = fopen(file, "wb");
+	if (!pf) {
+		printf("Can't open the file: %s\n", file);
+		return -1;
+	}
+	rb->PrintInfo = &rb_print_meta_for_save;
+	rb->printInfoState = pf;
+	RBTreePrintEx(rb);
+	fclose(pf);
+	rb->printInfoState = NULL;
+	rb->PrintInfo = &rb_print_meta;
 	return 0;
 }
 
@@ -1940,7 +2133,8 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 	rb_red_blk_tree *rb = NULL;
 	rb_red_blk_node *rbn;
 	my_dirent *ent, *e;
-	size_t sz, fsz;
+	size_t sz;
+	int fsz;
 	MyMeta *meta, *tmp;
 	char *buf = NULL, *pb, *p, *fixed_path;
 
@@ -1986,15 +2180,16 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 					rbn = RBExactQuery(rb, (void *)meta->path);
 					if (rbn) {
 						tmp = (MyMeta *)rbn->info;
-						meta->flag = (tmp->flag | FLAG_EXIST_ON_META);
-						meta->current_isdir = tmp->current_isdir;
-						meta->current_mtime = tmp->current_mtime;
-						meta->current_md5 = tmp->current_md5;
-						meta->current_size = tmp->current_size;
-						tmp->current_md5 = NULL;
-						rbn->key = (void *)meta->path;
-						rbn->info = (void *)meta;
-						meta_destroy(tmp);
+						tmp->flag |= FLAG_EXIST_ON_META;
+						tmp->mtime = meta->mtime;
+						tmp->upload_time = meta->upload_time;
+						if (tmp->md5) pcs_free(tmp->md5);
+						tmp->md5 = meta->md5;
+						meta->md5 = NULL; /*防止在meta_destroy中释放*/
+						tmp->size = meta->size;
+						tmp->isdir = meta->isdir;
+						tmp->fs_id = meta->fs_id;
+						meta_destroy(meta);
 					}
 					else {
 						meta->flag = FLAG_EXIST_ON_META;
@@ -2016,7 +2211,6 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursion)
 				tmp->current_mtime = e->mtime;
 				//tmp->current_md5 = NULL;
 				tmp->current_size = e->size;
-				meta_destroy(meta);
 			}
 			else {
 				meta = meta_create(fixed_path + sz, e->filename, 0, NULL, 0, 0, 0, 0);
@@ -2051,9 +2245,14 @@ static void meta_update(const char *filename, MyMeta *meta)
 	rbn = RBExactQuery(rb, (void *)meta->filename);
 	if (rbn) {
 		tmp = (MyMeta *)rbn->info;
-		rbn->key = (void *)meta->filename;
-		rbn->info = (void *)meta;
-		meta_destroy(tmp);
+		tmp->flag |= FLAG_EXIST_ON_META;
+		tmp->mtime = meta->mtime;
+		tmp->upload_time = meta->upload_time;
+		if (tmp->md5) pcs_free(tmp->md5);
+		tmp->md5 = meta->md5;
+		tmp->size = meta->size;
+		tmp->isdir = meta->isdir;
+		tmp->fs_id = meta->fs_id;
 	}
 	else {
 		RBTreeInsert(rb, (void *)meta->filename, (void *)meta);
@@ -2139,6 +2338,37 @@ static int rb_print_meta(void *a, void *state)
 	return 0;
 }
 
+/*用于保存MyMeta */
+static int rb_print_meta_for_save(void *a, void *state)
+{
+	MyMeta *meta = (MyMeta *)a;
+	FILE *pf = (FILE *)state;
+	char chTmp[100] = { 0 };
+	if (!pf) {
+		printf("Have no FILE handle.\n");
+		return -1;
+	}
+	if (!meta) {
+		return 0;
+	}
+	fputc('"', pf);
+	fputs(meta->filename, pf);
+	fputs("\", \"", pf);
+	if (meta->mtime > 0) {
+		time2str(chTmp, &meta->mtime);
+		fputs(chTmp, pf);
+	}
+	fputs("\", \"", pf);
+	if (meta->upload_time > 0) {
+		time2str(chTmp, &meta->upload_time);
+		fputs(chTmp, pf);
+	}
+	fputs("\", ", pf);
+	snprintf(chTmp, 99, "%lu, %d, %llu\n", (unsigned long)meta->size, meta->isdir, meta->fs_id);
+	fputs(chTmp, pf);
+	return 0;
+}
+
 /* cmd_compare 比较目录时，用于打印列表头 */
 static inline void rb_print_meta_for_compare_head(struct RBPrintCompareItemState *s)
 {
@@ -2193,9 +2423,165 @@ static int rb_print_meta_for_compare(void *a, void *state)
 	printf("  %s  ", meta->op == OP_LEFT ? "<-"
 		: (meta->op == OP_RIGHT ? "->"
 		: (meta->op == OP_EQ ? "=="
-		: "><")));
+		: (meta->op == OP_CONFUSE ? "><"
+		: "  "))));
 	if ((meta->flag & FLAG_EXIST_ON_NET) == FLAG_EXIST_ON_NET) {
 		printf("%s\n", meta->path);
+	}
+	else {
+		putchar('\n');
+	}
+
+	s->printed_count++;
+	return 0;
+}
+
+/* cmd_compare 比较目录时，用于打印列表头 */
+static inline void rb_print_meta_for_synch_head(struct RBPrintCompareItemState *s)
+{
+	int i;
+	printf("\n", s->page_index);
+	printf("       Local File");
+	for (i = 10; i < s->ft; i++)
+		putchar(' ');
+	printf("  OP  Net Disk File\n");
+	for (i = 0; i < s->ft + 27; i++)
+		putchar('-');
+	putchar('\n');
+}
+
+/* cmd_synch 时，用于执行具体操作，并打印每一项 */
+static int rb_print_meta_for_synch(void *a, void *state)
+{
+	MyMeta *meta = (MyMeta *)a;
+	struct RBPrintCompareItemState *s = (struct RBPrintCompareItemState *)state;
+	int i;
+	if (!meta) {
+		return 0;
+	}
+	if ((meta->op & s->op_flag) == 0)
+		return 0;
+	if ((meta->flag & s->status_flag) == 0)
+		return 0;
+
+	if (s->printed_count == 0) {
+		rb_print_meta_for_synch_head(s);
+	}
+	else if ((s->printed_count % s->page_size) == 0) {
+		s->page_index++;
+	}
+
+	if (meta->msg) {
+		pcs_free(meta->msg);
+		meta->msg = NULL;
+	}
+	switch (meta->op) {
+	case OP_LEFT: {
+		PcsRes res;
+		struct DownloadState ds = { 0 };
+		char *locPath, *remotePath, *dir;
+		if (meta->server_isdir) { /*跳过目录*/
+			meta->op_st = OP_ST_SUCC;
+			break;
+		}
+		locPath = combin_path(s->localBaseDir, -1, meta->path);
+		dir = base_dir(locPath, -1);
+		if (dir != NULL) {
+			if (recursive_mkdir(dir) != MKDIR_OK) {
+				meta->msg = pcs_utils_strdup("Can't create the directory.");
+				meta->op_st = OP_ST_FAIL;
+				pcs_free(dir);
+				break;
+			}
+			pcs_free(dir);
+		}
+		ds.pf = fopen(locPath, "wb");
+		if (!ds.pf) {
+			meta->msg = pcs_utils_sprintf("Can't open the local file: %s\n", locPath);;
+			meta->op_st = OP_ST_FAIL;
+			break;
+		}
+		pcs_setopts(s->context->pcs,
+			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
+			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
+			PCS_OPTION_END);
+		res = pcs_download(s->context->pcs, meta->path);
+		fclose(ds.pf);
+		if (res != PCS_OK) {
+			meta->msg = pcs_utils_strdup(pcs_strerror(s->context->pcs));;
+			meta->op_st = OP_ST_FAIL;
+			break;
+		}
+		my_dirent_utime(locPath, meta->server_mtime);
+		meta->op_st = OP_ST_SUCC;
+		break;
+	}
+	case OP_RIGHT: {
+		//PcsFileInfo *res = NULL;
+		//char *locPath;
+		//if (meta->server_isdir) { /*跳过目录*/
+		//	meta->op_st = OP_ST_SUCC;
+		//	break;
+		//}
+		//locPath = combin_path(s->basedir, -1, meta->path);
+		//if (!locPath) {
+		//	meta->msg = pcs_utils_strdup("Can't build the path.");
+		//	meta->op_st = OP_ST_FAIL;
+		//	break;
+		//}
+		//pcs_setopts(s->context->pcs,
+		//	PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
+		//	PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
+		//	PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
+		//	PCS_OPTION_END);
+		//res = pcs_upload(s->context->pcs, meta->path, PcsTrue, locPath);
+		//if (!res || !res->path || !res->path[0]) {
+		//	printf("Error: %s\n", pcs_strerror(context->pcs));
+		//	mm->op_st = OP_ST_FAIL;
+		//}
+		//else {
+		//	mm->op_st = OP_ST_SUCC;
+		//}
+		//if (res) pcs_fileinfo_destroy(res);
+		break;
+	}
+	case OP_EQ:
+		meta->op_st = OP_ST_SKIP;
+		break;
+	case OP_CONFUSE:
+		meta->op_st = OP_ST_CONFUSE;
+		break;
+	default:
+		meta->op_st = OP_ST_NONE;
+		break;
+	}
+
+	if ((meta->flag & FLAG_EXIST_ON_LOCAL) == FLAG_EXIST_ON_LOCAL) {
+		printf("%s ", meta->op_st == OP_ST_SUCC ? "[ ok ]" 
+			: (meta->op_st == OP_ST_FAIL ? "[fail]" 
+			: (meta->op_st == OP_ST_SKIP ? "[skip]"
+			: (meta->op_st == OP_ST_CONFUSE ? "[confus]"
+			: "[    ]"))));
+		printf(meta->path);
+		i = strlen(meta->path);
+	}
+	else {
+		printf("%s ", meta->op_st == OP_ST_SUCC ? "[ ok ]"
+			: (meta->op_st == OP_ST_FAIL ? "[fail]"
+			: (meta->op_st == OP_ST_SKIP ? "[skip]"
+			: (meta->op_st == OP_ST_CONFUSE ? "[confus]"
+			: "[    ]"))));
+		i = 0;
+	}
+	for (; i < s->ft; i++)
+		putchar(' ');
+	printf("  %s  ", meta->op == OP_LEFT ? "<-"
+		: (meta->op == OP_RIGHT ? "->"
+		: (meta->op == OP_EQ ? "=="
+		: (meta->op == OP_CONFUSE ? "><"
+		: "  "))));
+	if ((meta->flag & FLAG_EXIST_ON_NET) == FLAG_EXIST_ON_NET) {
+		printf("%s%s%s\n", meta->path, meta->msg ? "  " : "", meta->msg ? meta->msg : "");
 	}
 	else {
 		putchar('\n');
@@ -2225,7 +2611,10 @@ static inline void decide_op(MyMeta *meta)
 {
 	if ((meta->flag & FLAG_EXIST_ON_LOCAL) == FLAG_EXIST_ON_LOCAL
 		&& (meta->flag & FLAG_EXIST_ON_NET) == FLAG_EXIST_ON_NET) { /*文件在本地和网盘中都存在*/
-		if (meta->fs_id == meta->server_fs_id && meta->upload_time == meta->server_mtime) {
+		if (meta->current_isdir != meta->server_isdir) {
+			meta->op = OP_CONFUSE;
+		}
+		else if (meta->fs_id == meta->server_fs_id && meta->upload_time == meta->server_mtime) {
 			if (meta->current_mtime < meta->mtime)
 				meta->op = OP_LEFT;
 			else if (meta->current_mtime > meta->mtime)
@@ -2262,8 +2651,7 @@ static int rb_print_meta_for_compare_static(void *a, void *state)
 	if (!meta || !s)
 		return 0;
 	decide_op(meta);
-	switch (meta->op)
-	{
+	switch (meta->op) {
 	case OP_EQ:
 		s->cnt_eq++;
 		break;
@@ -2272,6 +2660,9 @@ static int rb_print_meta_for_compare_static(void *a, void *state)
 		break;
 	case OP_RIGHT:
 		s->cnt_right++;
+		break;
+	case OP_CONFUSE:
+		s->cnt_confuse++;
 		break;
 	default:
 		s->cnt_none++;
@@ -2296,12 +2687,11 @@ static int rb_print_meta_for_compare_static(void *a, void *state)
  *   ent         - 本地文件对象
  *   netdiskfile - 网盘文件对象
 */
-static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const PcsFileInfo *netdiskfile, rb_red_blk_tree **prb)
+static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const PcsFileInfo *netdiskfile)
 {
 	MyMeta *meta = NULL;
 	rb_red_blk_tree *rb;
 	rb_red_blk_node *rbn;
-	if (prb) *prb = NULL;
 	if (ent->filename == ent->path) {
 		rb = meta_load(".", 0);
 	}
@@ -2316,15 +2706,10 @@ static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const P
 		if (rbn) {
 			meta = (MyMeta *)rbn->info;
 			meta->flag |= FLAG_EXIST_ON_NET;
-			rbn->key = NULL;
+			//rbn->key = NULL;
 			rbn->info = NULL;
 		}
-		if (prb) {
-			*prb = rb;
-		}
-		else {
-			RBTreeDestroy(rb);
-		}
+		RBTreeDestroy(rb);
 	}
 	if (!meta) {
 		meta = meta_create(ent->filename, ent->filename, 0, NULL, 0, 0, 0, 0);
@@ -2338,6 +2723,7 @@ static MyMeta *compare_file(ShellContext *context, const my_dirent *ent, const P
 
 	meta->server_fs_id = netdiskfile->fs_id;
 	meta->server_mtime = netdiskfile->server_mtime;
+	meta->server_isdir = netdiskfile->isdir;
 
 	decide_op(meta);
 
@@ -2400,6 +2786,7 @@ static int compare_dir_help(ShellContext *context, rb_red_blk_tree *rb,
 				meta->flag |= FLAG_EXIST_ON_NET;
 				meta->server_fs_id = info->fs_id;
 				meta->server_mtime = info->server_mtime;
+				meta->server_isdir = info->isdir;
 				decide_op(meta);
 			}
 			else {
@@ -2566,7 +2953,7 @@ static int cmd_copy(ShellContext *context, int argc, char *argv[])
 /*比较本地和网盘目录的异同*/
 static int cmd_compare(ShellContext *context, int argc, char *argv[])
 {
-	int is_recursive = 0, print_eq = 0, print_left = 0, print_right = 0;
+	int is_recursive = 0, print_eq = 0, print_left = 0, print_right = 0, print_confuse = 0;
 	char *path = NULL, *p;
 	const char *relPath = NULL, *locPath = NULL;
 	int i;
@@ -2591,8 +2978,14 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 		if (*p == '-') {
 			p++;
 			while (*p) {
-				switch (*p)
-				{
+				switch (*p) {
+				case 'c':
+					if (print_confuse) {
+						usage_compare(context);
+						return -1;
+					}
+					print_confuse = 1;
+					break;
 				case 'd':
 					if (print_left) {
 						usage_compare(context);
@@ -2686,7 +3079,7 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 		}
 		else {
 			/*比较文件异同*/
-			mm = compare_file(context, ent, meta, NULL);
+			mm = compare_file(context, ent, meta);
 			if (mm) {
 				ft = strlen(mm->filename);
 				if (ft < 10) ft = 10;
@@ -2700,12 +3093,14 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 				printf("  %s  %s\n", mm->op == OP_LEFT ? "<-"
 					: (mm->op == OP_RIGHT ? "->"
 					: (mm->op == OP_EQ ? "=="
-					: "><")),
+					: (mm->op == OP_CONFUSE ? "><"
+					: "  "))),
 					meta->server_filename);
 				//for (i = 0; i < ft + 20; i++) putchar('-');
 				printf("\nNotes:\n  <- means the right file will download into the local file system. \n");
 				printf("  -> means the left file will upload into the disk. \n");
 				printf("  == means left file same as right file. \n");
+				printf("  >< means confuse, don't known how to. \n");
 			}
 			else{
 				printf("Error: Can't compare...\n");
@@ -2725,13 +3120,15 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 			rb = compare_dir(context, ent, meta, is_recursive);
 			if (rb) {
 				struct RBPrintCompareItemState state = { 0 };
-				if (!print_eq && !print_left && !print_right)
-					state.op_flag = OP_LEFT | OP_RIGHT;
+				if (!print_eq && !print_left && !print_right && !print_confuse)
+					state.op_flag = OP_LEFT | OP_RIGHT | OP_CONFUSE;
 				if (print_eq) state.op_flag |= OP_EQ;
 				if (print_left) state.op_flag |= OP_LEFT;
 				if (print_right) state.op_flag |= OP_RIGHT;
+				if (print_confuse) state.op_flag |= OP_CONFUSE;
 				state.status_flag = FLAG_EXIST_ON_LOCAL | FLAG_EXIST_ON_NET;
 				state.tree = rb;
+				state.context = context;
 				state.page_size = context->list_page_size;
 				state.page_index = 1;
 				rb->printInfoState = &state;
@@ -2750,12 +3147,13 @@ static int cmd_compare(ShellContext *context, int argc, char *argv[])
 				}
 				putchar('\n');
 				for (i = 0; i < state.ft + 20; i++) putchar('-');
-				printf("\nTotal: %d, Download: %d, Upload: %d, Same: %d\n", 
-					state.cnt_total, state.cnt_left, state.cnt_right, state.cnt_eq);
+				printf("\nTotal: %d, Download: %d, Upload: %d, Confuse: %d, Same: %d\n", 
+					state.cnt_total, state.cnt_left, state.cnt_right, state.cnt_confuse, state.cnt_eq);
 				//for (i = 0; i < state.ft + 20; i++) putchar('-');
 				printf("\nNotes:\n  <- means the right file will download into the local file system. \n");
 				printf("  -> means the left file will upload into the disk. \n");
 				printf("  == means left file same as right file. \n");
+				printf("  >< means confuse, don't known how to. \n");
 			}
 			else {
 				printf("Error: Can't compare...\n");
@@ -3536,7 +3934,6 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-
 /*解析synch的参数*/
 static int synch_parse_args(ShellContext *context, int argc, char *argv[],
 	int *is_recursive, int *print_left, int *print_right, int *prevent_meta_cache,
@@ -3553,8 +3950,7 @@ static int synch_parse_args(ShellContext *context, int argc, char *argv[],
 		if (*p == '-') {
 			p++;
 			while (*p) {
-				switch (*p)
-				{
+				switch (*p) {
 				case 'd':
 					if (*print_left) {
 						usage_synch(context);
@@ -3608,17 +4004,49 @@ static int synch_parse_args(ShellContext *context, int argc, char *argv[],
 	return 0;
 }
 
+static inline void print_synch_file_result(ShellContext *context, MyMeta *mm, PcsFileInfo *meta, const char *locPath)
+{
+	int i,
+		ft = strlen(mm->filename);
+	if (ft < 10) ft = 10;
+	printf("       Local File");
+	for (i = 10; i < ft; i++) putchar(' ');
+	printf("  OP  Net Disk File\n");
+	for (i = 0; i < ft + 27; i++) putchar('-');
+	putchar('\n');
+	printf("%s ", mm->op_st == OP_ST_SUCC ? "[ ok ]"
+		: (mm->op_st == OP_ST_FAIL ? "[fail]"
+		: (mm->op_st == OP_ST_SKIP ? "[skip]" 
+		: (mm->op_st == OP_ST_CONFUSE ? "[confus]"
+		: "[    ]"))));
+	printf(mm->filename);
+	for (i = strlen(mm->filename); i < ft; i++) putchar(' ');
+	printf("  %s  %s%s%s\n", mm->op == OP_LEFT ? "<-"
+		: (mm->op == OP_RIGHT ? "->"
+		: (mm->op == OP_EQ ? "=="
+		: (mm->op == OP_CONFUSE ? "><"
+		: "  "))),
+		meta->server_filename,
+		mm->msg ? "  " : "",
+		mm->msg ? mm->msg : "");
+	//for (i = 0; i < ft + 27; i++) putchar('-');
+	printf("\nNotes:\n  <- means the right file will download into the local file system. \n");
+	printf("  -> means the left file will upload into the disk. \n");
+	printf("  == means left file same as right file. \n");
+	printf("  >< means confuse, don't known how to. \n");
+}
+
 static int synch_file(ShellContext *context, MyMeta *mm, PcsFileInfo *meta,
 	int print_left, int print_right,
-	const char *locPath, const char *relPath)
+	const char *localPath, const char *remotePath)
 {
 	if (mm->op == OP_LEFT) {
 		if (print_left) {
 			PcsRes res;
 			struct DownloadState ds = { 0 };
-			ds.pf = fopen(locPath, "wb");
+			ds.pf = fopen(localPath, "wb");
 			if (!ds.pf) {
-				printf("Error: Can't open the local file: %s\n", locPath);
+				printf("Error: Can't open the local file: %s\n", localPath);
 				return -1;
 			}
 			pcs_setopts(context->pcs,
@@ -3629,33 +4057,102 @@ static int synch_file(ShellContext *context, MyMeta *mm, PcsFileInfo *meta,
 			fclose(ds.pf);
 			if (res != PCS_OK) {
 				printf("Error: %s\n", pcs_strerror(context->pcs));
-				return -1;
+				mm->op_st = OP_ST_FAIL;
 			}
-			my_dirent_utime(locPath, meta->server_mtime);
-			printf("Download %s Success.\n", meta->path);
-			return 0;
+			else {
+				my_dirent_utime(localPath, meta->server_mtime);
+				mm->op_st = OP_ST_SUCC;
+			}
 		}
 		else {
 			printf("The local file is older than the disk file, you can use '-d' option to download the file.\n"
 				"See more details by execute '%s synch -h' \n", context->name);
+			mm->op_st = OP_ST_SKIP;
 		}
 	}
 	else if (mm->op == OP_RIGHT) {
 		if (print_right) {
-
+			PcsFileInfo *res = NULL;
+			pcs_setopts(context->pcs,
+				PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
+				PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
+				PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
+				PCS_OPTION_END);
+			res = pcs_upload(context->pcs, meta->path, PcsTrue, localPath);
+			if (!res || !res->path || !res->path[0]) {
+				printf("Error: %s\n", pcs_strerror(context->pcs));
+				mm->op_st = OP_ST_FAIL;
+			}
+			else {
+				mm->op_st = OP_ST_SUCC;
+			}
+			if (res) pcs_fileinfo_destroy(res);
 		}
 		else {
 			printf("The local file is newer than the disk file, you can use '-u' option to upload the file.\n"
 				"See more details by execute '%s synch -h' \n", context->name);
+			mm->op_st = OP_ST_SKIP;
 		}
 	}
 	else if (mm->op == OP_EQ) {
 		printf("The file have no change, nothing to do.\n");
+		mm->op_st = OP_ST_SKIP;
+	}
+	else if (mm->op == OP_CONFUSE) {
+		printf("Confuse, one is file and another is directory, how to?\n");
+		mm->op_st = OP_ST_CONFUSE;
 	}
 	else {
 		printf("It is not possible, you can delete the " MYMETA_FILENAME " file, and retry.\n");
+		mm->op_st = OP_ST_FAIL;
 	}
+	print_synch_file_result(context, mm, meta, localPath);
 	return -1;
+}
+
+static int synch_dir(ShellContext *context, rb_red_blk_tree *rb, PcsFileInfo *meta,
+	int print_left, int print_right,
+	const char *localPath, const char *remotePath)
+{
+	int i;
+	struct RBPrintCompareItemState state = { 0 };
+	//rb->PrintInfo = &rb_print_meta;
+	//RBTreePrint(rb);
+	if (!print_left && !print_right)
+		state.op_flag = OP_LEFT | OP_RIGHT;
+	if (print_left) state.op_flag |= OP_LEFT;
+	if (print_right) state.op_flag |= OP_RIGHT;
+	state.status_flag = FLAG_EXIST_ON_LOCAL | FLAG_EXIST_ON_NET;
+	state.tree = rb;
+	state.context = context;
+	state.page_size = context->list_page_size;
+	state.page_index = 1;
+	state.localBaseDir = localPath;
+	state.remoteBaseDir = remotePath;
+	rb->printInfoState = &state;
+	rb->PrintInfo = &rb_print_meta_for_compare_static;
+	RBTreePrintEx(rb);
+	if (state.ft < 10) {
+		if (print_right)
+			state.ft = 10;
+		else
+			state.ft = 1;
+	}
+	rb->PrintInfo = &rb_print_meta_for_synch;
+	RBTreePrintEx(rb);
+	if (state.printed_count == 0) {
+		rb_print_meta_for_compare_head(&state);
+	}
+	putchar('\n');
+	for (i = 0; i < state.ft + 27; i++) putchar('-');
+	printf("\nTotal: %d, Download: %d, Upload: %d, Confuse: %d\n",
+		state.cnt_left + state.cnt_right, state.cnt_left, state.cnt_right, state.cnt_confuse);
+	//for (i = 0; i < state.ft + 27; i++) putchar('-');
+	printf("\nNotes:\n  <- means the right file will download into the local file system. \n");
+	printf("  -> means the left file will upload into the disk. \n");
+	printf("  == means left file same as right file. \n");
+	printf("  >< means confuse, don't known how to. \n");
+	return 0;
 }
 
 /*同步本地和网盘目录*/
@@ -3664,7 +4161,6 @@ static int cmd_synch(ShellContext *context, int argc, char *argv[])
 	int is_recursive = 0, print_left = 0, print_right = 0, prevent_meta_cache = 0;
 	char *path = NULL;
 	const char *relPath = NULL, *locPath = NULL;
-	int i;
 
 	int ft;
 	my_dirent *ent = NULL;
@@ -3727,34 +4223,28 @@ static int cmd_synch(ShellContext *context, int argc, char *argv[])
 		}
 		else {
 			/*比较文件异同*/
-			mm = compare_file(context, ent, meta, &rb);
+			mm = compare_file(context, ent, meta);
 			if (mm) {
-				if (synch_file(context, mm, meta, print_left, print_right, locPath, relPath)) {
+				if (synch_file(context, mm, meta, print_left, print_right, ent->path, meta->path)) {
 					pcs_fileinfo_destroy(meta);
 					if (ent) my_dirent_destroy(ent);
 					meta_destroy(mm);
-					if (rb) RBTreeDestroy(rb);
 					pcs_free(path);
 					return -1;
 				}
 				if (!prevent_meta_cache) {
-					if (rb) {
-
-					}
-					else {
-						//if (mm->filename) pcs_free(mm->filename);
-						//mm->filename = pcs_utils_strdup(meta->server_filename);
-						mm->mtime = meta->server_mtime;
-						mm->upload_time = meta->server_mtime;
-						mm->size = meta->size;
-						mm->isdir = 0;
-						mm->fs_id = meta->fs_id;
-						meta_update(locPath, mm);
-					}
+					//if (mm->filename) pcs_free(mm->filename);
+					//mm->filename = pcs_utils_strdup(meta->server_filename);
+					mm->mtime = meta->server_mtime;
+					mm->upload_time = meta->server_mtime;
+					mm->size = meta->size;
+					mm->isdir = meta->isdir;
+					mm->fs_id = meta->fs_id;
+					meta_update(locPath, mm);
 				}
 			}
 			else{
-				printf("Error: Can't compare...\n");
+				printf("Error: Can't synch...\n");
 			}
 		}
 	}
@@ -3770,39 +4260,28 @@ static int cmd_synch(ShellContext *context, int argc, char *argv[])
 			/*比较目录异同*/
 			rb = compare_dir(context, ent, meta, is_recursive);
 			if (rb) {
-				struct RBPrintCompareItemState state = { 0 };
-				if (!print_left && !print_right)
-					state.op_flag = OP_LEFT | OP_RIGHT;
-				if (print_left) state.op_flag |= OP_LEFT;
-				if (print_right) state.op_flag |= OP_RIGHT;
-				state.status_flag = FLAG_EXIST_ON_LOCAL | FLAG_EXIST_ON_NET;
-				state.tree = rb;
-				state.page_size = context->list_page_size;
-				state.page_index = 1;
-				rb->printInfoState = &state;
-				rb->PrintInfo = &rb_print_meta_for_compare_static;
-				RBTreePrintEx(rb);
-				if (state.ft < 10) {
-					if (print_right)
-						state.ft = 10;
-					else
-						state.ft = 1;
+				//synch_dir
+				if (synch_dir(context, rb, meta, print_left, print_right, ent->path, meta->path)) {
+					pcs_fileinfo_destroy(meta);
+					if (mm) meta_destroy(mm);
+					if (rb) RBTreeDestroy(rb);
+					if (ent) my_dirent_destroy(ent);
+					pcs_free(path);
+					return -1;
 				}
-				rb->PrintInfo = &rb_print_meta_for_compare;
-				RBTreePrintEx(rb);
-				if (state.printed_count == 0) {
-					rb_print_meta_for_compare_head(&state);
-				}
-				putchar('\n');
-				for (i = 0; i < state.ft + 20; i++) putchar('-');
-				printf("\nTotal: %d, Download: %d, Upload: %d\n",
-					state.cnt_left + state.cnt_right, state.cnt_left, state.cnt_right);
-				//for (i = 0; i < state.ft + 20; i++) putchar('-');
-				printf("\nNotes:\n  <- means the right file will download into the local file system. \n");
-				printf("  -> means the left file will upload into the disk. \n");
+				//if (!prevent_meta_cache) {
+				//	//if (mm->filename) pcs_free(mm->filename);
+				//	//mm->filename = pcs_utils_strdup(meta->server_filename);
+				//	mm->mtime = meta->server_mtime;
+				//	mm->upload_time = meta->server_mtime;
+				//	mm->size = meta->size;
+				//	mm->isdir = meta->isdir;
+				//	mm->fs_id = meta->fs_id;
+				//	meta_update(locPath, mm);
+				//}
 			}
 			else {
-				printf("Error: Can't compare...\n");
+				printf("Error: Can't synch...\n");
 			}
 		}
 	}
