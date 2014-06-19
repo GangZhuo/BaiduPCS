@@ -1,7 +1,7 @@
-#ifndef _PCS_PAN_API_RESINFO_H
+ï»¿#ifndef _PCS_PAN_API_RESINFO_H
 #define _PCS_PAN_API_RESINFO_H
 
-/*ÍøÅÌAPI·µ»ØÊı¾İ¸ñÊ½*/
+/*ç½‘ç›˜APIè¿”å›æ•°æ®æ ¼å¼*/
 typedef struct PcsPanApiResInfo {
 	char	*path;
 	int		error;

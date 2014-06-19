@@ -1,4 +1,4 @@
-#include <stdio.h>
+ï»¿#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -75,7 +75,7 @@ static void node_destroy(HashtableNode *node, void(*free_value)(void *))
 
 static int table_add_item(HashtableNode **table, int real_capacity, const char *key, void *value, int ignore_case)
 {
-	//²»Í¬µÄ×Ö·û´®Èı´Îhash»¹»áÅö×²µÄ¼¸ÂÊÎŞÏŞ½Ó½üÓÚ²»¿ÉÄÜ
+	//ä¸åŒçš„å­—ç¬¦ä¸²ä¸‰æ¬¡hashè¿˜ä¼šç¢°æ’çš„å‡ ç‡æ— é™æ¥è¿‘äºä¸å¯èƒ½
 	unsigned int nHash = calcHash1(key, ignore_case),
 		nHashA = calcHash2(key),
 		nHashB = calcHash3(key);

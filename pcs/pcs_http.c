@@ -1,4 +1,4 @@
-#include <string.h>
+ï»¿#include <string.h>
 #ifdef WIN32
 # include <malloc.h>
 #else
@@ -275,7 +275,7 @@ static inline PcsBool pcs_http_parse_http_head(struct pcs_http *http, char **ptr
 		memcpy(p, *ptr, *size);
 		p[*size] = '\0';
 
-		//²éÕÒHTTPÍ·½áÊø±ê¼Ç
+		//æŸ¥æ‰¾HTTPå¤´ç»“æŸæ ‡è®°
 		cusor = p + *size;
 		end = p - 2;
 		if (end < http->res_header)
@@ -304,9 +304,9 @@ static inline PcsBool pcs_http_parse_http_head(struct pcs_http *http, char **ptr
 			*size -= cnt;
 
 			http->res_type++;
-			//´ÓÍ·ÖĞ»ñÈ¡ÄÚÈİ³¤¶È
+			//ä»å¤´ä¸­è·å–å†…å®¹é•¿åº¦
 			http->res_content_length = pcs_http_get_content_length_from_header(http->res_header, http->res_header_size);
-			//´ÓÍ·ÖĞ»ñÈ¡±àÂë
+			//ä»å¤´ä¸­è·å–ç¼–ç 
 			if (try_get_encode)
 				http->res_encode = pcs_http_get_charset_from_header(http->res_header, http->res_header_size);
 			else
@@ -356,7 +356,7 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 			http->res_body_size += sz;
 		}
 		else if (http->res_type == PCS_HTTP_RES_TYPE_VALIDATE_TEXT + 1) {
-			//ÑéÖ¤ÄÚÈİÕıÈ·ĞÔ
+			//éªŒè¯å†…å®¹æ­£ç¡®æ€§
 			p = &ptr[sz - 1];
 			while(p > ptr) {
 				if (*p == 0) {

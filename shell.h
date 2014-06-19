@@ -1,29 +1,29 @@
-#ifndef _PCS_SHELL_SHELL_H
+ï»¿#ifndef _PCS_SHELL_SHELL_H
 #define _PCS_SHELL_SHELL_H
 
 #include <time.h>
 #include "pcs/pcs.h"
 
-#define SORT_DIRECTION_ASC	0 /*ÕıĞò*/
-#define SORT_DIRECTION_DESC 1 /*µ¹Ğò*/
+#define SORT_DIRECTION_ASC	0 /*æ­£åº*/
+#define SORT_DIRECTION_DESC 1 /*å€’åº*/
 
 
-/* shell µÄÉÏÏÂÎÄ */
+/* shell çš„ä¸Šä¸‹æ–‡ */
 typedef struct ShellContext
 {
-	char		*name; /*³ÌĞòÃû×Ö*/
-	char		*cookiefile; /*CookieÎÄ¼şÂ·¾¶*/
-	char		*captchafile; /*ÑéÖ¤ÂëÍ¼Æ¬Â·¾¶*/
-	char		*workdir; /*µ±Ç°¹¤×÷Ä¿Â¼*/
+	char		*name; /*ç¨‹åºåå­—*/
+	char		*cookiefile; /*Cookieæ–‡ä»¶è·¯å¾„*/
+	char		*captchafile; /*éªŒè¯ç å›¾ç‰‡è·¯å¾„*/
+	char		*workdir; /*å½“å‰å·¥ä½œç›®å½•*/
 	Pcs			pcs;
 
-	int			list_page_size; /*Ö´ĞĞlistÃüÁîÊ±£¬Ã¿Ò³´óĞ¡*/
-	char		*list_sort_name; /*Ö´ĞĞlistÃüÁîÊ±£¬ÅÅĞò×Ö¶Î£¬¿ÉÑ¡Öµ£ºname|time|size*/
-	char		*list_sort_direction; /*Ö´ĞĞlistÃüÁîÊ±£¬ÅÅĞò×Ö¶Î£¬¿ÉÑ¡Öµ£ºasc|desc*/
+	int			list_page_size; /*æ‰§è¡Œlistå‘½ä»¤æ—¶ï¼Œæ¯é¡µå¤§å°*/
+	char		*list_sort_name; /*æ‰§è¡Œlistå‘½ä»¤æ—¶ï¼Œæ’åºå­—æ®µï¼Œå¯é€‰å€¼ï¼šname|time|size*/
+	char		*list_sort_direction; /*æ‰§è¡Œlistå‘½ä»¤æ—¶ï¼Œæ’åºå­—æ®µï¼Œå¯é€‰å€¼ï¼šasc|desc*/
 
-	char		*secure_method; /*¼ÓÃÜ·½·¨£¬¿ÉÑ¡Öµ£ºplaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256*/
-	char		*secure_key;    /*¼ÓÃÜÊ±µÄKEY*/
-	int			secure_enable;  /*ÊÇ·ñÆôÓÃ¼ÓÃÜ*/
+	char		*secure_method; /*åŠ å¯†æ–¹æ³•ï¼Œå¯é€‰å€¼ï¼šplaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256*/
+	char		*secure_key;    /*åŠ å¯†æ—¶çš„KEY*/
+	int			secure_enable;  /*æ˜¯å¦å¯ç”¨åŠ å¯†*/
 
 } ShellContext;
 

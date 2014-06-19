@@ -1,4 +1,4 @@
-#include <stdio.h>
+ï»¿#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
@@ -179,7 +179,7 @@ PCS_API PcsBool pcs_utils_streq(const char *str1, const char *str2, int len)
 
 
 /**
-* ×Ö·û´®md5
+* å­—ç¬¦ä¸²md5
 */
 PCS_API const char *md5_string(const char *str)
 {
@@ -194,7 +194,7 @@ PCS_API const char *md5_string(const char *str)
 }
 
 /**
-* ×Ö·û´®md5¡£·µ»Ø16×Ö½ÚµÄMD5Öµ
+* å­—ç¬¦ä¸²md5ã€‚è¿”å›16å­—èŠ‚çš„MD5å€¼
 */
 PCS_API const unsigned char *md5_string_raw(const char *str)
 {
@@ -205,7 +205,7 @@ PCS_API const unsigned char *md5_string_raw(const char *str)
 
 
 ///**
-//* ×Ö·û´®md5
+//* å­—ç¬¦ä¸²md5
 //*/
 //PCS_API const char *md5_string_salt(const char *str, const char *salt)
 //{
@@ -221,7 +221,7 @@ PCS_API const unsigned char *md5_string_raw(const char *str)
 //}
 
 /**
-* ÎÄ¼ş md5
+* æ–‡ä»¶ md5
 */
 PCS_API const char *md5_file(const char *file_name)
 {
@@ -247,8 +247,8 @@ PCS_API const char *md5_file(const char *file_name)
 	return tmp;
 }
 
-/*°Ñ32Î»ÕûÊı°´´Ó¸ßÎ»µ½µÍÎ»Ë³ĞòÌî³äµ½bufµÄ4¸ö×Ö½ÚÖĞ¡£
-* Àı£º0xF1E2D3C4 Ìî³äºó buf[0] = 0xF1, buf[1] = 0xE2, buf[2] = 0xD3, buf[3] = 0xC4.bufÖĞÆäËûÏîÎŞ¸Ä¶¯
+/*æŠŠ32ä½æ•´æ•°æŒ‰ä»é«˜ä½åˆ°ä½ä½é¡ºåºå¡«å……åˆ°bufçš„4ä¸ªå­—èŠ‚ä¸­ã€‚
+* ä¾‹ï¼š0xF1E2D3C4 å¡«å……å buf[0] = 0xF1, buf[1] = 0xE2, buf[2] = 0xD3, buf[3] = 0xC4.bufä¸­å…¶ä»–é¡¹æ— æ”¹åŠ¨
 */
 PCS_API void int2Buffer(int v, char *buf)
 {
@@ -258,7 +258,7 @@ PCS_API void int2Buffer(int v, char *buf)
 	buf[3] = (unsigned char)(((unsigned int)v) & 0xFF);
 }
 
-/*int2BufferµÄÄæ¹ı³Ì*/
+/*int2Bufferçš„é€†è¿‡ç¨‹*/
 PCS_API int readInt(char *buf)
 {
 	unsigned int rc = 0;

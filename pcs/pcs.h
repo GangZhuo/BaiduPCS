@@ -1,4 +1,4 @@
-#ifndef _PCS_H
+﻿#ifndef _PCS_H
 #define _PCS_H
 
 #include "pcs_defs.h"
@@ -21,33 +21,33 @@
 
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
-	/* ֵΪ��0��β��C��ʽ�ַ��� */
+	/* 值为以0结尾的C格式字符串 */
 	PCS_OPTION_USERNAME,
-	/* ֵΪ��0��β��C��ʽ�ַ��� */
+	/* 值为以0结尾的C格式字符串 */
 	PCS_OPTION_PASSWORD,
-	/* ֵΪPcsGetCaptcha���͵ĺ��� */
+	/* 值为PcsGetCaptcha类型的函数 */
 	PCS_OPTION_CAPTCHA_FUNCTION,
-	/* Pcs������ʹ�ø�ֵ����ԭ�����ݵ�PcsGetCaptcha������ */
+	/* Pcs本身不使用该值，仅原样传递到PcsGetCaptcha函数中 */
 	PCS_OPTION_CAPTCHA_FUNCTION_DATA,
-	/* ֵΪPcsHttpWriteFunction���͵ĺ��� */
+	/* 值为PcsHttpWriteFunction类型的函数 */
 	PCS_OPTION_DOWNLOAD_WRITE_FUNCTION,
-	/* Pcs������ʹ�ø�ֵ����ԭ�����ݵ�PcsHttpWriteFunction������ */
+	/* Pcs本身不使用该值，仅原样传递到PcsHttpWriteFunction函数中 */
 	PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA,
-	/* ֵΪPcsHttpResponseFunction���͵ĺ��� */
+	/* 值为PcsHttpResponseFunction类型的函数 */
 	PCS_OPTION_HTTP_RESPONSE_FUNCTION,
-	/* Pcs������ʹ�ø�ֵ����ԭ�����ݵ�PcsHttpResponseFunction������ */
+	/* Pcs本身不使用该值，仅原样传递到PcsHttpResponseFunction函数中 */
 	PCS_OPTION_HTTP_RESPONSE_FUNCTION_DATE,
-	/* ֵΪPcsHttpProgressCallback���͵ĺ��� */
+	/* 值为PcsHttpProgressCallback类型的函数 */
 	PCS_OPTION_PROGRESS_FUNCTION,
-	/* Pcs������ʹ�ø�ֵ����ԭ�����ݵ�PcsHttpProgressCallback������ */
+	/* Pcs本身不使用该值，仅原样传递到PcsHttpProgressCallback函数中 */
 	PCS_OPTION_PROGRESS_FUNCTION_DATE,
-	/* �����Ƿ��������ػ��ϴ����ȣ�ֵΪPcsBool���� */
+	/* 设置是否启用下载或上传进度，值为PcsBool类型 */
 	PCS_OPTION_PROGRESS,
-	/* ���ü���|���ܷ���������ΪINT����ѡֵ��PCS_SECURE_NONE,PCS_SECURE_AES_CBC_128,PCS_SECURE_AES_CBC_192,PCS_SECURE_AES_CBC_256 */
+	/* 设置加密|解密方法，类型为INT，可选值：PCS_SECURE_NONE,PCS_SECURE_AES_CBC_128,PCS_SECURE_AES_CBC_192,PCS_SECURE_AES_CBC_256 */
 	PCS_OPTION_SECURE_METHOD,
-	/* ���ü���|���ܷ�������Կ������Ϊstring������16 */
+	/* 设置加密|解密方法的密钥，类型为string。长度16 */
 	PCS_OPTION_SECURE_KEY,
-	/*���û����ð�ȫ��ֵΪPcsBool���͡�����ΪPcsTrueʱ������PCS_OPTION_SECURE_METHOD��PCS_OPTION_SECURE_KEYѡ�����ΪPcsFalseʱ������PCS_OPTION_SECURE_METHOD��PCS_OPTION_SECURE_KEYѡ��*/
+	/*禁用或启用安全，值为PcsBool类型。设置为PcsTrue时，启用PCS_OPTION_SECURE_METHOD和PCS_OPTION_SECURE_KEY选项；设置为PcsFalse时，禁用PCS_OPTION_SECURE_METHOD和PCS_OPTION_SECURE_KEY选项*/
 	PCS_OPTION_SECURE_ENABLE,
 
 
@@ -84,42 +84,42 @@ typedef enum PcsRes {
 } PcsRes;
 
 /*
- * ��¼ʱ������Ҫ������֤��ʱ���ص��ú������ڻ�ȡ��֤��
- *   ptr  ��֤��ͼƬ���ֽ���
- *   size ��֤��ͼƬ�ֽ���Ĵ�С�����ֽ�Ϊ��λ
- *   captcha ���ڽ�����֤���ַ�
- *   captchaSize captcha����󳤶�
- *   state ʹ��PCS_OPTION_CAPTCHA_FUNCTION_DATAѡ���趨��ֵԭ������
- * �����Ƿ�ɹ�������PcsFalse�������µ�¼�ж�
+ * 登录时，当需要输入验证码时，回调该函数用于获取验证码
+ *   ptr  验证码图片的字节序
+ *   size 验证码图片字节序的大小，以字节为单位
+ *   captcha 用于接收验证码字符
+ *   captchaSize captcha的最大长度
+ *   state 使用PCS_OPTION_CAPTCHA_FUNCTION_DATA选项设定的值原样传入
+ * 返回是否成功，返回PcsFalse，将导致登录中断
 */
 typedef PcsBool (*PcsGetCaptchaFunction)(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state);
 
 typedef void *Pcs;
 
-/*���PCS API�İ汾��*/
+/*输出PCS API的版本号*/
 PCS_API const char *pcs_version();
 
 /*
- * ����Pcs��
- * �ɹ��󷵻ظ�Pcs��handle�����򷵻�NULL��ע��˺����޷�ʹ��pcs_strerror()��ȡ������
+ * 创建Pcs。
+ * 成功后返回该Pcs的handle，否则返回NULL。注意此函数无法使用pcs_strerror()获取错误编号
 */
 PCS_API Pcs pcs_create(const char *cookie_file);
 
 /*
- * �ͷ�Pcs����
+ * 释放Pcs对象
 */
 PCS_API void pcs_destroy(Pcs handle);
 
 /*
- * ����Ѿ���¼��
- * �򷵻��û���UID�����򷵻�NULL
+ * 如果已经登录，
+ * 则返回用户的UID，否则返回NULL
 */
 PCS_API const char *pcs_sysUID(Pcs handle);
 
 /*
- * ��ȡ������Ϣ��
- * ��������д��ڴ����򷵻ش������������򷵻�NULL
- * ����
+ * 获取错误消息。
+ * 如果程序中存在错误，则返回错误描述，否则返回NULL
+ * 例：
  *    PcsRes res;
  *    const char *err;
  *    res = pcs_login(handle);
@@ -128,7 +128,7 @@ PCS_API const char *pcs_sysUID(Pcs handle);
  *        printf("Error: %s\n", err);
  *    }
  *
- * ��2��
+ * 例2：
  *    PcsRes res;
  *    const char *err;
  *    size_t quota, used;
@@ -138,7 +138,7 @@ PCS_API const char *pcs_sysUID(Pcs handle);
  *        printf("Error: %s\n", err);
  *    }
  *
- * ��3��
+ * 例3：
  *    PcsFileInfoList list;
  *    const char *err;
  *    list = pcs_list(handle, "/", 1, 100, "name", PcsFalse);
@@ -157,185 +157,185 @@ PCS_API const char *pcs_sysUID(Pcs handle);
 PCS_API const char *pcs_strerror(Pcs handle);
 
 /*
- * �趨����ѡ�
- * �ɹ��󷵻�PCS_OK��ʧ���򷵻ش�����
+ * 设定单个选项，
+ * 成功后返回PCS_OK，失败则返回错误编号
 */
 PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value);
 
 /*
- * һ���趨���ѡ����һ�����ΪPCS_OPTION_END��
- * ���� pcs_setopts(handle, PCS_OPTION_USERNAME, "username", PCS_OPTION_PASSWORD, "password", PCS_OPTION_END);
+ * 一次设定多个选项，最后一项必须为PCS_OPTION_END。
+ * 例： pcs_setopts(handle, PCS_OPTION_USERNAME, "username", PCS_OPTION_PASSWORD, "password", PCS_OPTION_END);
  *      pcs_setopts(handle, PCS_OPTION_CAPTCHA_FUNCTION, &get_captcha, PCS_OPTION_CAPTCHA_FUNCTION_DATA, state, PCS_OPTION_END);
- * �ɹ��󷵻�PCS_OK��ʧ���򷵻ش�����
+ * 成功后返回PCS_OK，失败则返回错误编号
  */
 PCS_API PcsRes pcs_setopts(Pcs handle, ...);
 
 /*
- * �����Ƿ��Ѿ���¼��
- * �Ѿ���¼�򷵻�PCS_LOGIN�����򷵻�PCS_NOT_LOGIN
+ * 返回是否已经登录，
+ * 已经登录则返回PCS_LOGIN，否则返回PCS_NOT_LOGIN
 */
 PCS_API PcsRes pcs_islogin(Pcs handle);
 
 /*
- * ��¼�ٶ��ʺţ�
- * �ɹ��󷵻�PCS_LOGIN��ʧ���򷵻ش�����
+ * 登录百度帐号，
+ * 成功后返回PCS_LOGIN，失败则返回错误编号
 */
 PCS_API PcsRes pcs_login(Pcs handle);
 
 /*
-* ע���ٶ��ʺţ�
-* �ɹ��󷵻�PCS_OK��ʧ���򷵻�PCS_FAIL
+* 注销百度帐号，
+* 成功后返回PCS_OK，失败则返回PCS_FAIL
 */
 PCS_API PcsRes pcs_logout(Pcs handle);
 
 /*
- * ��ȡ�������
- *   quota ���ڽ����ܴ�С
- *   used  ���ڽ�����ʹ��ֵ
- * �ɹ��󷵻�PCS_OK��ʧ���򷵻ش�����
+ * 获取网盘配额
+ *   quota 用于接收总大小
+ *   used  用于接收已使用值
+ * 成功后返回PCS_OK，失败则返回错误编号
 */
 PCS_API PcsRes pcs_quota(Pcs handle, size_t *quota, size_t *used);
 
 /*
- * ����һ��Ŀ¼
- * path  ��������Ŀ¼����ַ��дȫ����/temp
- * �ɹ��󷵻�PCS_OK��ʧ���򷵻ش�����
+ * 创建一个目录
+ * path  待创建的目录，地址需写全，如/temp
+ * 成功后返回PCS_OK，失败则返回错误编号
 */
 PCS_API PcsRes pcs_mkdir(Pcs handle, const char *path);
 
 /*
- * ��ȡ�ļ��б�
- *   dir		����ȡ��Ŀ¼����ַ��дȫ����/temp
- *   pageindex	ҳ��������1��ʼ
- *   pagesize	ҳ��С
- *   order		�����ֶΣ���ѡֵ��name|time|size
- *   desc		����PcsTrue������PcsFalse
- * �ɹ��󣬷���PcsFileInfoList����ʵ����������Ϊ�ļ���˫��������
- * ʹ����ɺ������ pcs_filist_destroy() �����ͷš�
- * ʧ�ܻ�Ŀ¼Ϊ���򷵻� NULL������NULLʱ���ɸ���pcs_strerror()�ķ���ֵ���ж��Ƿ���������δ�����������ϢΪNULL
+ * 获取文件列表
+ *   dir		待获取的目录，地址需写全，如/temp
+ *   pageindex	页索引，从1开始
+ *   pagesize	页大小
+ *   order		排序字段，可选值：name|time|size
+ *   desc		倒序传PcsTrue，正序传PcsFalse
+ * 成功后，返回PcsFileInfoList类型实例，该类型为文件的双向链表，
+ * 使用完成后需调用 pcs_filist_destroy() 方法释放。
+ * 失败或目录为空则返回 NULL。返回NULL时，可根据pcs_strerror()的返回值来判断是否出错，如果未出错则错误消息为NULL
 */
 PCS_API PcsFileInfoList *pcs_list(Pcs handle, const char *dir, int pageindex, int pagesize, const char *order, PcsBool desc);
 
 /*
- * ��dirָ�����ļ����������ؼ���key
- *   dir		��������Ŀ¼����ַ��дȫ����/temp
- *   key	    �ؼ���
- *   recursion	�Ƿ�ݹ���������Ŀ¼
- * �ɹ��󣬷���PcsFileInfoList����ʵ����������Ϊ�ļ���˫��������
- * ʹ����ɺ������ pcs_filist_destroy() �����ͷš�
- * ʧ�ܻ�δ�ҵ��򷵻� NULL������NULLʱ���ɸ���pcs_strerror()�ķ���ֵ���ж��Ƿ���������δ�����������ϢΪNULL
+ * 在dir指定的文件夹中搜索关键字key
+ *   dir		待搜索的目录，地址需写全，如/temp
+ *   key	    关键词
+ *   recursion	是否递归搜索其子目录
+ * 成功后，返回PcsFileInfoList类型实例，该类型为文件的双向链表，
+ * 使用完成后需调用 pcs_filist_destroy() 方法释放。
+ * 失败或未找到则返回 NULL。返回NULL时，可根据pcs_strerror()的返回值来判断是否出错，如果未出错则错误消息为NULL
 */
 PCS_API PcsFileInfoList *pcs_search(Pcs handle, const char *dir, const char *key, PcsBool recursion);
 
 /*
- * ��ȡ�ļ���Ŀ¼��Ԫ��Ϣ���÷���ͨ��pcs_searchʵ�֡�
- *   path		����ȡ���ļ���Ŀ¼����ַ��дȫ����/temp, /temp/file.txt
- * �ɹ��󣬷���PcsFileInfo����ʵ��
- * ʹ����ɺ������ pcs_fileinfo_destroy() �����ͷš�
- * ʧ�ܻ�δ�ҵ��򷵻� NULL������NULLʱ���ɸ���pcs_strerror()�ķ���ֵ���ж��Ƿ���������δ�����������ϢΪNULL
+ * 获取文件或目录的元信息，该方法通过pcs_search实现。
+ *   path		待获取的文件或目录，地址需写全，如/temp, /temp/file.txt
+ * 成功后，返回PcsFileInfo类型实例
+ * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
+ * 失败或未找到则返回 NULL。返回NULL时，可根据pcs_strerror()的返回值来判断是否出错，如果未出错则错误消息为NULL
 */
 PCS_API PcsFileInfo *pcs_meta(Pcs handle, const char *path);
 
 /*
- * ɾ������ļ�
- *   slist  �ַ����ĵ���������һ�οɴ������ļ�
- * �ɹ��󷵻�PcsPanApiRes����ʵ������ѭ����ȡÿ���ļ���Ŀ¼��ɾ��������ɹ���PcsPanApiResInfo->errorΪ0������Ϊ�������
- * ʹ����������pcs_pan_api_res_destroy�ͷ�
- * ʧ���򷵻� NULL��
+ * 删除多个文件
+ *   slist  字符串的单项链表，一次可传入多个文件
+ * 成功后返回PcsPanApiRes类型实例，可循环获取每个文件或目录的删除情况，成功则PcsPanApiResInfo->error为0，否则为错误编码
+ * 使用完后需调用pcs_pan_api_res_destroy释放
+ * 失败则返回 NULL。
  */
 PCS_API PcsPanApiRes *pcs_delete(Pcs handle, PcsSList *slist);
 
 /*
- * ����������ļ�
- *   slist  �ַ����ĵ���������һ�οɴ������ļ���
- *          ÿ���е�string1Ϊ�����������ļ���·����дȫ���磺/temp/file.txt��
- *          string2Ϊ�µ����֣������ļ���������newfile.txt��дȫ·����������ʧ�ܡ�
- *          ����Ҫ�ƶ�����pcs_move()����
- * �ɹ��󷵻�PcsPanApiRes����ʵ������ѭ����ȡÿ���ļ���Ŀ¼��ɾ��������ɹ���PcsPanApiResInfo->errorΪ0������Ϊ�������
- * ʹ����������pcs_pan_api_res_destroy�ͷ�
- * ʧ���򷵻� NULL��
+ * 重命名多个文件
+ *   slist  字符串的单项链表，一次可传入多个文件，
+ *          每项中的string1为待重命名的文件，路径需写全（如：/temp/file.txt）
+ *          string2为新的名字，仅需文件名，例如newfile.txt，写全路径则重命名失败。
+ *          如需要移动请用pcs_move()方法
+ * 成功后返回PcsPanApiRes类型实例，可循环获取每个文件或目录的删除情况，成功则PcsPanApiResInfo->error为0，否则为错误编码
+ * 使用完后需调用pcs_pan_api_res_destroy释放
+ * 失败则返回 NULL。
  */
 PCS_API PcsPanApiRes *pcs_rename(Pcs handle, PcsSList2 *slist);
 
 /*
- * �ƶ�����ļ�
- *   slist  �ַ����ĵ���������һ�οɴ������ļ���
- *          ÿ���е�string1Ϊ���ƶ����ļ���·����дȫ���磺/temp/file.txt��
- *          string2Ϊ�µ����֣�·����дȫ������/temp/subfolder/newfile.txt��
- * �ɹ��󷵻�PcsPanApiRes����ʵ������ѭ����ȡÿ���ļ���Ŀ¼��ɾ��������ɹ���PcsPanApiResInfo->errorΪ0������Ϊ�������
- * ʹ����������pcs_pan_api_res_destroy�ͷ�
- * ʧ���򷵻� NULL��
+ * 移动多个文件
+ *   slist  字符串的单项链表，一次可传入多个文件，
+ *          每项中的string1为待移动的文件，路径需写全（如：/temp/file.txt）
+ *          string2为新的名字，路径需写全，例如/temp/subfolder/newfile.txt。
+ * 成功后返回PcsPanApiRes类型实例，可循环获取每个文件或目录的删除情况，成功则PcsPanApiResInfo->error为0，否则为错误编码
+ * 使用完后需调用pcs_pan_api_res_destroy释放
+ * 失败则返回 NULL。
  */
 PCS_API PcsPanApiRes *pcs_move(Pcs handle, PcsSList2 *slist);
 
 /*
- * ���ƶ���ļ�
- *   slist  �ַ����ĵ���������һ�οɴ������ļ���
- *          ÿ���е�string1Ϊ�����Ƶ��ļ���·����дȫ���磺/temp/file.txt��
- *          string2Ϊ�µ����֣�·����дȫ������/temp/subfolder/newfile.txt��
- * �ɹ��󷵻�PcsPanApiRes����ʵ������ѭ����ȡÿ���ļ���Ŀ¼��ɾ��������ɹ���PcsPanApiResInfo->errorΪ0������Ϊ�������
- * ʹ����������pcs_pan_api_res_destroy�ͷ�
- * ʧ���򷵻� NULL��
+ * 复制多个文件
+ *   slist  字符串的单项链表，一次可传入多个文件，
+ *          每项中的string1为待复制的文件，路径需写全（如：/temp/file.txt）
+ *          string2为新的名字，路径需写全，例如/temp/subfolder/newfile.txt。
+ * 成功后返回PcsPanApiRes类型实例，可循环获取每个文件或目录的删除情况，成功则PcsPanApiResInfo->error为0，否则为错误编码
+ * 使用完后需调用pcs_pan_api_res_destroy释放
+ * 失败则返回 NULL。
  */
 PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist);
 
 /*
- * �������ļ���ֱ�ӻ�ȡ�ı��ļ�������
- *   path		����ȡ���ļ���Ŀ¼����ַ��дȫ����/temp, /temp/file.txt
- *   dstsz      ��ȡ�������ݵ��ֽڳ���
- * �ɹ��󷵻��ı�����
- * ʹ������������pcs_free()�ͷ�
- * ʧ�ܻ��������򷵻� NULL��
+ * 不下载文件，直接获取文本文件的内容
+ *   path		待获取的文件或目录，地址需写全，如/temp, /temp/file.txt
+ *   dstsz      获取到的内容的字节长度
+ * 成功后返回文本内容
+ * 使用完后无需调用pcs_free()释放
+ * 失败或无内容则返回 NULL。
  */
 PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz);
 
 /*
- * �����ļ�
- *   path   �����ص��ļ�����ַ��дȫ����/temp/file.txt
- * ����ָ��д���������ݵĺ�������ͨ��PCS_OPTION_DOWNLOAD_WRITE_FUNCTIONѡ����ָ��
- * �ɹ��󷵻�PCS_OK��ʧ���򷵻ش�����
+ * 下载文件
+ *   path   待下载的文件，地址需写全，如/temp/file.txt
+ * 必须指定写入下载内容的函数，可通过PCS_OPTION_DOWNLOAD_WRITE_FUNCTION选项来指定
+ * 成功后返回PCS_OK，失败则返回错误编号
  */
 PCS_API PcsRes pcs_download(Pcs handle, const char *path);
 
 /*
- * ���ڴ��е��ֽ����ϴ�������
- *   path		Ŀ���ļ�����ַ��дȫ����/temp/file.txt
- *   overwrite  ָ���Ƿ񸲸�ԭ�ļ�������PcsTrue�򸲸ǣ�����PcsFalse�����ʹ�õ�ǰ������������
- *              ��������ļ�file.txt�Դ��ڣ����ϴ����µ��ļ��Զ����Ϊfile20140117.txt
- *   buffer     ���ϴ����ֽ���
- *   buffer_size �ֽ�����ֽڴ�С
- * �ɹ��󣬷���PcsFileInfo����ʵ������ʵ���������������ļ���·������Ϣ
- * ʹ����ɺ������ pcs_fileinfo_destroy() �����ͷš�
- * ʧ���򷵻� NULL��
+ * 把内存中的字节序上传到网盘
+ *   path		目标文件，地址需写全，如/temp/file.txt
+ *   overwrite  指定是否覆盖原文件，传入PcsTrue则覆盖，传入PcsFalse，则会使用当前日期重命名。
+ *              例，如果文件file.txt以存在，则上传后新的文件自动变更为file20140117.txt
+ *   buffer     待上传的字节序
+ *   buffer_size 字节序的字节大小
+ * 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
+ * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
+ * 失败则返回 NULL。
  */
 PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, 
 									   const char *buffer, size_t buffer_size);
 
 /*
- * �ϴ��ļ�������
- *   path		Ŀ���ļ�����ַ��дȫ����/temp/file.txt
- *   overwrite  ָ���Ƿ񸲸�ԭ�ļ�������PcsTrue�򸲸ǣ�����PcsFalse�����ʹ�õ�ǰ������������
- *              ��������ļ�file.txt�Դ��ڣ����ϴ����µ��ļ��Զ����Ϊfile20140117.txt
- *   local_filename ���ϴ��ı����ļ�
- * ͨ��PCS_OPTION_PROGRESS_FUNCTIONѡ���趨�������ص��ã�ʹ��PCS_OPTION_PROGRESS���ý������ص����ɼ�ʵ���ϴ�����
- * �ɹ��󣬷���PcsFileInfo����ʵ������ʵ���������������ļ���·������Ϣ
- * ʹ����ɺ������ pcs_fileinfo_destroy() �����ͷš�
- * ʧ���򷵻� NULL��
+ * 上传文件到网盘
+ *   path		目标文件，地址需写全，如/temp/file.txt
+ *   overwrite  指定是否覆盖原文件，传入PcsTrue则覆盖，传入PcsFalse，则会使用当前日期重命名。
+ *              例，如果文件file.txt以存在，则上传后新的文件自动变更为file20140117.txt
+ *   local_filename 待上传的本地文件
+ * 通过PCS_OPTION_PROGRESS_FUNCTION选项设定进度条回调用，使用PCS_OPTION_PROGRESS启用进度条回调，可简单实现上传进度
+ * 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
+ * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
+ * 失败则返回 NULL。
  */
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
 									   const char *local_filename);
 /*
- * ��ȡCookie ���ݡ�
- * �ɹ��򷵻�Cookie���ݣ�ʧ�ܻ�û�з���NULL
- * ʹ�������Ҫʹ��pcs_free�ͷ�
+ * 获取Cookie 数据。
+ * 成功则返回Cookie数据，失败或没有返回NULL
+ * 使用完后需要使用pcs_free释放
 */
 PCS_API char *pcs_cookie_data(Pcs handle);
 
 /*
-* ��ȡ���һ�������ԭʼ���ݡ�
-* @size ���ڽ���ԭʼ���ݵĳ���
-* @encode ���ڽ���ԭʼ���ݵı���
-* ����ԭʼ���ݵ�ָ�롣
+* 获取最后一次请求的原始数据。
+* @size 用于接收原始数据的长度
+* @encode 用于接收原始数据的编码
+* 返回原始数据的指针。
 */
 PCS_API const char *pcs_req_rawdata(Pcs handle, int *size, const char **encode);
 

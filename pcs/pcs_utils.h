@@ -1,4 +1,4 @@
-#ifndef _PCS_UTILS_H
+ï»¿#ifndef _PCS_UTILS_H
 #define _PCS_UTILS_H
 
 #include <stdarg.h>
@@ -6,46 +6,46 @@
 #include "pcs_defs.h"
 #include "pcs_slist.h"
 
-/*·µ»Øµ±Ç°´¦ÀíÆ÷ÊÇ·ñÊÇ´ó¶ËÄ£Ê½*/
+/*è¿”å›å½“å‰å¤„ç†å™¨æ˜¯å¦æ˜¯å¤§ç«¯æ¨¡å¼*/
 PCS_API PcsBool pcs_isLittleEndian();
-/*·µ»Øµ±Ç°´¦ÀíÆ÷ÊÇ·ñÊÇĞ¡¶ËÄ£Ê½*/
+/*è¿”å›å½“å‰å¤„ç†å™¨æ˜¯å¦æ˜¯å°ç«¯æ¨¡å¼*/
 PCS_API PcsBool pcs_isBigEndian();
 
-/*Ô­Òò¸´ÖÆÒ»·İ×Ö·û´®¡£·µ»ØÖµĞèÒªµ÷ÓÃpcs_free()*/
+/*åŸå› å¤åˆ¶ä¸€ä»½å­—ç¬¦ä¸²ã€‚è¿”å›å€¼éœ€è¦è°ƒç”¨pcs_free()*/
 PCS_API char *pcs_utils_strdup(const char *str);
-/*pcs_utils_sprintfµÄÊ¸Á¿Ä£Ê½*/
+/*pcs_utils_sprintfçš„çŸ¢é‡æ¨¡å¼*/
 PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap);
-/*Êä³ö×Ö·û´®µ½ÄÚ´æ£¬²¢·µ»Ø¸ÃÄÚ´æ¡£*/
+/*è¾“å‡ºå­—ç¬¦ä¸²åˆ°å†…å­˜ï¼Œå¹¶è¿”å›è¯¥å†…å­˜ã€‚*/
 PCS_API char *pcs_utils_sprintf(const char *fmt, ...);
-/*¸ñÊ½»¯sizeÎªÈİÒ×¶ÁĞ´Ä£Ê½*/
+/*æ ¼å¼åŒ–sizeä¸ºå®¹æ˜“è¯»å†™æ¨¡å¼*/
 PCS_API char *pcs_utils_readable_size(double size/*in bytes*/, char *buf, int buf_size, char *sp);
-/*»ñÈ¡pathµÄ¸¸Ä¿Â¼*/
+/*è·å–pathçš„çˆ¶ç›®å½•*/
 PCS_API char *pcs_utils_basedir(const char *path);
-/*»ñÈ¡pathÖĞÎÄ¼şÃû²¿·Ö*/
+/*è·å–pathä¸­æ–‡ä»¶åéƒ¨åˆ†*/
 PCS_API char *pcs_utils_filename(const char *path);
-/*ºöÂÔ´óĞ¡Ğ´±È½ÏÁ½¸ö×Ö·û´®¡£ str1 < str2Ê±·µ»Ø¸ºÊı£»str1 == str2Ê±·µ»Ø0£»str1 > str2Ê±·µ»ØÕıÊı¡£*/
+/*å¿½ç•¥å¤§å°å†™æ¯”è¾ƒä¸¤ä¸ªå­—ç¬¦ä¸²ã€‚ str1 < str2æ—¶è¿”å›è´Ÿæ•°ï¼›str1 == str2æ—¶è¿”å›0ï¼›str1 > str2æ—¶è¿”å›æ­£æ•°ã€‚*/
 PCS_API int pcs_utils_strcmpi(const char *str1, const char *str2);
-/*ÅĞ¶ÏÁ½×Ö·û´®ÊÇ·ñÏàµÈ¡£ÏàµÈ·µ»ØPcsTrue£¬·ñÔò·µ»ØPcsFalse¡£Ö»±È½ÏlenÖ¸¶¨µÄ³¤¶È¡£*/
+/*åˆ¤æ–­ä¸¤å­—ç¬¦ä¸²æ˜¯å¦ç›¸ç­‰ã€‚ç›¸ç­‰è¿”å›PcsTrueï¼Œå¦åˆ™è¿”å›PcsFalseã€‚åªæ¯”è¾ƒlenæŒ‡å®šçš„é•¿åº¦ã€‚*/
 PCS_API PcsBool pcs_utils_streq(const char *str1, const char *str2, int len);
 /**
-* ×Ö·û´®md5
+* å­—ç¬¦ä¸²md5
 */
 PCS_API const char *md5_string(const char *str);
 /**
-* ×Ö·û´®md5¡£·µ»Ø16×Ö½ÚµÄMD5Öµ
+* å­—ç¬¦ä¸²md5ã€‚è¿”å›16å­—èŠ‚çš„MD5å€¼
 */
 PCS_API const unsigned char *md5_string_raw(const char *str);
 /**
-* ÎÄ¼ş md5
+* æ–‡ä»¶ md5
 */
 PCS_API const char *md5_file(const char *file_name);
 
-/*°Ñ32Î»ÕûÊı°´´Ó¸ßÎ»µ½µÍÎ»Ë³ĞòÌî³äµ½bufµÄ4¸ö×Ö½ÚÖĞ¡£
-* Àı£º0xF1E2D3C4 Ìî³äºó buf[0] = 0xF1, buf[1] = 0xE2, buf[2] = 0xD3, buf[3] = 0xC4.bufÖĞÆäËûÏîÎŞ¸Ä¶¯
+/*æŠŠ32ä½æ•´æ•°æŒ‰ä»é«˜ä½åˆ°ä½ä½é¡ºåºå¡«å……åˆ°bufçš„4ä¸ªå­—èŠ‚ä¸­ã€‚
+* ä¾‹ï¼š0xF1E2D3C4 å¡«å……å buf[0] = 0xF1, buf[1] = 0xE2, buf[2] = 0xD3, buf[3] = 0xC4.bufä¸­å…¶ä»–é¡¹æ— æ”¹åŠ¨
 */
 PCS_API void int2Buffer(int v, char *buf);
 
-/*int2BufferµÄÄæ¹ı³Ì*/
+/*int2Bufferçš„é€†è¿‡ç¨‹*/
 PCS_API int readInt(char *buf);
 
 

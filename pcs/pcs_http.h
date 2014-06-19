@@ -1,4 +1,4 @@
-#ifndef _PCS_HTTP_H
+ï»¿#ifndef _PCS_HTTP_H
 #define _PCS_HTTP_H
 
 #include <stdarg.h>
@@ -9,229 +9,229 @@ typedef void *PcsHttp;
 typedef void *PcsHttpForm;
 
 /*
- * Éè¶¨¸Ã»Øµ÷ºó£¬PcsÃ¿´ÓÍøÂç»ñÈ¡µ½Öµ£¬Ôòµ÷ÓÃ¸Ã»Øµ÷¡£ÀıÈçÏÂÔØÊ±¡£
- *   ptr  ´ÓÍøÂç»ñÈ¡µ½µÄ×Ö½ÚĞò
- *   size ×Ö½ÚĞòµÄ´óĞ¡£¬ÒÔ×Ö½ÚÎªµ¥Î»
- *   contentlength ±¾´ÎÇëÇó£¬HTTPÍ·ÖĞµÄContent-LengthÖµ
- *   userdata Ê¹ÓÃPCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATAÑ¡ÏîÉè¶¨µÄÖµÔ­Ñù´«Èë
- * ·µ»ØĞ´ÈëµÄ×Ö½ÚÊı£¬Èç¹û·µ»ØÖµºÍ´«ÈëµÄsize²»Ò»Ñù£¬½«µ¼ÖÂÏÂÔØÖĞ¶Ï
+ * è®¾å®šè¯¥å›è°ƒåï¼ŒPcsæ¯ä»ç½‘ç»œè·å–åˆ°å€¼ï¼Œåˆ™è°ƒç”¨è¯¥å›è°ƒã€‚ä¾‹å¦‚ä¸‹è½½æ—¶ã€‚
+ *   ptr  ä»ç½‘ç»œè·å–åˆ°çš„å­—èŠ‚åº
+ *   size å­—èŠ‚åºçš„å¤§å°ï¼Œä»¥å­—èŠ‚ä¸ºå•ä½
+ *   contentlength æœ¬æ¬¡è¯·æ±‚ï¼ŒHTTPå¤´ä¸­çš„Content-Lengthå€¼
+ *   userdata ä½¿ç”¨PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATAé€‰é¡¹è®¾å®šçš„å€¼åŸæ ·ä¼ å…¥
+ * è¿”å›å†™å…¥çš„å­—èŠ‚æ•°ï¼Œå¦‚æœè¿”å›å€¼å’Œä¼ å…¥çš„sizeä¸ä¸€æ ·ï¼Œå°†å¯¼è‡´ä¸‹è½½ä¸­æ–­
 */
 typedef size_t (*PcsHttpWriteFunction)(char *ptr, size_t size, size_t contentlength, void *userdata);
 
 /*
- * Éè¶¨¸Ã»Øµ÷ºó£¬PcsÃ¿´ÓÍøÂç»ñÈ¡µ½Öµ£¬Ôòµ÷ÓÃ¸Ã»Øµ÷¡£
- * ºÍPcsHttpWriteFunctionµÄÇø±ğÊÇ£¬¸Ã»Øµ÷ÊÇÔÚ»ñÈ¡µ½È«²¿ÄÚÈİºó´¥·¢,
- * ¶øPcsHttpWriteFunctionÊÇÃ¿»ñÈ¡µ½Ò»¶Î×Ö½ÚĞòÔò´¥·¢¡£
- * Ã¿¸öHTTPÇëÇó£¬PcsHttpResponseFunctionÖ»»á´¥·¢Ò»´Î£¬¶øPcsHttpWriteFunction¿ÉÄÜ´¥·¢¶à´Î
- *   ptr  ´ÓÍøÂç»ñÈ¡µ½µÄ×Ö½ÚĞò
- *   size ×Ö½ÚĞòµÄ´óĞ¡£¬ÒÔ×Ö½ÚÎªµ¥Î»
- *   userdata Ê¹ÓÃPCS_OPTION_HTTP_RESPONSE_FUNCTION_DATEÑ¡ÏîÉè¶¨µÄÖµÔ­Ñù´«Èë
+ * è®¾å®šè¯¥å›è°ƒåï¼ŒPcsæ¯ä»ç½‘ç»œè·å–åˆ°å€¼ï¼Œåˆ™è°ƒç”¨è¯¥å›è°ƒã€‚
+ * å’ŒPcsHttpWriteFunctionçš„åŒºåˆ«æ˜¯ï¼Œè¯¥å›è°ƒæ˜¯åœ¨è·å–åˆ°å…¨éƒ¨å†…å®¹åè§¦å‘,
+ * è€ŒPcsHttpWriteFunctionæ˜¯æ¯è·å–åˆ°ä¸€æ®µå­—èŠ‚åºåˆ™è§¦å‘ã€‚
+ * æ¯ä¸ªHTTPè¯·æ±‚ï¼ŒPcsHttpResponseFunctionåªä¼šè§¦å‘ä¸€æ¬¡ï¼Œè€ŒPcsHttpWriteFunctionå¯èƒ½è§¦å‘å¤šæ¬¡
+ *   ptr  ä»ç½‘ç»œè·å–åˆ°çš„å­—èŠ‚åº
+ *   size å­—èŠ‚åºçš„å¤§å°ï¼Œä»¥å­—èŠ‚ä¸ºå•ä½
+ *   userdata ä½¿ç”¨PCS_OPTION_HTTP_RESPONSE_FUNCTION_DATEé€‰é¡¹è®¾å®šçš„å€¼åŸæ ·ä¼ å…¥
 */
 typedef void (*PcsHttpResponseFunction)(unsigned char *ptr, size_t size, void *state);
 
 /*
- * Éè¶¨¸Ã»Øµ÷ºó£¬PcsÃ¿ÉÏ´«»òÏÂÔØÒ»¶Î×Ö½ÚĞòµ½ÍøÂçÖĞÊ±£¬Ôòµ÷ÓÃ¸Ã»Øµ÷¡£ÀûÓÃ¸Ã»Øµ÷¿ÉÊµÏÖÉÏ´«Ê±µÄ½ø¶ÈÌõ
- * ×¢Òâ£ºÖ»ÓĞÉè¶¨PCS_OPTION_PROGRESSµÄÖµÎªPcsTrueºó²Å»áÆôÓÃ½ø¶ÈÌõ
- *   dltotal  ´ÓÍøÂçÖĞĞèÒªÏÂÔØ¶àÉÙ×Ö½Ú
- *   dlnow    ´ÓÍøÂçÖĞÒÑ¾­ÏÂÔØ¶àÉÙ×Ö½Ú
- *   ultotal  ĞèÒªÉÏ´«¶àÉÙ×Ö½Ú
- *   ulnow    ÒÑ¾­ÉÏ´«¶àÉÙ×Ö½Ú
- *   clientp Ê¹ÓÃPCS_OPTION_PROGRESS_FUNCTION_DATEÑ¡ÏîÉè¶¨µÄÖµÔ­Ñù´«Èë
- * ·µ»Ø·ÇÁãÖµ£¬½«µ¼ÖÂÖĞ¶ÏÉÏ´«»òÏÂÔØ
+ * è®¾å®šè¯¥å›è°ƒåï¼ŒPcsæ¯ä¸Šä¼ æˆ–ä¸‹è½½ä¸€æ®µå­—èŠ‚åºåˆ°ç½‘ç»œä¸­æ—¶ï¼Œåˆ™è°ƒç”¨è¯¥å›è°ƒã€‚åˆ©ç”¨è¯¥å›è°ƒå¯å®ç°ä¸Šä¼ æ—¶çš„è¿›åº¦æ¡
+ * æ³¨æ„ï¼šåªæœ‰è®¾å®šPCS_OPTION_PROGRESSçš„å€¼ä¸ºPcsTrueåæ‰ä¼šå¯ç”¨è¿›åº¦æ¡
+ *   dltotal  ä»ç½‘ç»œä¸­éœ€è¦ä¸‹è½½å¤šå°‘å­—èŠ‚
+ *   dlnow    ä»ç½‘ç»œä¸­å·²ç»ä¸‹è½½å¤šå°‘å­—èŠ‚
+ *   ultotal  éœ€è¦ä¸Šä¼ å¤šå°‘å­—èŠ‚
+ *   ulnow    å·²ç»ä¸Šä¼ å¤šå°‘å­—èŠ‚
+ *   clientp ä½¿ç”¨PCS_OPTION_PROGRESS_FUNCTION_DATEé€‰é¡¹è®¾å®šçš„å€¼åŸæ ·ä¼ å…¥
+ * è¿”å›éé›¶å€¼ï¼Œå°†å¯¼è‡´ä¸­æ–­ä¸Šä¼ æˆ–ä¸‹è½½
 */
 typedef int (*PcsHttpProgressCallback)(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow);
 
 typedef enum PcsHttpOption {
 	PCS_HTTP_OPTION_END = 0,
-	/* ÖµÎªPcsHttpWriteFunctionÀàĞÍµÄº¯Êı¡£µ±µ÷ÓÃpcs_http_get_download·½·¨Ê±£¬´ËÑ¡Ïî´«ÈëµÄº¯ÊıÓÃÓÚ´¦Àí·şÎñÆ÷·µ»ØµÄÊı¾İ¡£ */
+	/* å€¼ä¸ºPcsHttpWriteFunctionç±»å‹çš„å‡½æ•°ã€‚å½“è°ƒç”¨pcs_http_get_downloadæ–¹æ³•æ—¶ï¼Œæ­¤é€‰é¡¹ä¼ å…¥çš„å‡½æ•°ç”¨äºå¤„ç†æœåŠ¡å™¨è¿”å›çš„æ•°æ®ã€‚ */
 	PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION,
-	/* PcsHttp±¾Éí²»Ê¹ÓÃ¸ÃÖµ£¬½öÔ­Ñù´«µİµ½PcsHttpWriteFunctionº¯ÊıÖĞ¡£
-	µ±µ÷ÓÃpcs_http_get_download·½·¨Ê±£¬´ËÑ¡Ïî´«ÈëµÄ¶ÔÏóÔ­Ñù´«µİµ½PcsHttpWriteFunctionÖ¸¶¨µÄº¯ÊıÖĞ¡£ */
+	/* PcsHttpæœ¬èº«ä¸ä½¿ç”¨è¯¥å€¼ï¼Œä»…åŸæ ·ä¼ é€’åˆ°PcsHttpWriteFunctionå‡½æ•°ä¸­ã€‚
+	å½“è°ƒç”¨pcs_http_get_downloadæ–¹æ³•æ—¶ï¼Œæ­¤é€‰é¡¹ä¼ å…¥çš„å¯¹è±¡åŸæ ·ä¼ é€’åˆ°PcsHttpWriteFunctionæŒ‡å®šçš„å‡½æ•°ä¸­ã€‚ */
 	PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION_DATE,
-	/* ÖµÎªPcsHttpReadFunctionÀàĞÍµÄº¯Êı¡£±£Áô£¬Î´Ê¹ÓÃ¡£ */
+	/* å€¼ä¸ºPcsHttpReadFunctionç±»å‹çš„å‡½æ•°ã€‚ä¿ç•™ï¼Œæœªä½¿ç”¨ã€‚ */
 	PCS_HTTP_OPTION_HTTP_READ_FUNCTION,
-	/* PcsHttp±¾Éí²»Ê¹ÓÃ¸ÃÖµ£¬½öÔ­Ñù´«µİµ½PcsHttpReadFunctionº¯ÊıÖĞ¡£±£Áô£¬Î´Ê¹ÓÃ¡£ */
+	/* PcsHttpæœ¬èº«ä¸ä½¿ç”¨è¯¥å€¼ï¼Œä»…åŸæ ·ä¼ é€’åˆ°PcsHttpReadFunctionå‡½æ•°ä¸­ã€‚ä¿ç•™ï¼Œæœªä½¿ç”¨ã€‚ */
 	PCS_HTTP_OPTION_HTTP_READ_FUNCTION_DATE,
-	/* ÖµÎªPcsHttpResponseFunctionÀàĞÍµÄº¯Êı */
+	/* å€¼ä¸ºPcsHttpResponseFunctionç±»å‹çš„å‡½æ•° */
 	PCS_HTTP_OPTION_HTTP_RESPONSE_FUNCTION,
-	/* PcsHttp±¾Éí²»Ê¹ÓÃ¸ÃÖµ£¬½öÔ­Ñù´«µİµ½PcsHttpResponseFunctionº¯ÊıÖĞ */
+	/* PcsHttpæœ¬èº«ä¸ä½¿ç”¨è¯¥å€¼ï¼Œä»…åŸæ ·ä¼ é€’åˆ°PcsHttpResponseFunctionå‡½æ•°ä¸­ */
 	PCS_HTTP_OPTION_HTTP_RESPONSE_FUNCTION_DATE,
-	/* ÖµÎªPcsHttpProgressCallbackÀàĞÍµÄº¯Êı */
+	/* å€¼ä¸ºPcsHttpProgressCallbackç±»å‹çš„å‡½æ•° */
 	PCS_HTTP_OPTION_PROGRESS_FUNCTION,
-	/* PcsHttp±¾Éí²»Ê¹ÓÃ¸ÃÖµ£¬½öÔ­Ñù´«µİµ½PcsHttpProgressCallbackº¯ÊıÖĞ */
+	/* PcsHttpæœ¬èº«ä¸ä½¿ç”¨è¯¥å€¼ï¼Œä»…åŸæ ·ä¼ é€’åˆ°PcsHttpProgressCallbackå‡½æ•°ä¸­ */
 	PCS_HTTP_OPTION_PROGRESS_FUNCTION_DATE,
-	/* ÉèÖÃÊÇ·ñÆôÓÃÏÂÔØ»òÉÏ´«½ø¶È£¬ÖµÎªunsigned charÀàĞÍÖ¸Õë */
+	/* è®¾ç½®æ˜¯å¦å¯ç”¨ä¸‹è½½æˆ–ä¸Šä¼ è¿›åº¦ï¼Œå€¼ä¸ºunsigned charç±»å‹æŒ‡é’ˆ */
 	PCS_HTTP_OPTION_PROGRESS,
 
 
 } PcsHttpOption;
 
 /*
- * ´´½¨Ò»¸öPcsHttp¶ÔÏó
- *   cookie_file   Ö¸¶¨±£´æCookieµÄÎÄ¼ş£¬Èç¹ûÎÄ¼ş²»´æÔÚ£¬½«×Ô¶¯´´½¨¸ÃÎÄ¼ş¡£
- *                 µ±·¢ËÍÒ»¸öÇëÇóÊ±£¬½«¸½¼Ó¸ÃÎÄ¼şÖĞµÄCookie¡£³ÌĞòÍË³öºó£¬±£´æ×îĞÂµÄCookieµ½¸ÃÎÄ¼şÖĞ¡£
- * ³É¹¦ºó£¬·µ»Ø´´½¨µÄ¶ÔÏó£¬Ê§°ÜÔò·µ»ØNULL¡£Ê¹ÓÃÍê³ÉºóĞèµ÷ÓÃpcs_http_destroy()À´ÊÍ·Å×ÊÔ´
+ * åˆ›å»ºä¸€ä¸ªPcsHttpå¯¹è±¡
+ *   cookie_file   æŒ‡å®šä¿å­˜Cookieçš„æ–‡ä»¶ï¼Œå¦‚æœæ–‡ä»¶ä¸å­˜åœ¨ï¼Œå°†è‡ªåŠ¨åˆ›å»ºè¯¥æ–‡ä»¶ã€‚
+ *                 å½“å‘é€ä¸€ä¸ªè¯·æ±‚æ—¶ï¼Œå°†é™„åŠ è¯¥æ–‡ä»¶ä¸­çš„Cookieã€‚ç¨‹åºé€€å‡ºåï¼Œä¿å­˜æœ€æ–°çš„Cookieåˆ°è¯¥æ–‡ä»¶ä¸­ã€‚
+ * æˆåŠŸåï¼Œè¿”å›åˆ›å»ºçš„å¯¹è±¡ï¼Œå¤±è´¥åˆ™è¿”å›NULLã€‚ä½¿ç”¨å®Œæˆåéœ€è°ƒç”¨pcs_http_destroy()æ¥é‡Šæ”¾èµ„æº
  */
 PCS_API PcsHttp pcs_http_create(const char *cookie_file);
 /*
- * ÊÍ·ÅµôPcsHttp¶ÔÏó
+ * é‡Šæ”¾æ‰PcsHttpå¯¹è±¡
  */
 PCS_API void pcs_http_destroy(PcsHttp handle);
 /*
- * ·µ»Ø×îºóÒ»´Î·¢ÉúµÄ´íÎóÃèÊö
+ * è¿”å›æœ€åä¸€æ¬¡å‘ç”Ÿçš„é”™è¯¯æè¿°
  */
 PCS_API const char *pcs_http_strerror(PcsHttp handle);
 /*
- * ·µ»Ø×îºóÒ»´ÎÇëÇóµÄ HTTP×´Ì¬Âë¡£×´Ì¬Âë¿É²Î¿¼"http://zh.wikipedia.org/wiki/HTTP%E7%8A%B6%E6%80%81%E7%A0%81"
+ * è¿”å›æœ€åä¸€æ¬¡è¯·æ±‚çš„ HTTPçŠ¶æ€ç ã€‚çŠ¶æ€ç å¯å‚è€ƒ"http://zh.wikipedia.org/wiki/HTTP%E7%8A%B6%E6%80%81%E7%A0%81"
  */
 PCS_API int pcs_http_code(PcsHttp handle);
 /*
- * ÉèÖÃPcsHttpÅäÖÃÑ¡Ïî£¬Ã¿´ÎÖ»ÄÜÉèÖÃÒ»¸ö¡£ 
+ * è®¾ç½®PcsHttpé…ç½®é€‰é¡¹ï¼Œæ¯æ¬¡åªèƒ½è®¾ç½®ä¸€ä¸ªã€‚ 
  */
 PCS_API void pcs_http_setopt(PcsHttp handle, PcsHttpOption opt, void *value);
 
 /*
- * Ò»´ÎÉè¶¨¶à¸öÅäÖÃÑ¡Ïî£¬×îºóÒ»Ïî±ØĞëÎªPCS_HTTP_OPTION_END¡£
- * Àı£º pcs_http_setopts(handle, PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, &cb_write, PCS_HTTP_OPTION_HTTP_READ_FUNCTION_DATE, state, PCS_HTTP_OPTION_END);
+ * ä¸€æ¬¡è®¾å®šå¤šä¸ªé…ç½®é€‰é¡¹ï¼Œæœ€åä¸€é¡¹å¿…é¡»ä¸ºPCS_HTTP_OPTION_ENDã€‚
+ * ä¾‹ï¼š pcs_http_setopts(handle, PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, &cb_write, PCS_HTTP_OPTION_HTTP_READ_FUNCTION_DATE, state, PCS_HTTP_OPTION_END);
  */
 PCS_API void pcs_http_setopts(PcsHttp handle, ...);
 /*
- * pcs_http_build_urlµÄ²ÎÊıÁĞ±íÄ£Ê½
+ * pcs_http_build_urlçš„å‚æ•°åˆ—è¡¨æ¨¡å¼
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_build_url_v(PcsHttp handle, const char *url, va_list args);
 /*
- * Æ´½ÓURL¡£¶à²Î±ØĞëÈ«²¿Îª Key-ValueµÄ¼üÖµ¶Ô£¬ÇÒÀàĞÍ±ØĞëconst char *ÀàĞÍ¡£×îºóÒ»Ïî±ØĞëÎªNULL¡£
- * Èç¹ûÖµÖĞ°üº¬ÖĞÎÄ»òÌØÊâ×Ö·û£¬½«²ÉÓÃUTF-8À´±àÂë¡£
- *  url  - »ùµØÖ·
- *  Àı£º 
- *     pcs_http_build_url(pcs->http, "http://baidu.com", "key1", "value1", "key2", "value2", NULL); //½á¹ûÎª£ºhttp://baidu.com?key1=value1&key2=value2
- *     pcs_http_build_url(pcs->http, "http://baidu.com?s=ab", "key1", "value1", "key2", "&ab", NULL); //½á¹ûÎª£ºhttp://baidu.com??s=ab&key1=value1&key2=%26ab
- *     pcs_http_build_url(pcs->http, "http://baidu.com?s=ab&", "key1", "value1", "key2", "&ab", NULL); //½á¹ûÎª£ºhttp://baidu.com??s=ab&key1=value1&key2=%26ab
- * ³É¹¦ºó·µ»ØÆ´½ÓºóµÄµØÖ·£¬Ê§°ÜÔò·µ»ØNULL
+ * æ‹¼æ¥URLã€‚å¤šå‚å¿…é¡»å…¨éƒ¨ä¸º Key-Valueçš„é”®å€¼å¯¹ï¼Œä¸”ç±»å‹å¿…é¡»const char *ç±»å‹ã€‚æœ€åä¸€é¡¹å¿…é¡»ä¸ºNULLã€‚
+ * å¦‚æœå€¼ä¸­åŒ…å«ä¸­æ–‡æˆ–ç‰¹æ®Šå­—ç¬¦ï¼Œå°†é‡‡ç”¨UTF-8æ¥ç¼–ç ã€‚
+ *  url  - åŸºåœ°å€
+ *  ä¾‹ï¼š 
+ *     pcs_http_build_url(pcs->http, "http://baidu.com", "key1", "value1", "key2", "value2", NULL); //ç»“æœä¸ºï¼šhttp://baidu.com?key1=value1&key2=value2
+ *     pcs_http_build_url(pcs->http, "http://baidu.com?s=ab", "key1", "value1", "key2", "&ab", NULL); //ç»“æœä¸ºï¼šhttp://baidu.com??s=ab&key1=value1&key2=%26ab
+ *     pcs_http_build_url(pcs->http, "http://baidu.com?s=ab&", "key1", "value1", "key2", "&ab", NULL); //ç»“æœä¸ºï¼šhttp://baidu.com??s=ab&key1=value1&key2=%26ab
+ * æˆåŠŸåè¿”å›æ‹¼æ¥åçš„åœ°å€ï¼Œå¤±è´¥åˆ™è¿”å›NULL
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_build_url(PcsHttp handle, const char *url, ...);
 /*
- * pcs_http_build_post_dataµÄ²ÎÊıÁĞ±íÄ£Ê½
+ * pcs_http_build_post_dataçš„å‚æ•°åˆ—è¡¨æ¨¡å¼
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_build_post_data_v(PcsHttp handle, va_list args);
 /*
- * ÀàËÆÓÚpcs_http_build_url£¬Ö»²»¹ı¸Ãº¯ÊıÆ´½ÓµÄÊÇĞèÒª·¢ËÍµ½·şÎñµÄÊı¾İ¡£
- * ¶à²Î±ØĞëÈ«²¿Îª Key-ValueµÄ¼üÖµ¶Ô£¬ÇÒÀàĞÍ±ØĞëconst char *ÀàĞÍ¡£×îºóÒ»Ïî±ØĞëÎªNULL¡£
- * Èç¹ûÖµÖĞ°üº¬ÖĞÎÄ»òÌØÊâ×Ö·û£¬½«²ÉÓÃUTF-8À´±àÂë¡£
- *  url  - »ùµØÖ·
- *  Àı£º 
- *     pcs_http_build_post_data(pcs->http, "key1", "value1", "key2", "value2", NULL); //½á¹ûÎª£ºkey1=value1&key2=value2
- *     pcs_http_build_post_data(pcs->http, "key1", "value1", "key2", "&ab", NULL); //½á¹ûÎª£ºkey1=value1&key2=%26ab
- * ³É¹¦ºó·µ»ØÆ´½ÓºóµÄ×Ö·û´®£¬Ê§°ÜÔò·µ»ØNULL
+ * ç±»ä¼¼äºpcs_http_build_urlï¼Œåªä¸è¿‡è¯¥å‡½æ•°æ‹¼æ¥çš„æ˜¯éœ€è¦å‘é€åˆ°æœåŠ¡çš„æ•°æ®ã€‚
+ * å¤šå‚å¿…é¡»å…¨éƒ¨ä¸º Key-Valueçš„é”®å€¼å¯¹ï¼Œä¸”ç±»å‹å¿…é¡»const char *ç±»å‹ã€‚æœ€åä¸€é¡¹å¿…é¡»ä¸ºNULLã€‚
+ * å¦‚æœå€¼ä¸­åŒ…å«ä¸­æ–‡æˆ–ç‰¹æ®Šå­—ç¬¦ï¼Œå°†é‡‡ç”¨UTF-8æ¥ç¼–ç ã€‚
+ *  url  - åŸºåœ°å€
+ *  ä¾‹ï¼š 
+ *     pcs_http_build_post_data(pcs->http, "key1", "value1", "key2", "value2", NULL); //ç»“æœä¸ºï¼škey1=value1&key2=value2
+ *     pcs_http_build_post_data(pcs->http, "key1", "value1", "key2", "&ab", NULL); //ç»“æœä¸ºï¼škey1=value1&key2=%26ab
+ * æˆåŠŸåè¿”å›æ‹¼æ¥åçš„å­—ç¬¦ä¸²ï¼Œå¤±è´¥åˆ™è¿”å›NULL
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_build_post_data(PcsHttp handle, ...);
 /*
- * ¸ù¾İÃû×Ö»ñÈ¡CookieÖµ¡£
- * ³É¹¦ºó·µ»ØCookieÖµ£¬Ê§°Ü»ò²»´æÔÚÔò·µ»ØNULL¡£
+ * æ ¹æ®åå­—è·å–Cookieå€¼ã€‚
+ * æˆåŠŸåè¿”å›Cookieå€¼ï¼Œå¤±è´¥æˆ–ä¸å­˜åœ¨åˆ™è¿”å›NULLã€‚
  * Need call pcs_free(void *) to free the return value.
 */
 PCS_API char *pcs_http_get_cookie(PcsHttp handle, const char *cookie_name);
 
 /*
- * »ñÈ¡×îºóÒ»´ÎÇëÇóÊ±·şÎñÆ÷µÄ·µ»ØÄÚÈİ
- * Èç¹û´ÓÎ´´Ó·şÎñÆ÷ÇëÇóÊı¾İÔò·µ»ØNULL¡£²»ĞèÒªµ÷ÓÃpcs_freeÊÍ·ÅÄÚ´æ¡£
+ * è·å–æœ€åä¸€æ¬¡è¯·æ±‚æ—¶æœåŠ¡å™¨çš„è¿”å›å†…å®¹
+ * å¦‚æœä»æœªä»æœåŠ¡å™¨è¯·æ±‚æ•°æ®åˆ™è¿”å›NULLã€‚ä¸éœ€è¦è°ƒç”¨pcs_freeé‡Šæ”¾å†…å­˜ã€‚
  */
 PCS_API const char *pcs_http_get_response(PcsHttp handle);
 /*
- * »ñÈ¡×îºóÒ»´ÎÇëÇóÊ±·şÎñÆ÷·µ»ØÄÚÈİµÄ×Ö½Ú³¤¶È
- * Èç¹û´ÓÎ´´Ó·şÎñÆ÷ÇëÇóÊı¾İÔò·µ»Ø0¡£
+ * è·å–æœ€åä¸€æ¬¡è¯·æ±‚æ—¶æœåŠ¡å™¨è¿”å›å†…å®¹çš„å­—èŠ‚é•¿åº¦
+ * å¦‚æœä»æœªä»æœåŠ¡å™¨è¯·æ±‚æ•°æ®åˆ™è¿”å›0ã€‚
  */
 PCS_API int pcs_http_get_response_size(PcsHttp handle);
 /*
- * Ïò·şÎñÆ÷·¢ËÍÒ»¸öGETÇëÇó¡£
- *   url             ·şÎñÆ÷µØÖ·
- *   follow_location ¼ÙÈç·şÎñÆ÷·µ»ØÌø×ªµ½ÁíÒ»¸öÒ³ÃæµÄÖ¸ÁîÊ±£¬ÊÇ·ñ×Ô¶¯Ìø×ª¹ıÈ¥£¬Èç¹ûÌø×ªµÄ»°£¬Ôò·µ»ØÌø×ªºóÒ³ÃæµÄÄÚÈİ
- * ·µ»Ø·şÎñÆ÷·µ»ØµÄÄÚÈİ¡£ÄÚÈİ×Ô¶¯½âÂëÎªµ±Ç°²Ù×÷ÏµÍ³Ê¹ÓÃµÄ±àÂë¡£
- * ÀıÈç£ºÔÚWindowsÏµÍ³ÖĞ£¬Èç¹ûÏµÍ³±àÂëÎªGB2312£¬Ôò·µ»ØÄÚÈİ×Ô¶¯½âÂëÎªGB2312±àÂë£»ÔÚLinuxÏµÍ³ÖĞ£¬ÏµÍ³±àÂëÎªUTF-8£¬Ôò·µ»ØÄÚÈİµÄ±àÂëÔòÎªUTF-8
+ * å‘æœåŠ¡å™¨å‘é€ä¸€ä¸ªGETè¯·æ±‚ã€‚
+ *   url             æœåŠ¡å™¨åœ°å€
+ *   follow_location å‡å¦‚æœåŠ¡å™¨è¿”å›è·³è½¬åˆ°å¦ä¸€ä¸ªé¡µé¢çš„æŒ‡ä»¤æ—¶ï¼Œæ˜¯å¦è‡ªåŠ¨è·³è½¬è¿‡å»ï¼Œå¦‚æœè·³è½¬çš„è¯ï¼Œåˆ™è¿”å›è·³è½¬åé¡µé¢çš„å†…å®¹
+ * è¿”å›æœåŠ¡å™¨è¿”å›çš„å†…å®¹ã€‚å†…å®¹è‡ªåŠ¨è§£ç ä¸ºå½“å‰æ“ä½œç³»ç»Ÿä½¿ç”¨çš„ç¼–ç ã€‚
+ * ä¾‹å¦‚ï¼šåœ¨Windowsç³»ç»Ÿä¸­ï¼Œå¦‚æœç³»ç»Ÿç¼–ç ä¸ºGB2312ï¼Œåˆ™è¿”å›å†…å®¹è‡ªåŠ¨è§£ç ä¸ºGB2312ç¼–ç ï¼›åœ¨Linuxç³»ç»Ÿä¸­ï¼Œç³»ç»Ÿç¼–ç ä¸ºUTF-8ï¼Œåˆ™è¿”å›å†…å®¹çš„ç¼–ç åˆ™ä¸ºUTF-8
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
 PCS_API char *pcs_http_get(PcsHttp handle, const char *url, PcsBool follow_location);
 /*
- * Ïò·şÎñÆ÷·¢ËÍÒ»¸öGETÇëÇó¡£
- *   url             ·şÎñÆ÷µØÖ·
- *   follow_location ¼ÙÈç·şÎñÆ÷·µ»ØÌø×ªµ½ÁíÒ»¸öÒ³ÃæµÄÖ¸ÁîÊ±£¬ÊÇ·ñ×Ô¶¯Ìø×ª¹ıÈ¥£¬Èç¹ûÌø×ªµÄ»°£¬Ôò·µ»ØÌø×ªºóÒ³ÃæµÄÄÚÈİ
- * ·µ»Ø·şÎñÆ÷·µ»ØµÄÄÚÈİ¡£ÄÚÈİ²»»áÖ´ĞĞ½âÂë²Ù×÷¡£¸Ã·½·¨Ò»°ãÓÃÓÚ»ñÈ¡Í¼Æ¬»òÓÃÓÚ»ñÈ¡·şÎñÖĞÎÄ¼şµÄÔ­Ê¼ÄÚÈİ¡£
+ * å‘æœåŠ¡å™¨å‘é€ä¸€ä¸ªGETè¯·æ±‚ã€‚
+ *   url             æœåŠ¡å™¨åœ°å€
+ *   follow_location å‡å¦‚æœåŠ¡å™¨è¿”å›è·³è½¬åˆ°å¦ä¸€ä¸ªé¡µé¢çš„æŒ‡ä»¤æ—¶ï¼Œæ˜¯å¦è‡ªåŠ¨è·³è½¬è¿‡å»ï¼Œå¦‚æœè·³è½¬çš„è¯ï¼Œåˆ™è¿”å›è·³è½¬åé¡µé¢çš„å†…å®¹
+ * è¿”å›æœåŠ¡å™¨è¿”å›çš„å†…å®¹ã€‚å†…å®¹ä¸ä¼šæ‰§è¡Œè§£ç æ“ä½œã€‚è¯¥æ–¹æ³•ä¸€èˆ¬ç”¨äºè·å–å›¾ç‰‡æˆ–ç”¨äºè·å–æœåŠ¡ä¸­æ–‡ä»¶çš„åŸå§‹å†…å®¹ã€‚
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
 PCS_API char *pcs_http_get_raw(PcsHttp handle, const char *url, PcsBool follow_location, size_t *sz);
 /*
- * Ïò·şÎñÆ÷·¢ËÍÒ»¸öPOSTÇëÇó¡£
- *   url             ·şÎñÆ÷µØÖ·
- *   follow_location ¼ÙÈç·şÎñÆ÷·µ»ØÌø×ªµ½ÁíÒ»¸öÒ³ÃæµÄÖ¸ÁîÊ±£¬ÊÇ·ñ×Ô¶¯Ìø×ª¹ıÈ¥£¬Èç¹ûÌø×ªµÄ»°£¬Ôò·µ»ØÌø×ªºóÒ³ÃæµÄÄÚÈİ
- * ·µ»Ø·şÎñÆ÷·µ»ØµÄÄÚÈİ¡£ÄÚÈİ×Ô¶¯½âÂëÎªµ±Ç°²Ù×÷ÏµÍ³Ê¹ÓÃµÄ±àÂë¡£
- * ÀıÈç£ºÔÚWindowsÏµÍ³ÖĞ£¬Èç¹ûÏµÍ³±àÂëÎªGB2312£¬Ôò·µ»ØÄÚÈİ×Ô¶¯½âÂëÎªGB2312±àÂë£»ÔÚLinuxÏµÍ³ÖĞ£¬ÏµÍ³±àÂëÎªUTF-8£¬Ôò·µ»ØÄÚÈİµÄ±àÂëÔòÎªUTF-8
+ * å‘æœåŠ¡å™¨å‘é€ä¸€ä¸ªPOSTè¯·æ±‚ã€‚
+ *   url             æœåŠ¡å™¨åœ°å€
+ *   follow_location å‡å¦‚æœåŠ¡å™¨è¿”å›è·³è½¬åˆ°å¦ä¸€ä¸ªé¡µé¢çš„æŒ‡ä»¤æ—¶ï¼Œæ˜¯å¦è‡ªåŠ¨è·³è½¬è¿‡å»ï¼Œå¦‚æœè·³è½¬çš„è¯ï¼Œåˆ™è¿”å›è·³è½¬åé¡µé¢çš„å†…å®¹
+ * è¿”å›æœåŠ¡å™¨è¿”å›çš„å†…å®¹ã€‚å†…å®¹è‡ªåŠ¨è§£ç ä¸ºå½“å‰æ“ä½œç³»ç»Ÿä½¿ç”¨çš„ç¼–ç ã€‚
+ * ä¾‹å¦‚ï¼šåœ¨Windowsç³»ç»Ÿä¸­ï¼Œå¦‚æœç³»ç»Ÿç¼–ç ä¸ºGB2312ï¼Œåˆ™è¿”å›å†…å®¹è‡ªåŠ¨è§£ç ä¸ºGB2312ç¼–ç ï¼›åœ¨Linuxç³»ç»Ÿä¸­ï¼Œç³»ç»Ÿç¼–ç ä¸ºUTF-8ï¼Œåˆ™è¿”å›å†…å®¹çš„ç¼–ç åˆ™ä¸ºUTF-8
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
 PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, PcsBool follow_location);
 
 /*
- * Ïò·şÎñÆ÷·¢ËÍÒ»¸öGETÇëÇó¡£µ±»ñÈ¡µ½·şÎñÆ÷·µ»ØÊı¾İºó£¬µ÷ÓÃPCS_HTTP_OPTION_HTTP_WRITE_FUNCTION´«ÈëµÄº¯ÊıÀ´Ğ´ÈëÄÚÈİ¡£
- *   url             ·şÎñÆ÷µØÖ·
- *   follow_location ¼ÙÈç·şÎñÆ÷·µ»ØÌø×ªµ½ÁíÒ»¸öÒ³ÃæµÄÖ¸ÁîÊ±£¬ÊÇ·ñ×Ô¶¯Ìø×ª¹ıÈ¥£¬Èç¹ûÌø×ªµÄ»°£¬Ôò·µ»ØÌø×ªºóÒ³ÃæµÄÄÚÈİ
- * ·µ»ØÊÇ·ñÏÂÔØ³É¹¦¡£ÄÚÈİ²»»áÖ´ĞĞ½âÂë²Ù×÷¡£¸Ã·½·¨Ò»°ãÓÃÓÚÏÂÔØÍ¼Æ¬»òÎÄ¼ş¡£
+ * å‘æœåŠ¡å™¨å‘é€ä¸€ä¸ªGETè¯·æ±‚ã€‚å½“è·å–åˆ°æœåŠ¡å™¨è¿”å›æ•°æ®åï¼Œè°ƒç”¨PCS_HTTP_OPTION_HTTP_WRITE_FUNCTIONä¼ å…¥çš„å‡½æ•°æ¥å†™å…¥å†…å®¹ã€‚
+ *   url             æœåŠ¡å™¨åœ°å€
+ *   follow_location å‡å¦‚æœåŠ¡å™¨è¿”å›è·³è½¬åˆ°å¦ä¸€ä¸ªé¡µé¢çš„æŒ‡ä»¤æ—¶ï¼Œæ˜¯å¦è‡ªåŠ¨è·³è½¬è¿‡å»ï¼Œå¦‚æœè·³è½¬çš„è¯ï¼Œåˆ™è¿”å›è·³è½¬åé¡µé¢çš„å†…å®¹
+ * è¿”å›æ˜¯å¦ä¸‹è½½æˆåŠŸã€‚å†…å®¹ä¸ä¼šæ‰§è¡Œè§£ç æ“ä½œã€‚è¯¥æ–¹æ³•ä¸€èˆ¬ç”¨äºä¸‹è½½å›¾ç‰‡æˆ–æ–‡ä»¶ã€‚
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
 PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location);
 
 /*
- * ÏòPcsHttpForm¶ÔÏóÖĞÌí¼ÓÒ»¸ö±¾µØÎÄ¼ş¡£
- *   post        ÎÄ¼ş½«Ìí¼Óµ½¸ÃPcsHttpForm¶ÔÏóÖĞ¡£
- *   param_name  ·¢ËÍ¸ø·şÎñÆ÷µÄ´ú±í¸ÃÎÄ¼şÄÚÈİµÄ²ÎÊıÃû×Ö¡£
- *   filename    ¸ÃÎÄ¼şµÄ±¾µØÎÄ¼şÃû£¬PcsHttpForm½«´Ó¸ÃÂ·¾¶¶ÁÈ¡ÎÄ¼şÄÚÈİ
- *   simulate_filename ·¢ËÍµ½·şÎñÆ÷µÄÎÄ¼şÃû¡£¿ÉÒÔÖ¸¶¨²»Í¬ÓÚfilenameµÄÃû×Ö£¬·şÎñÆ÷ÊÕµ½µÄ±¾µØÎÄ¼şÃû½«ÊÇsimulate_filename¶ø²»ÊÇfilename
- * Àı£º pcs_http_form_addfile(pcs->http, &form, "file", local_filename, "sample.dat"); //²ÎÊıÃûÊÇ "file"£¬ÎÄ¼şÄÚÈİ´æ´¢ÔÚlocal_filenameÖ¸¶¨µÄÎÄ¼şÖĞ£¬·şÎñÆ÷½ÓÊÕµ½µÄÎÄ¼şÃû×ÖÊÇ"sample.dat"
- * Ìí¼Ó³É¹¦ºó£¬·µ»ØPcsTrue£¬·ñÔò·µ»ØPcsFalse¡£
+ * å‘PcsHttpFormå¯¹è±¡ä¸­æ·»åŠ ä¸€ä¸ªæœ¬åœ°æ–‡ä»¶ã€‚
+ *   post        æ–‡ä»¶å°†æ·»åŠ åˆ°è¯¥PcsHttpFormå¯¹è±¡ä¸­ã€‚
+ *   param_name  å‘é€ç»™æœåŠ¡å™¨çš„ä»£è¡¨è¯¥æ–‡ä»¶å†…å®¹çš„å‚æ•°åå­—ã€‚
+ *   filename    è¯¥æ–‡ä»¶çš„æœ¬åœ°æ–‡ä»¶åï¼ŒPcsHttpFormå°†ä»è¯¥è·¯å¾„è¯»å–æ–‡ä»¶å†…å®¹
+ *   simulate_filename å‘é€åˆ°æœåŠ¡å™¨çš„æ–‡ä»¶åã€‚å¯ä»¥æŒ‡å®šä¸åŒäºfilenameçš„åå­—ï¼ŒæœåŠ¡å™¨æ”¶åˆ°çš„æœ¬åœ°æ–‡ä»¶åå°†æ˜¯simulate_filenameè€Œä¸æ˜¯filename
+ * ä¾‹ï¼š pcs_http_form_addfile(pcs->http, &form, "file", local_filename, "sample.dat"); //å‚æ•°åæ˜¯ "file"ï¼Œæ–‡ä»¶å†…å®¹å­˜å‚¨åœ¨local_filenameæŒ‡å®šçš„æ–‡ä»¶ä¸­ï¼ŒæœåŠ¡å™¨æ¥æ”¶åˆ°çš„æ–‡ä»¶åå­—æ˜¯"sample.dat"
+ * æ·»åŠ æˆåŠŸåï¼Œè¿”å›PcsTrueï¼Œå¦åˆ™è¿”å›PcsFalseã€‚
 */
 PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, 
 									  const char *filename, const char *simulate_filename);
 /*
-* ÏòPcsHttpForm¶ÔÏóÖĞÌí¼ÓÒ»¸öÄÚ´æÎÄ¼ş¡£³ÌĞò½«µ÷ÓÃ
-*   post        ÎÄ¼ş½«Ìí¼Óµ½¸ÃPcsHttpForm¶ÔÏóÖĞ¡£
-*   param_name  ·¢ËÍ¸ø·şÎñÆ÷µÄ´ú±í¸ÃÎÄ¼şÄÚÈİµÄ²ÎÊıÃû×Ö¡£
-*   simulate_filename ·¢ËÍµ½·şÎñÆ÷µÄÎÄ¼şÃû¡£¿ÉÒÔÖ¸¶¨²»Í¬ÓÚfilenameµÄÃû×Ö£¬·şÎñÆ÷ÊÕµ½µÄ±¾µØÎÄ¼şÃû½«ÊÇsimulate_filename¶ø²»ÊÇfilename
-*   read_func  ÓÃÓÚ¶ÁÈ¡ÄÚ´æÎÄ¼şµÄº¯Êı¡£
+* å‘PcsHttpFormå¯¹è±¡ä¸­æ·»åŠ ä¸€ä¸ªå†…å­˜æ–‡ä»¶ã€‚ç¨‹åºå°†è°ƒç”¨
+*   post        æ–‡ä»¶å°†æ·»åŠ åˆ°è¯¥PcsHttpFormå¯¹è±¡ä¸­ã€‚
+*   param_name  å‘é€ç»™æœåŠ¡å™¨çš„ä»£è¡¨è¯¥æ–‡ä»¶å†…å®¹çš„å‚æ•°åå­—ã€‚
+*   simulate_filename å‘é€åˆ°æœåŠ¡å™¨çš„æ–‡ä»¶åã€‚å¯ä»¥æŒ‡å®šä¸åŒäºfilenameçš„åå­—ï¼ŒæœåŠ¡å™¨æ”¶åˆ°çš„æœ¬åœ°æ–‡ä»¶åå°†æ˜¯simulate_filenameè€Œä¸æ˜¯filename
+*   read_func  ç”¨äºè¯»å–å†…å­˜æ–‡ä»¶çš„å‡½æ•°ã€‚
 *               The data area pointed at by the pointer ptr may be filled with at most size multiplied with nmemb number of bytes. 
 *               Your function must return the actual number of bytes that you stored in that memory area. Returning 0 will signal 
 *               end-of-file to the library and cause it to stop the current transfer.
-*   userdata    ´«µİµ½read_funcº¯ÊıµÚ4¸ö²ÎÊıµÄÖµ
-*   content_size ÆÚÍû´«µİµ½·şÎñÆ÷µÄÄÚÈİ³¤¶È¡£½«»áÌí¼Óµ½HTTPÍ·ÖĞ¡£
-* Ìí¼Ó³É¹¦ºó£¬·µ»ØPcsTrue£¬·ñÔò·µ»ØPcsFalse¡£
+*   userdata    ä¼ é€’åˆ°read_funcå‡½æ•°ç¬¬4ä¸ªå‚æ•°çš„å€¼
+*   content_size æœŸæœ›ä¼ é€’åˆ°æœåŠ¡å™¨çš„å†…å®¹é•¿åº¦ã€‚å°†ä¼šæ·»åŠ åˆ°HTTPå¤´ä¸­ã€‚
+* æ·»åŠ æˆåŠŸåï¼Œè¿”å›PcsTrueï¼Œå¦åˆ™è¿”å›PcsFalseã€‚
 */
 PCS_API PcsBool pcs_http_form_addbufferfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, const char *simulate_filename,
 	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata), void *userdata, size_t content_size);
 
-/* Í¬pcs_http_form_addfile£¬Ö»²»¹ıÊÇ´ÓÄÚ´æÖĞ¶ÁÈ¡ÎÄ¼şÄÚÈİ¡£ */
+/* åŒpcs_http_form_addfileï¼Œåªä¸è¿‡æ˜¯ä»å†…å­˜ä¸­è¯»å–æ–‡ä»¶å†…å®¹ã€‚ */
 PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const char *param_name,
 										const char *buffer, long buffer_size, const char *simulate_filename);
-/*ÊÍ·ÅµôPcsHttpForm×ÊÔ´*/
+/*é‡Šæ”¾æ‰PcsHttpFormèµ„æº*/
 PCS_API void pcs_http_form_destroy(PcsHttp handle, PcsHttpForm post);
 
 /*
- * Ïò·şÎñÆ÷·¢ËÍÒ»¸öPOSTÇëÇó¡£¸Ã·½·¨¿ÉÒÔÉÏ´«ÎÄ¼şµ½·şÎñÆ÷¡£
- *   url             ·şÎñÆ÷µØÖ·
- *   data            ·¢ËÍµ½·şÎñÆ÷µÄÊı¾İ¡£
- *   follow_location ¼ÙÈç·şÎñÆ÷·µ»ØÌø×ªµ½ÁíÒ»¸öÒ³ÃæµÄÖ¸ÁîÊ±£¬ÊÇ·ñ×Ô¶¯Ìø×ª¹ıÈ¥£¬Èç¹ûÌø×ªµÄ»°£¬Ôò·µ»ØÌø×ªºóÒ³ÃæµÄÄÚÈİ
- * ·µ»Ø·şÎñÆ÷·µ»ØµÄÄÚÈİ¡£ÄÚÈİ×Ô¶¯½âÂëÎªµ±Ç°²Ù×÷ÏµÍ³Ê¹ÓÃµÄ±àÂë¡£
- * ÀıÈç£ºÔÚWindowsÏµÍ³ÖĞ£¬Èç¹ûÏµÍ³±àÂëÎªGB2312£¬Ôò·µ»ØÄÚÈİ×Ô¶¯½âÂëÎªGB2312±àÂë£»ÔÚLinuxÏµÍ³ÖĞ£¬ÏµÍ³±àÂëÎªUTF-8£¬Ôò·µ»ØÄÚÈİµÄ±àÂëÔòÎªUTF-8
+ * å‘æœåŠ¡å™¨å‘é€ä¸€ä¸ªPOSTè¯·æ±‚ã€‚è¯¥æ–¹æ³•å¯ä»¥ä¸Šä¼ æ–‡ä»¶åˆ°æœåŠ¡å™¨ã€‚
+ *   url             æœåŠ¡å™¨åœ°å€
+ *   data            å‘é€åˆ°æœåŠ¡å™¨çš„æ•°æ®ã€‚
+ *   follow_location å‡å¦‚æœåŠ¡å™¨è¿”å›è·³è½¬åˆ°å¦ä¸€ä¸ªé¡µé¢çš„æŒ‡ä»¤æ—¶ï¼Œæ˜¯å¦è‡ªåŠ¨è·³è½¬è¿‡å»ï¼Œå¦‚æœè·³è½¬çš„è¯ï¼Œåˆ™è¿”å›è·³è½¬åé¡µé¢çš„å†…å®¹
+ * è¿”å›æœåŠ¡å™¨è¿”å›çš„å†…å®¹ã€‚å†…å®¹è‡ªåŠ¨è§£ç ä¸ºå½“å‰æ“ä½œç³»ç»Ÿä½¿ç”¨çš„ç¼–ç ã€‚
+ * ä¾‹å¦‚ï¼šåœ¨Windowsç³»ç»Ÿä¸­ï¼Œå¦‚æœç³»ç»Ÿç¼–ç ä¸ºGB2312ï¼Œåˆ™è¿”å›å†…å®¹è‡ªåŠ¨è§£ç ä¸ºGB2312ç¼–ç ï¼›åœ¨Linuxç³»ç»Ÿä¸­ï¼Œç³»ç»Ÿç¼–ç ä¸ºUTF-8ï¼Œåˆ™è¿”å›å†…å®¹çš„ç¼–ç åˆ™ä¸ºUTF-8
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
 PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm data, PcsBool follow_location);
 
-/*ÒÔ×Ö·û´®ĞÎÊ½·µ»ØËùÓĞCookieÊı¾İ¡£*/
+/*ä»¥å­—ç¬¦ä¸²å½¢å¼è¿”å›æ‰€æœ‰Cookieæ•°æ®ã€‚*/
 PCS_API char *pcs_http_cookie_data(PcsHttp handle);
 
 PCS_API const char *pcs_http_rawdata(PcsHttp handle, int *size, const char **encode);

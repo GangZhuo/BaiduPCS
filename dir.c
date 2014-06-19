@@ -1,4 +1,4 @@
-#ifdef WIN32
+ï»¿#ifdef WIN32
 # include <stdio.h>
 # include <stdlib.h>
 # include <io.h>
@@ -83,9 +83,9 @@ static char *path_dup(const char *path, const char **pName)
 	strcpy(result, path);
 	p = result;
 	p += len - 1;
-	if (*p == '/' || *p == '\\') *p = '\0'; //Èç¹û×îºóÒ»¸ö×Ö·ûÊÇ'/'»òÕß'\\'µÄ»°£¬ÔòÇåµô
+	if (*p == '/' || *p == '\\') *p = '\0'; //å¦‚æœæœ€åä¸€ä¸ªå­—ç¬¦æ˜¯'/'æˆ–è€…'\\'çš„è¯ï¼Œåˆ™æ¸…æ‰
 	if (pName) {
-		while (p > result && *p != '/' && *p != '\\') p--; /*ÕÒµ½µÚÒ»¸ö'/'»ò'\\'µÄµØ·½£¬ÓÃÓÚÉè¶¨pNameÖµ*/
+		while (p > result && *p != '/' && *p != '\\') p--; /*æ‰¾åˆ°ç¬¬ä¸€ä¸ª'/'æˆ–'\\'çš„åœ°æ–¹ï¼Œç”¨äºè®¾å®špNameå€¼*/
 		if (*p == '/' || *p == '\\') {
 			p++;
 			(*pName) = p;
@@ -95,7 +95,7 @@ static char *path_dup(const char *path, const char **pName)
 		}
 	}
 #ifdef WIN32
-	while (p >= result) { if (*p == '/') *p = '\\'; p--; } /*¼ÌĞøĞŞÕıĞ±¸Ü*/
+	while (p >= result) { if (*p == '/') *p = '\\'; p--; } /*ç»§ç»­ä¿®æ­£æ–œæ */
 #else
 	while (p >= result) { if (*p == '\\') *p = '/'; p--; }
 #endif
@@ -162,17 +162,17 @@ LocalFileInfo *GetLocalFileInfo(const char *file)
 	HANDLE hFind = FindFirstFile(file, &fd);
 	FindClose(hFind);
 	if (hFind != INVALID_HANDLE_VALUE) {
-		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) /*ÎªÄ¿Â¼*/
+		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) /*ä¸ºç›®å½•*/
 			info = CreateLocalFileInfo(file, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL), 0, NULL);
-		else /*ÎªÎÄ¼ş*/
+		else /*ä¸ºæ–‡ä»¶*/
 			info = CreateLocalFileInfo(file, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL), fd.nFileSizeLow, NULL);
 	}
 #else
 	struct stat st;
 	stat(file, &st);
-	if (S_ISDIR(st.st_mode)) /*ÎªÄ¿Â¼*/
+	if (S_ISDIR(st.st_mode)) /*ä¸ºç›®å½•*/
 		info = CreateLocalFileInfo(file, NULL, 1, st.st_mtime, 0, NULL);
-	else if (S_ISREG(st.st_mode)) /*ÎªÎÄ¼ş*/
+	else if (S_ISREG(st.st_mode)) /*ä¸ºæ–‡ä»¶*/
 		info = CreateLocalFileInfo(file, NULL, 0, st.st_mtime, st.st_size, NULL);
 #endif
 	return info;
@@ -333,9 +333,9 @@ int SetFileLastModifyTime(const char *file, time_t mtime)
 
 
 /*
-* µİ¹é´´½¨Ä¿Â¼
-*    path - ´ı´´½¨µÄÄ¿Â¼
-* Èç¹û³É¹¦Ôò·µ»Ø0£¬·ñÔò·µ»Ø´íÎóÂë¡£
+* é€’å½’åˆ›å»ºç›®å½•
+*    path - å¾…åˆ›å»ºçš„ç›®å½•
+* å¦‚æœæˆåŠŸåˆ™è¿”å›0ï¼Œå¦åˆ™è¿”å›é”™è¯¯ç ã€‚
 *
 */
 int CreateDirectoryRecursive(const char *path)
