@@ -9,7 +9,7 @@
 #include "pcs_utils.h"
 #include "pcs_http.h"
 
-#define USAGE "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36"
+#define USAGE "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36"
 
 #define PCS_SKIP_SPACE(p) while((*p) && (*p == ' ' || *p == '\f' || *p == '\n' || *p == '\r' || *p == '\t' || *p == '\v')) p++
 
@@ -26,6 +26,7 @@
 
 struct pcs_http {
 	char			*strerror;
+	char			*usage;
 
 	CURL			*curl;
 	int				res_type;
@@ -87,6 +88,7 @@ static inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod metho
 							 PcsHttpWriteFunction write_func, void *state)
 {
 	pcs_http_reset_response(http);
+	curl_easy_setopt(http->curl, CURLOPT_USERAGENT, http->usage ? http->usage : USAGE);
 	curl_easy_setopt(http->curl, CURLOPT_URL, url);
 	switch(method)
 	{
@@ -405,6 +407,11 @@ static inline char *pcs_http_perform(struct pcs_http *http)
 		http->strerror = pcs_utils_sprintf("%d %s", httpcode, http->res_body);
 		return NULL;
 	}
+	{
+		FILE *pf = fopen("d:\\a.txt", "wb");
+		fwrite(http->res_body, 1, http->res_body_size, pf);
+		fclose(pf);
+	}
 	if (http->response_func)
 		(*http->response_func)((unsigned char *)http->res_body, (size_t)http->res_body_size, http->response_data);
 	return http->res_body;
@@ -450,6 +457,8 @@ PCS_API void pcs_http_destroy(PcsHttp handle)
 		pcs_free(http->res_encode);
 	if (http->strerror)
 		pcs_free(http->strerror);
+	if (http->usage)
+		pcs_free(http->usage);
 	pcs_free(http);
 }
 
@@ -494,6 +503,10 @@ PCS_API void pcs_http_setopt(PcsHttp handle, PcsHttpOption opt, void *value)
 		break;
 	case PCS_HTTP_OPTION_PROGRESS:
 		http->progress = (unsigned char)((unsigned long)value);
+		break;
+	case PCS_HTTP_OPTION_USAGE:
+		if (http->usage) pcs_free(http->usage);
+		http->usage = value ? pcs_utils_strdup((char *)value) : NULL;
 		break;
 	default:
 		break;

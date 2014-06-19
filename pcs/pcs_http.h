@@ -62,6 +62,8 @@ typedef enum PcsHttpOption {
 	PCS_HTTP_OPTION_PROGRESS_FUNCTION_DATE,
 	/* 设置是否启用下载或上传进度，值为unsigned char类型指针 */
 	PCS_HTTP_OPTION_PROGRESS,
+	/* 设置USAGE，值为char类型指针 */
+	PCS_HTTP_OPTION_USAGE,
 
 
 } PcsHttpOption;

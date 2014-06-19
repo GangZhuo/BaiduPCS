@@ -9,7 +9,7 @@
 #include "pcs_slist.h"
 #include "pcs_utils.h"
 
-#define PCS_API_VERSION "v1.0.5"
+#define PCS_API_VERSION "v1.0.6"
 
 #define PCS_SECURE_NONE				((int)0)
 #define PCS_SECURE_PLAINTEXT		((int)1)
@@ -49,6 +49,8 @@ typedef enum PcsOption {
 	PCS_OPTION_SECURE_KEY,
 	/*禁用或启用安全，值为PcsBool类型。设置为PcsTrue时，启用PCS_OPTION_SECURE_METHOD和PCS_OPTION_SECURE_KEY选项；设置为PcsFalse时，禁用PCS_OPTION_SECURE_METHOD和PCS_OPTION_SECURE_KEY选项*/
 	PCS_OPTION_SECURE_ENABLE,
+	/* 设置USAGE，值为char类型指针 */
+	PCS_OPTION_USAGE,
 
 
 } PcsOption;
