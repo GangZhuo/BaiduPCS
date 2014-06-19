@@ -1048,7 +1048,7 @@ static void usage_synch(ShellContext *context)
 	printf("\nUsage: %s synch [-redu] <local path> <net disk path>\n", context->name);
 	printf("\nDescription:\n");
 	printf("  Synch between local and net disk. You can 'compare' first. \n"
-		   "  Default options is '-cdu'. \n");
+		   "  Default options is '-cu'. \n");
 	printf("\nOptions:\n");
 	printf("  -c    Print the files that confuse, which is don't know how to do.\n");
 	printf("  -d    Synch the new files from the net disk. \n"
@@ -3090,7 +3090,7 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 		return 0;
 	}
 
-	if (meta->remote_isdir) { /*跳过目录*/
+	if (meta->local_isdir) { /*跳过目录*/
 		meta->op_st = OP_ST_SUCC;
 		return 0;
 	}
@@ -3149,6 +3149,13 @@ static int synchOnPrepare(MyMeta *meta, struct RBEnumerateState *s, void *state)
 
 static void synchOnRBEnumStatePrepared(ShellContext *context, compare_arg *arg, rb_red_blk_tree *rb, struct RBEnumerateState *state, void *st)
 {
+	state->print_op &= OP_NONE;
+	if (!arg->print_eq && !arg->print_left && !arg->print_right && !arg->print_confuse)
+		state->print_op = OP_RIGHT | OP_CONFUSE;
+	if (arg->print_eq) state->print_op |= OP_EQ;
+	if (arg->print_left) state->print_op |= OP_LEFT;
+	if (arg->print_right) state->print_op |= OP_RIGHT;
+	if (arg->print_confuse) state->print_op |= OP_CONFUSE;
 	state->page_size = 0;
 	state->page_index = 0;
 	state->first = 6;
