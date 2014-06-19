@@ -1555,6 +1555,9 @@ PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value)
 	case PCS_OPTION_SECURE_ENABLE:
 		pcs->secure_enable = (PcsBool)((long)value);
 		break;
+	case PCS_OPTION_USAGE:
+		pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_USAGE, value);
+		break;
 	default:
 		pcs_set_errmsg(handle, "Unknown option");
 		res = PCS_UNKNOWN_OPT;
@@ -1593,13 +1596,19 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	}
 	
 	if (pcs->bdstoken) pcs_free(pcs->bdstoken);
-	pcs->bdstoken = pcs_get_value_by_key(html, "FileUtils.bdstoken");
+	pcs->bdstoken = pcs_get_value_by_key(html, "yunData.MYBDSTOKEN");
+	if (!pcs->bdstoken || strlen(pcs->bdstoken) == 0) {
+		pcs->bdstoken = pcs_get_value_by_key(html, "FileUtils.bdstoken");
+	}
 	if (pcs->bdstoken != NULL && strlen(pcs->bdstoken) > 0) {
 		//printf("bdstoken: %s\n", pcs->bdstoken);
 		if (pcs->bduss) pcs_free(pcs->bduss);
 		pcs->bduss = pcs_http_get_cookie(pcs->http, "BDUSS");
 		if (pcs->sysUID) pcs_free(pcs->sysUID);
-		pcs->sysUID = pcs_get_value_by_key(html, "FileUtils.sysUID");
+		pcs->sysUID = pcs_get_value_by_key(html, "yunData.MYNAME");
+		if (!pcs->sysUID || strlen(pcs->sysUID) == 0) {
+			pcs->sysUID = pcs_get_value_by_key(html, "FileUtils.sysUID");
+		}
 		return PCS_LOGIN;
 	}
 	return PCS_NOT_LOGIN;
@@ -1753,10 +1762,17 @@ try_login:
 			pcs_free(code_string);
 			return PCS_FAIL;
 		}
+		pcs_set_errmsg(handle, "error: %d. Maybe because wrong captcha");
 	}
-	if (i < 1 && code_string[0]) {
+	if (i < 3 && code_string[0]) {
 		i++;
 		goto try_login;
+	}
+	if (i == 3) {
+		pcs_cat_errmsg(handle, " retry %d times", i);
+	}
+	else {
+		pcs_set_errmsg(handle, "Can't get code_string");
 	}
 	pcs_free(token);
 	pcs_free(code_string);
