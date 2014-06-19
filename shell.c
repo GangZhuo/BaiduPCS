@@ -106,10 +106,11 @@ struct RBEnumerateState
 	/*在打印meta前调用一次*/
 	int (*preMeta)(MyMeta *meta, struct RBEnumerateState *s, void *state);
 	void *preMetaState;
+
+	int dry_run;
 };
 
 static PcsBool is_login(ShellContext *context, const char *msg);
-
 
 #pragma region 获取默认路径
 
@@ -1027,7 +1028,7 @@ static void usage_synch(ShellContext *context)
 	printf("\nUsage: %s synch [-redu] <local path> <net disk path>\n", context->name);
 	printf("\nDescription:\n");
 	printf("  Synch between local and net disk. You can 'compare' first. \n"
-		   "  Default options is '-du'. \n");
+		   "  Default options is '-cdu'. \n");
 	printf("\nOptions:\n");
 	printf("  -c    Print the files that confuse, which is don't know how to do.\n");
 	printf("  -d    Synch the new files from the net disk. \n"
@@ -1035,6 +1036,7 @@ static void usage_synch(ShellContext *context)
 		   "        You can use 'compare -dr <local dir> <disk dir>' to view \n"
 		   "        how many and which files will download.\n");
 	printf("  -e    Print the files that is same between local and net disk.\n");
+	printf("  -n    Dry run.\n");
 	printf("  -r    Recursive synch the sub directories.\n");
 	printf("  -u    Synch the new files to the net disk.\n \n"
 		   "        This option will upload new files from the net disk.\n"
@@ -1737,6 +1739,7 @@ struct compare_arg
 	int			print_left;		/*是否打印需下载的文件*/
 	int			print_right;	/*是否打印需上传的文件*/
 	int			print_confuse;	/*是否打印无法确定是下载还是上传的文件*/
+	int			dry_run;		/*用于演示，不执行任何上传和下载操作*/
 
 	const char	*local_file;	/*本地路径*/
 	const char	*remote_file;	/*远端路径*/
@@ -1773,6 +1776,10 @@ static int parse_compare_args(int argc, char *argv[], compare_arg *arg)
 				case 'e':
 					if (arg->print_eq) return -1;
 					arg->print_eq = 1;
+					break;
+				case 'n':
+					if (arg->dry_run) return -1;
+					arg->dry_run = 1;
 					break;
 				case 'r':
 					if (arg->recursive) return -1;
@@ -1940,10 +1947,12 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 	if (arg->print_right) state.print_op |= OP_RIGHT;
 	if (arg->print_confuse) state.print_op |= OP_CONFUSE;
 	state.print_flag = FLAG_ON_LOCAL | FLAG_ON_REMOTE;
+	state.no_print_flag = FLAG_PARENT_NOT_ON_REMOTE;
 	state.tree = rb;
 	state.context = context;
 	state.page_size = context->list_page_size;
 	state.page_index = 1;
+	state.dry_run = arg->dry_run;
 	if (arg->onRBEnumerateStatePrepared)
 		(*arg->onRBEnumerateStatePrepared)(context, arg, rb, &state, st);
 	rb->enumerateInfoState = &state;
@@ -2858,18 +2867,8 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 
 #pragma region synch
 
-static int synchOnComparedFile(ShellContext *context, compare_arg *arg, MyMeta *mm, void *state)
-{
-	int first, second, other;
-	first = 0; second = strlen(mm->path); other = 13;
-	if (second < 10) second = 10;
-	print_meta_list_head(first, second, other, 0);
-	print_meta_list_row(first, second, other, mm);
-	print_meta_list_foot(first, second, other);
-	return 0;
-}
-
-static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
+static inline int synchDoDownload(ShellContext *context, MyMeta *meta, 
+	const char *local_basedir, const char *remote_basedir)
 {
 	PcsRes res;
 	struct DownloadState ds = { 0 };
@@ -2880,13 +2879,14 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 		return 0;
 	}
 
-	local_path = combin_path(s->local_basedir, -1, meta->path);
+	local_path = combin_path(local_basedir, -1, meta->path);
 
 	/*创建目录*/
 	dir = base_dir(local_path, -1);
 	if (dir) {
 		if (CreateDirectoryRecursive(dir) != MKDIR_OK) {
-			meta->msg = pcs_utils_strdup("Can't create the directory.");
+			if (meta->msg) pcs_free(meta->msg);
+			meta->msg = pcs_utils_strdup("Error: Can't create the directory.");
 			meta->op_st = OP_ST_FAIL;
 			pcs_free(dir);
 			return -1;
@@ -2897,23 +2897,25 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 	/*打开文件*/
 	ds.pf = fopen(local_path, "wb");
 	if (!ds.pf) {
-		meta->msg = pcs_utils_sprintf("Can't open the local file: %s\n", local_path);;
+		if (meta->msg) pcs_free(meta->msg);
+		meta->msg = pcs_utils_sprintf("Error: Can't open the local file: %s\n", local_path);;
 		meta->op_st = OP_ST_FAIL;
 		pcs_free(local_path);
 		return -1;
 	}
 
-	remote_path = combin_unix_path(s->remote_basedir, meta->path);
+	remote_path = combin_unix_path(remote_basedir, meta->path);
 
 	/*启动下载*/
-	pcs_setopts(s->context->pcs,
+	pcs_setopts(context->pcs,
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
 		PCS_OPTION_END);
-	res = pcs_download(s->context->pcs, remote_path);
+	res = pcs_download(context->pcs, remote_path);
 	fclose(ds.pf);
 	if (res != PCS_OK) {
-		meta->msg = pcs_utils_strdup(pcs_strerror(s->context->pcs));;
+		if (meta->msg) pcs_free(meta->msg);
+		meta->msg = pcs_utils_sprintf("Error: %s\n", pcs_strerror(context->pcs));;
 		meta->op_st = OP_ST_FAIL;
 		pcs_free(local_path);
 		pcs_free(remote_path);
@@ -2928,9 +2930,59 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 	return 0;
 }
 
+static inline int synchDoUpload(ShellContext *context, MyMeta *meta,
+	const char *local_basedir, const char *remote_basedir)
+{
+	PcsFileInfo *res = NULL;
+	char *local_path, *remote_path;
+
+	if (meta->remote_isdir) { /*跳过目录*/
+		meta->op_st = OP_ST_SUCC;
+		return 0;
+	}
+
+	local_path = combin_path(local_basedir, -1, meta->path);
+	remote_path = combin_unix_path(remote_basedir, meta->path);
+	pcs_setopts(context->pcs,
+		PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
+		PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
+		PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
+		PCS_OPTION_END);
+	res = pcs_upload(context->pcs, remote_path, PcsTrue, local_path);
+	if (!res || !res->path || !res->path[0]) {
+		if (meta->msg) pcs_free(meta->msg);
+		meta->msg = pcs_utils_sprintf("Error: %s\n", pcs_strerror(context->pcs));;
+		meta->op_st = OP_ST_FAIL;
+		if (res) pcs_fileinfo_destroy(res);
+		pcs_free(local_path);
+		pcs_free(remote_path);
+		return -1;
+	}
+	meta->op_st = OP_ST_SUCC;
+	if (res) pcs_fileinfo_destroy(res);
+	pcs_free(local_path);
+	pcs_free(remote_path);
+	return 0;
+}
+
+static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
+{
+	if (s->dry_run) { /*演示操作，模拟成功*/
+		meta->op_st = OP_ST_SUCC;
+		return 0;
+	}
+
+	return synchDoDownload(s->context, meta, s->local_basedir, s->remote_basedir);
+}
+
 static int synchUpload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 {
-	return 0;
+	if (s->dry_run) { /*演示操作，模拟成功*/
+		meta->op_st = OP_ST_SUCC;
+		return 0;
+	}
+
+	return synchDoUpload(s->context, meta, s->local_basedir, s->remote_basedir);
 }
 
 static int synchOnPrepare(MyMeta *meta, struct RBEnumerateState *s, void *state)
@@ -2945,32 +2997,7 @@ static int synchOnPrepare(MyMeta *meta, struct RBEnumerateState *s, void *state)
 		break;
 	}
 	case OP_RIGHT: {
-		//PcsFileInfo *res = NULL;
-		//char *locPath;
-		//if (meta->server_isdir) { /*跳过目录*/
-		//	meta->op_st = OP_ST_SUCC;
-		//	break;
-		//}
-		//locPath = combin_path(s->basedir, -1, meta->path);
-		//if (!locPath) {
-		//	meta->msg = pcs_utils_strdup("Can't build the path.");
-		//	meta->op_st = OP_ST_FAIL;
-		//	break;
-		//}
-		//pcs_setopts(s->context->pcs,
-		//	PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
-		//	PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
-		//	PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
-		//	PCS_OPTION_END);
-		//res = pcs_upload(s->context->pcs, meta->path, PcsTrue, locPath);
-		//if (!res || !res->path || !res->path[0]) {
-		//	printf("Error: %s\n", pcs_strerror(context->pcs));
-		//	mm->op_st = OP_ST_FAIL;
-		//}
-		//else {
-		//	mm->op_st = OP_ST_SUCC;
-		//}
-		//if (res) pcs_fileinfo_destroy(res);
+		synchUpload(meta, s, state);
 		break;
 	}
 	case OP_EQ:
@@ -2990,8 +3017,50 @@ static void synchOnRBEnumStatePrepared(ShellContext *context, compare_arg *arg, 
 {
 	state->page_size = 0;
 	state->page_index = 0;
+	state->first = 6;
 	state->preMeta = &synchOnPrepare;
 	state->preMetaState = NULL;
+	state->no_print_flag = 0;
+}
+
+static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void *state)
+{
+	int first, second, other;
+	if (meta->msg) {
+		pcs_free(meta->msg);
+		meta->msg = NULL;
+	}
+	switch (meta->op) {
+	case OP_LEFT: {
+		if (arg->dry_run)
+			meta->op_st = OP_ST_SUCC;
+		else
+			synchDoDownload(context, meta, arg->local_file, arg->remote_file);
+		break;
+	}
+	case OP_RIGHT: {
+		if (arg->dry_run)
+			meta->op_st = OP_ST_SUCC;
+		else
+			synchDoUpload(context, meta, arg->local_file, arg->remote_file);
+		break;
+	}
+	case OP_EQ:
+		meta->op_st = OP_ST_SKIP;
+		break;
+	case OP_CONFUSE:
+		meta->op_st = OP_ST_CONFUSE;
+		break;
+	default:
+		meta->op_st = OP_ST_NONE;
+		break;
+	}
+	first = 6; second = strlen(meta->path); other = 13;
+	if (second < 10) second = 10;
+	print_meta_list_head(first, second, other, 0);
+	print_meta_list_row(first, second, other, meta);
+	print_meta_list_foot(first, second, other);
+	return 0;
 }
 
 /*同步本地和网盘目录*/
@@ -3003,10 +3072,11 @@ static int cmd_synch(ShellContext *context, int argc, char *argv[])
 		usage_synch(context);
 		return 0;
 	}
+
 	arg.check_local_dir_exist = 0;
 	arg.onRBEnumerateStatePrepared = &synchOnRBEnumStatePrepared;
 
-	return compare(context, &arg, &synchOnComparedFile, NULL, &on_compared_dir, NULL);
+	return compare(context, &arg, &synchFile, NULL, &on_compared_dir, NULL);
 }
 
 #pragma endregion
