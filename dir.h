@@ -38,6 +38,7 @@ LocalFileInfo *GetLocalFileInfo(const char *file);
 
 /*
 * 获取dir目录下的所有文件或目录。
+*   pLink     - 用于接收链表的指针。
 *   dir       - 目标目录路径
 *   recursion - 是否递归列出
 *   on        - 当获取到一个对象后的回调函数
@@ -46,9 +47,9 @@ LocalFileInfo *GetLocalFileInfo(const char *file);
 *       parent - 当前获取到的文件的父目录
 *       state  - 状态值，有用户传入
 *   state     - 要传递到回调函数第三个参数的值
-* 成功后返回一个LocalFileInfo链表
+* 成功后返回文件和目录的数量，失败返回负数
 */
-LocalFileInfo *GetDirectoryFiles(const char *dir, int recursive, 
+int GetDirectoryFiles(LocalFileInfo **pLink, const char *dir, int recursive,
 	void(*on)(LocalFileInfo *info, LocalFileInfo *parent, void *state), void *state);
 
 /*设置文件的最后修改时间。

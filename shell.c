@@ -103,9 +103,9 @@ struct RBEnumerateState
 	const char	*local_basedir;
 	const char	*remote_basedir;
 
-	/*在打印meta前调用一次*/
-	int (*preMeta)(MyMeta *meta, struct RBEnumerateState *s, void *state);
-	void *preMetaState;
+	/*在打印meta后调用一次*/
+	int (*process)(MyMeta *meta, struct RBEnumerateState *s, void *state);
+	void *processState;
 
 	int dry_run;
 };
@@ -948,6 +948,8 @@ static void usage_quota(ShellContext *context)
 {
 	version(context);
 	printf("\nUsage: %s quota\n", context->name);
+	printf("\nOptions:\n");
+	printf("  -e    Print the exact size.\n");
 	printf("\nDescription:\n");
 	printf("  Print the quota\n");
 	printf("\nSamples:\n");
@@ -1387,16 +1389,18 @@ static void onGotLocalFile(LocalFileInfo *info, LocalFileInfo *parent, void *sta
 static rb_red_blk_tree *meta_load(const char *dir, int recursive)
 {
 	rb_red_blk_tree *rb = NULL;
-	LocalFileInfo *link;
+	LocalFileInfo *link = NULL;
+	int cnt = 0;
 
 	rb = RBTreeCreate(&rb_compare, &rb_destory_key, &rb_destory_info, &rb_print_key, &rb_print_info);
 
-	link = GetDirectoryFiles(dir, recursive, &onGotLocalFile, rb);
-	if (!link) {
+	cnt = GetDirectoryFiles(&link, dir, recursive, &onGotLocalFile, rb);
+	if (cnt < 0) {
 		RBTreeDestroy(rb);
 		return NULL;
 	}
-	DestroyLocalFileInfoLink(link);
+	if (link)
+		DestroyLocalFileInfoLink(link);
 	return rb;
 }
 
@@ -1499,10 +1503,10 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 		: (meta->op == OP_CONFUSE ? "><"
 		: "  "))));
 	if (meta->flag & FLAG_ON_REMOTE) {
-		printf("%s%s%s\n", meta->remote_path, meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
+		printf("%s%s%s", meta->remote_path, meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
 	}
 	else {
-		printf("%s%s\n", meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
+		printf("%s%s", meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
 	}
 }
 
@@ -1561,13 +1565,20 @@ static int rb_print_meta(void *a, void *state)
 		print_meta_list_head(s->first, s->second, s->other, s->page_index);
 	}
 
-	if (s->preMeta) {
-		int rc;
-		if ((rc = (*s->preMeta)(meta, s, s->preMetaState)))
-			return rc;
-	}
-
 	print_meta_list_row(s->first, s->second, s->other, meta);
+	
+	if (s->process) {
+		int rc;
+		if ((rc = (*s->process)(meta, s, s->processState))) {
+			return rc;
+		}
+		putchar('\r');
+		print_meta_list_row(s->first, s->second, s->other, meta);
+		if (meta->msg) {
+			printf(" %s", meta->msg);
+		}
+	}
+	putchar('\n');
 
 	s->printed_count++;
 
@@ -1643,7 +1654,7 @@ static int cmd_cat(ShellContext *context, int argc, char *argv[])
 	assert(path);
 	res = pcs_cat(context->pcs, path, &sz);
 	if (res == NULL) {
-		printf("Error: path=%s. %s\n", path, pcs_strerror(context->pcs));
+		printf("Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
 		pcs_free(path);
 		return -1;
 	}
@@ -1669,12 +1680,12 @@ static int cmd_cd(ShellContext *context, int argc, char *argv[])
 	p = combin_unix_path(context->workdir, argv[0]);
 	meta = pcs_meta(context->pcs, p);
 	if (!meta) {
-		printf("Can't get the meta for %s: %s\n", p, pcs_strerror(context->pcs));
+		printf("The target directory not exist, or have error: %s\n", pcs_strerror(context->pcs));
 		pcs_free(p);
 		return -1;
 	}
 	if (!meta->isdir) {
-		printf("The target (%s) is not directory\n", p);
+		printf("The target is not directory\n");
 		pcs_free(p);
 		pcs_fileinfo_destroy(meta);
 		return -1;
@@ -1709,14 +1720,14 @@ static int cmd_copy(ShellContext *context, int argc, char *argv[])
 
 	res = pcs_copy(context->pcs, &slist);
 	if (!res) {
-		printf("Error: src=%s, dst=%s. %s\n", slist.string1, slist.string2, pcs_strerror(context->pcs));
+		printf("Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
 		return -1;
 	}
 	info = res->info_list;
 	if (info->info.error) {
-		printf("Error: src=%s, dst=%s. \n", slist.string1, slist.string2);
+		printf("Error: unknow. src=%s, dst=%s. \n", slist.string1, slist.string2);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
@@ -1933,6 +1944,7 @@ static int on_compared_file(ShellContext *context, compare_arg *arg, MyMeta *mm,
 	if (second < 10) second = 10;
 	print_meta_list_head(first, second, other, 0);
 	print_meta_list_row(first, second, other, mm);
+	putchar('\n');
 	print_meta_list_foot(first, second, other);
 	return 0;
 }
@@ -1953,14 +1965,16 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 	state.page_size = context->list_page_size;
 	state.page_index = 1;
 	state.dry_run = arg->dry_run;
-	if (arg->onRBEnumerateStatePrepared)
-		(*arg->onRBEnumerateStatePrepared)(context, arg, rb, &state, st);
+	state.local_basedir = arg->local_file;
+	state.remote_basedir = arg->remote_file;
 	rb->enumerateInfoState = &state;
 	rb->EnumerateInfo = &rb_decide_op;
 	RBTreeEnumerateInfo(rb);
 	state.first = 0;
 	if (state.second < 10) state.second = 10;
 	state.other = 13;
+	if (arg->onRBEnumerateStatePrepared)
+		(*arg->onRBEnumerateStatePrepared)(context, arg, rb, &state, st);
 	rb->EnumerateInfo = &rb_print_meta;
 	RBTreeEnumerateInfo(rb);
 	if (state.printed_count == 0)
@@ -1983,7 +1997,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 	/*检查本地文件 - 开始*/
 	local = GetLocalFileInfo(arg->local_file);
 	if (!local) {
-		printf("Error: The local %s not exist.\n", arg->local_file);
+		printf("Error: The local file not exist.\n");
 		return -1;
 	}
 	/*检查本地文件 - 结束*/
@@ -2004,7 +2018,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 	/*获取网盘文件元数据*/
 	remote = pcs_meta(context->pcs, path);
 	if (!remote) {
-		printf("Error: Can't find the meta for %s: %s\n", path, pcs_strerror(context->pcs));
+		printf("Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
 		DestroyLocalFileInfo(local);
 		pcs_free(path);
 		return -1;
@@ -2049,7 +2063,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 		int rc;
 		rb = meta_load(arg->local_file, arg->recursive);
 		if (!rb) {
-			printf("Error: Can't list the directory. %s\n", arg->local_file);
+			printf("Error: Can't list the local directory.\n");
 			DestroyLocalFileInfo(local);
 			pcs_fileinfo_destroy(remote);
 			pcs_free(path);
@@ -2058,7 +2072,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 		skip = strlen(remote->path);
 		if (remote->path[skip - 1] != '/' && remote->path[skip - 1] != '\\') skip++;
 		if (combin_with_remote_dir_files(context, rb, remote->path, arg->recursive, skip, &total_cnt, arg->check_local_dir_exist)) {
-			printf("Error: Can't list the net disk directory. %s\n", remote->path);
+			printf("Error: Can't list the remote directory.\n");
 			RBTreeDestroy(rb);
 			DestroyLocalFileInfo(local);
 			pcs_fileinfo_destroy(remote);
@@ -2172,13 +2186,13 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 	/*检查本地文件 - 开始*/
 	local = GetLocalFileInfo(locPath);
 	if (local && local->isdir) {
-		printf("Error: The local %s exist, and it's a directory.\n", locPath);
+		printf("Error: The local file exist, but it's a directory.\n");
 		DestroyLocalFileInfo(local);
 		return -1;
 	}
 	else if (local && !local->isdir) {
 		if (!is_force) {
-			printf("Error: The local %s exist. You can specify '-f' to force override.\n", locPath);
+			printf("Error: The local file exist. You can specify '-f' to force override.\n", locPath);
 			DestroyLocalFileInfo(local);
 			return -1;
 		}
@@ -2207,13 +2221,13 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
 	if (!meta) {
-		printf("Error: Can't find the meta for %s\n", pcs_strerror(context->pcs));
+		printf("Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
 		fclose(ds.pf);
 		pcs_free(path);
 		return -1;
 	}
 	if (meta->isdir) {
-		printf("Error: The net disk file %s is directory.\n", path);
+		printf("Error: The remote file is directory. \nYou can use 'synch -cd' command to download the directory.\n");
 		fclose(ds.pf);
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
@@ -2250,6 +2264,7 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 	int i;
 	size_t sz;
 	PcsFileInfo *f;
+	PcsFileInfo *meta;
 	if (is_print_usage(argc, argv)) {
 		usage_echo(context);
 		return 0;
@@ -2289,13 +2304,25 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 	path = combin_unix_path(context->workdir, relPath);
 	assert(path);
 	sz = strlen(text);
+
+	/*检查网盘文件 - 开始*/
+	meta = pcs_meta(context->pcs, path);
+	if (meta && meta->isdir) {
+		printf("Error: The remote file is directory. \n");
+		pcs_fileinfo_destroy(meta);
+		pcs_free(path);
+		return -1;
+	}
+	pcs_fileinfo_destroy(meta);
+	/*检查网盘文件 - 结束*/
+
 	if (is_append) {
 		const char *org;
 		size_t len;
 		//获取文件的内容
 		org = pcs_cat(context->pcs, path, &len);
 		if (org == NULL) {
-			printf("Error: path=%s. %s\n", path, pcs_strerror(context->pcs));
+			printf("Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
 			pcs_free(path);
 			return -1;
 		}
@@ -2311,12 +2338,12 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 	}
 	f = pcs_upload_buffer(context->pcs, path, PcsTrue, t, sz);
 	if (!f) {
-		printf("Error: %s. The path is %s\n", pcs_strerror(context->pcs), path);
+		printf("Error: %s. \n", pcs_strerror(context->pcs), path);
 		pcs_free(path);
 		if (t != text) pcs_free(t);
 		return -1;
 	}
-	printf("Success. path is %s\n", path);
+	printf("Success. You can use '%s cat %s' to print the file content.\n", context->name, path);
 	pcs_fileinfo_destroy(f);
 	pcs_free(path);
 	if (t != text) pcs_free(t);
@@ -2418,7 +2445,8 @@ static int cmd_login(ShellContext *context, int argc, char *argv[])
 		return -1;
 	}
 	if (is_login(context, "")) {
-		printf("You have been logon, UID is %s. You can 'logout' and then relogin.\n", pcs_sysUID(context->pcs));
+		printf("You have been logon, you can use 'who' command to print the UID. \n"
+			"You can logout by 'logout' command and then relogin.\n");
 		return -1;
 	}
 	if (argc > 1) {
@@ -2458,7 +2486,10 @@ static int cmd_logout(ShellContext *context, int argc, char *argv[])
 		usage_logout(context);
 		return -1;
 	}
-	if (!is_login(context, NULL)) return -1;
+	if (!is_login(context, "")) {
+		printf("You are not login, you can use 'login' command to login.\n");
+		return -1;
+	}
 	pcsres = pcs_logout(context->pcs);
 	if (pcsres != PCS_OK) {
 		printf("Logout Fail: %s\n", pcs_strerror(context->pcs));
@@ -2489,7 +2520,7 @@ static int cmd_meta(ShellContext *context, int argc, char *argv[])
 	assert(path);
 	fi = pcs_meta(context->pcs, path);
 	if (!fi) {
-		printf("Error: %s\n", pcs_strerror(context->pcs));
+		printf("Error: The target not exist, or have error: %s\n", pcs_strerror(context->pcs));
 		if (path != context->workdir) pcs_free(path);
 		return -1;
 	}
@@ -2547,14 +2578,14 @@ static int cmd_move(ShellContext *context, int argc, char *argv[])
 
 	res = pcs_move(context->pcs, &slist);
 	if (!res) {
-		printf("Error: src=%s, dst=%s. %s\n", slist.string1, slist.string2, pcs_strerror(context->pcs));
+		printf("Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
 		return -1;
 	}
 	info = res->info_list;
 	if (info->info.error) {
-		printf("Error: src=%s, dst=%s. \n", slist.string1, slist.string2);
+		printf("Error: unknow src=%s, dst=%s. \n", slist.string1, slist.string2);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
@@ -2588,14 +2619,22 @@ static int cmd_quota(ShellContext *context, int argc, char *argv[])
 {
 	PcsRes pcsres;
 	size_t quota, used;
+	int is_exact = 0;
 	char str[32] = { 0 };
 	if (is_print_usage(argc, argv)) {
 		usage_quota(context);
 		return 0;
 	}
-	if (argc != 0){
+	if (argc != 0 && argc != 1){
 		usage_quota(context);
 		return -1;
+	}
+	if (argc == 1) {
+		if (strcmp(argv[0], "-e")) {
+			usage_quota(context);
+			return -1;
+		}
+		is_exact = 1;
 	}
 	if (!is_login(context, NULL)) return -1;
 	pcsres = pcs_quota(context->pcs, &quota, &used);
@@ -2603,14 +2642,18 @@ static int cmd_quota(ShellContext *context, int argc, char *argv[])
 		printf("Error: %s\n", pcs_strerror(context->pcs));
 		return -1;
 	}
-	//printf("%lluBytes", used);
-	//putchar('/');
-	//printf("%lluBytes  ", quota);
-	pcs_utils_readable_size((double)used, str, 30, NULL);
-	printf("%s", str);
-	putchar('/');
-	pcs_utils_readable_size((double)quota, str, 30, NULL);
-	printf("%s", str);
+	if (is_exact) {
+		printf("%llu Bytes", used);
+		putchar('/');
+		printf("%llu Bytes  ", quota);
+	}
+	else {
+		pcs_utils_readable_size((double)used, str, 30, NULL);
+		printf("%s", str);
+		putchar('/');
+		pcs_utils_readable_size((double)quota, str, 30, NULL);
+		printf("%s", str);
+	}
 	printf("\n");
 	return 0;
 }
@@ -2635,13 +2678,13 @@ static int cmd_remove(ShellContext *context, int argc, char *argv[])
 
 	res = pcs_delete(context->pcs, &slist);
 	if (!res) {
-		printf("Error: path=%s. %s\n", slist.string, pcs_strerror(context->pcs));
+		printf("Error: %s path=%s.\n", pcs_strerror(context->pcs), slist.string);
 		pcs_free(slist.string);
 		return -1;
 	}
 	info = res->info_list;
 	if (info->info.error) {
-		printf("Error: path=%s. \n", slist.string);
+		printf("Error: unknow path=%s. \n", slist.string);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string);
 		return -1;
@@ -2682,13 +2725,13 @@ static int cmd_rename(ShellContext *context, int argc, char *argv[])
 
 	res = pcs_rename(context->pcs, &slist);
 	if (!res) {
-		printf("Error: src=%s, dst=%s. %s\n", slist.string1, slist.string2, pcs_strerror(context->pcs));
+		printf("Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
 		pcs_free(slist.string1);
 		return -1;
 	}
 	info = res->info_list;
 	if (info->info.error) {
-		printf("Error: src=%s, dst=%s. \n", slist.string1, slist.string2);
+		printf("Error: unknow src=%s, dst=%s. \n", slist.string1, slist.string2);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string1);
 		return -1;
@@ -2889,6 +2932,7 @@ static inline int synchDoDownload(ShellContext *context, MyMeta *meta,
 			meta->msg = pcs_utils_strdup("Error: Can't create the directory.");
 			meta->op_st = OP_ST_FAIL;
 			pcs_free(dir);
+			pcs_free(local_path);
 			return -1;
 		}
 		pcs_free(dir);
@@ -2915,7 +2959,7 @@ static inline int synchDoDownload(ShellContext *context, MyMeta *meta,
 	fclose(ds.pf);
 	if (res != PCS_OK) {
 		if (meta->msg) pcs_free(meta->msg);
-		meta->msg = pcs_utils_sprintf("Error: %s\n", pcs_strerror(context->pcs));;
+		meta->msg = pcs_utils_sprintf("Error: %s. remote_path=%s\n", pcs_strerror(context->pcs), remote_path);;
 		meta->op_st = OP_ST_FAIL;
 		pcs_free(local_path);
 		pcs_free(remote_path);
@@ -3018,8 +3062,8 @@ static void synchOnRBEnumStatePrepared(ShellContext *context, compare_arg *arg, 
 	state->page_size = 0;
 	state->page_index = 0;
 	state->first = 6;
-	state->preMeta = &synchOnPrepare;
-	state->preMetaState = NULL;
+	state->process = &synchOnPrepare;
+	state->processState = NULL;
 	state->no_print_flag = 0;
 }
 
@@ -3059,6 +3103,7 @@ static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void
 	if (second < 10) second = 10;
 	print_meta_list_head(first, second, other, 0);
 	print_meta_list_row(first, second, other, meta);
+	putchar('\n');
 	print_meta_list_foot(first, second, other);
 	return 0;
 }
@@ -3139,11 +3184,11 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 	/*检查本地文件 - 开始*/
 	local = GetLocalFileInfo(locPath);
 	if (!local) {
-		printf("Error: The local %s not exist.\n", locPath);
+		printf("Error: The local file not exist.\n");
 		return -1;
 	}
 	else if (local->isdir) {
-		printf("Error: The local %s is directory.\n", locPath);
+		printf("Error: The local file is directory. \nYou can use 'synch -cu' command to upload the directory.\n", locPath);
 		DestroyLocalFileInfo(local);
 		return -1;
 	}
@@ -3164,13 +3209,13 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
 	if (meta && meta->isdir) {
-		printf("Error: The net disk file %s is directory.\n", path);
+		printf("Error: The remote file exist, and it is directory. \n");
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
 	}
 	else if (meta && !is_force){
-		printf("Error: The net disk file %s exist. You can specify '-f' to force override.\n", path);
+		printf("Error: The remote file exist. You can specify '-f' to force override.\n");
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;

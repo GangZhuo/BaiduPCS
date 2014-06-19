@@ -161,10 +161,12 @@ LocalFileInfo *GetLocalFileInfo(const char *file)
 	WIN32_FIND_DATA fd;
 	HANDLE hFind = FindFirstFile(file, &fd);
 	FindClose(hFind);
-	if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) /*为目录*/
-		info = CreateLocalFileInfo(file, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL), 0, NULL);
-	else /*为文件*/
-		info = CreateLocalFileInfo(file, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL), fd.nFileSizeLow, NULL);
+	if (hFind != INVALID_HANDLE_VALUE) {
+		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) /*为目录*/
+			info = CreateLocalFileInfo(file, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL), 0, NULL);
+		else /*为文件*/
+			info = CreateLocalFileInfo(file, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL), fd.nFileSizeLow, NULL);
+	}
 #else
 	struct stat st;
 	stat(file, &st);
@@ -176,7 +178,7 @@ LocalFileInfo *GetLocalFileInfo(const char *file)
 	return info;
 }
 
-static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int recursive, int skip, LocalFileInfo *parent,
+static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int recursive, int skip, int *pCnt, LocalFileInfo *parent,
 	void(*on)(LocalFileInfo *info, LocalFileInfo *parent, void *state), void *state)
 {
 #ifdef WIN32
@@ -198,19 +200,20 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 	}
 	cusor = *pCusor;
 	while (!(done = _findnext(handle, &filefind))) {
-		if (!strcmp(filefind.name, ".."))
+		if (!strcmp(filefind.name, ".") || !strcmp(filefind.name, ".."))
 			continue;
 		if ((_A_SUBDIR == filefind.attrib)) {
 			info = CreateLocalFileInfo(dir + skip, filefind.name, 1, filefind.time_write, 0, parent);
 			cusor->next = info;
 			cusor = info;
+			if (pCnt) (*pCnt)++;
 			if (on) (*on)(info, parent, state);
 			if (recursive) {
 				subdir = (char *)pcs_malloc(len + strlen(filefind.name) + 2);
 				strcpy(subdir, dir);
 				if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "\\");
 				strcat(subdir, filefind.name);
-				if (GetDirectoryFilesHelp(subdir, &cusor, recursive, skip, info, on, state)) {
+				if (GetDirectoryFilesHelp(subdir, &cusor, recursive, skip, pCnt, info, on, state)) {
 					_findclose(handle);
 					*pCusor = cusor;
 					pcs_free(subdir);
@@ -223,6 +226,7 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 			info = CreateLocalFileInfo(dir + skip, filefind.name, 0, filefind.time_write, filefind.size, parent);
 			cusor->next = info;
 			cusor = info;
+			if (pCnt) (*pCnt)++;
 			if (on) (*on)(info, parent, state);
 		}
 	}
@@ -254,9 +258,10 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 			strcat(subdir, ent->d_name);
 			stat(subdir, &st);
 			info->mtime = st.st_mtime;
+			if (pCnt) (*pCnt)++;
 			if (on) (*on)(info, parent, state);
 			if (recursive) {
-				if (GetDirectoryFilesHelp(subdir, &cusor, recursive, skip, info, on, state)) {
+				if (GetDirectoryFilesHelp(subdir, &cusor, recursive, skip, pCnt, info, on, state)) {
 					*pCusor = cusor;
 					pcs_free(subdir);
 					return -1;
@@ -276,6 +281,7 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 			info->mtime = st.st_mtime;
 			info->size = st.st_size;
 			pcs_free(subdir);
+			if (pCnt) (*pCnt)++;
 			if (on) (*on)(info, parent, state);
 		}
 	}
@@ -285,11 +291,12 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 	return 0;
 }
 
-LocalFileInfo *GetDirectoryFiles(const char *dir, int recursive, void(*on)(LocalFileInfo *info, LocalFileInfo *parent, void *state), void *state)
+int GetDirectoryFiles(LocalFileInfo **pLink, const char *dir, int recursive, void(*on)(LocalFileInfo *info, LocalFileInfo *parent, void *state), void *state)
 {
 	LocalFileInfo root = { 0 }, *cusor = &root;
 	int skip;
 	char *p;
+	int cnt = 0;
 	skip = strlen(dir);
 	if (dir[skip - 1] != '/' && dir[skip - 1] != '\\') {
 		p = (char *)alloca(skip + 2);
@@ -302,11 +309,18 @@ LocalFileInfo *GetDirectoryFiles(const char *dir, int recursive, void(*on)(Local
 		p[skip] = '\0';
 		dir = p;
 	}
-	if (GetDirectoryFilesHelp(dir, &cusor, recursive, skip, NULL, on, state)) {
+	if (GetDirectoryFilesHelp(dir, &cusor, recursive, skip, &cnt, NULL, on, state)) {
 		DestroyLocalFileInfoLink(root.next);
 		root.next = NULL;
+		return -1;
 	}
-	return root.next;
+	if (pLink) {
+		(*pLink) = root.next;
+	}
+	else {
+		DestroyLocalFileInfoLink(root.next);
+	}
+	return cnt;
 }
 
 int SetFileLastModifyTime(const char *file, time_t mtime)
@@ -333,15 +347,17 @@ int CreateDirectoryRecursive(const char *path)
 	if (!path || (len = strlen(path)) == 0)
 		return MKDIR_OK;
 	info = GetLocalFileInfo(path);
-	if (info && !info->isdir) {
+	if (info) {
+		if (!info->isdir) {
+			DestroyLocalFileInfo(info);
+			return MKDIR_TARGET_IS_FILE;
+		}
+		if (info->isdir) {
+			DestroyLocalFileInfo(info);
+			return MKDIR_OK;
+		}
 		DestroyLocalFileInfo(info);
-		return MKDIR_TARGET_IS_FILE;
 	}
-	if (info && info->isdir) {
-		DestroyLocalFileInfo(info);
-		return MKDIR_OK;
-	}
-	if (info) DestroyLocalFileInfo(info);
 	tmp = (char *)alloca(len + 1);
 	strcpy(tmp, path);
 	p = tmp;
@@ -349,7 +365,16 @@ int CreateDirectoryRecursive(const char *path)
 	while (*p) {
 		if (*p == '/' || *p == '\\') {
 			*p = '\0';
-			info = GetLocalFileInfo(path);
+			if (!strcmp(tmp, ".") || !strcmp(tmp, "..")) {
+#ifdef WIN32
+				*p = '\\';
+#else
+				*p = '/';
+#endif
+				p++;
+				continue;
+			}
+			info = GetLocalFileInfo(tmp);
 			if (info) {
 				if (!info->isdir) {
 					DestroyLocalFileInfo(info);
@@ -372,6 +397,14 @@ int CreateDirectoryRecursive(const char *path)
 #endif
 		}
 		p++;
+	}
+	if (p[-1] != '/' && p[-1] != '\\') {
+#ifdef WIN32
+		if (_mkdir(tmp))
+#else
+		if (mkdir(tmp, DEFAULT_MKDIR_ACCESS))
+#endif
+			return MKDIR_FAIL;
 	}
 	return MKDIR_OK;
 }
