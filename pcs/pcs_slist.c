@@ -1,4 +1,4 @@
-#include <string.h>
+﻿#include <string.h>
 #ifdef WIN32
 # include <malloc.h>
 #else

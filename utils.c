@@ -1,4 +1,4 @@
-#include <stdio.h>
+ï»¿#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -34,14 +34,14 @@ static inline char *i_strdup(const char *str)
 	return res;
 }
 
-#pragma region std_string(), std_password(), is_absolute_path() Èı¸öº¯Êı
+#pragma region std_string(), std_password(), is_absolute_path() ä¸‰ä¸ªå‡½æ•°
 
 #ifdef WIN32
 
 /*
-* ´Ó±ê×¼ÊäÈëÖĞÊäÈë×Ö·û´®
-* str  - ÊäÈëµÄ×Ö·û´®½«Ìî³äµ½ str ÖĞ
-* size - ×î¶àÊäÈë size ¸ö×Ö½Ú¡£
+* ä»æ ‡å‡†è¾“å…¥ä¸­è¾“å…¥å­—ç¬¦ä¸²
+* str  - è¾“å…¥çš„å­—ç¬¦ä¸²å°†å¡«å……åˆ° str ä¸­
+* size - æœ€å¤šè¾“å…¥ size ä¸ªå­—èŠ‚ã€‚
 */
 void std_string(char *str, int size)
 {
@@ -71,9 +71,9 @@ void std_string(char *str, int size)
 }
 
 /*
-* ´Ó±ê×¼ÊäÈëÖĞÊäÈëÃÜÂë£¬ÊäÈëµÄ×Ö·û²»»ØÏÔ
-* password  - ÊäÈëµÄÃÜÂë½«Ìî³äµ½ password ÖĞ
-* size      - ×î¶àÊäÈësize¸ö×Ö½Ú¡£
+* ä»æ ‡å‡†è¾“å…¥ä¸­è¾“å…¥å¯†ç ï¼Œè¾“å…¥çš„å­—ç¬¦ä¸å›æ˜¾
+* password  - è¾“å…¥çš„å¯†ç å°†å¡«å……åˆ° password ä¸­
+* size      - æœ€å¤šè¾“å…¥sizeä¸ªå­—èŠ‚ã€‚
 */
 void std_password(char *password, int size)
 {
@@ -113,9 +113,9 @@ int is_absolute_path(const char *path)
 #include <unistd.h>
 
 /*
-* ´Ó±ê×¼ÊäÈëÖĞÊäÈë×Ö·û´®
-* str  - ÊäÈëµÄ×Ö·û´®½«Ìî³äµ½ str ÖĞ
-* size - ×î¶àÊäÈë size ¸ö×Ö½Ú¡£
+* ä»æ ‡å‡†è¾“å…¥ä¸­è¾“å…¥å­—ç¬¦ä¸²
+* str  - è¾“å…¥çš„å­—ç¬¦ä¸²å°†å¡«å……åˆ° str ä¸­
+* size - æœ€å¤šè¾“å…¥ size ä¸ªå­—èŠ‚ã€‚
 */
 void std_string(char *str, int size)
 {
@@ -146,9 +146,9 @@ void std_string(char *str, int size)
 }
 
 /*
-* ´Ó±ê×¼ÊäÈëÖĞÊäÈëÃÜÂë£¬ÊäÈëµÄ×Ö·û²»»ØÏÔ
-* password  - ÊäÈëµÄÃÜÂë½«Ìî³äµ½ password ÖĞ
-* size      - ×î¶àÊäÈësize¸ö×Ö½Ú¡£
+* ä»æ ‡å‡†è¾“å…¥ä¸­è¾“å…¥å¯†ç ï¼Œè¾“å…¥çš„å­—ç¬¦ä¸å›æ˜¾
+* password  - è¾“å…¥çš„å¯†ç å°†å¡«å……åˆ° password ä¸­
+* size      - æœ€å¤šè¾“å…¥sizeä¸ªå­—èŠ‚ã€‚
 */
 void std_password(char *password, int size)
 {
@@ -192,11 +192,11 @@ int is_absolute_path(const char *path)
 #pragma endregion
 
 /*
-* ÅĞ¶ÏÁ½¸ö×Ö·û´®ÊÇ·ñÏàµÈ¡£
-*  s1    - ÒÔ'\0'Îª½áÊø±ê¼ÇµÄ×Ö·û´®
-*  s2    - ´ı±È½ÏµÄ×Ö·û´®
-*  s2len - s2×Ö·û´®µÄ×Ö½Ú³¤¶È¡£Èç¹û´«Èë-1µÄ»°£¬ÔòÊ¹ÓÃ'\0'×÷ÎªÆä½áÊø±ê¼Ç
-* Èç¹ûÏàµÈ£¬Ôò·µ»Ø1£¬·ñÔò·µ»Ø0¡£
+* åˆ¤æ–­ä¸¤ä¸ªå­—ç¬¦ä¸²æ˜¯å¦ç›¸ç­‰ã€‚
+*  s1    - ä»¥'\0'ä¸ºç»“æŸæ ‡è®°çš„å­—ç¬¦ä¸²
+*  s2    - å¾…æ¯”è¾ƒçš„å­—ç¬¦ä¸²
+*  s2len - s2å­—ç¬¦ä¸²çš„å­—èŠ‚é•¿åº¦ã€‚å¦‚æœä¼ å…¥-1çš„è¯ï¼Œåˆ™ä½¿ç”¨'\0'ä½œä¸ºå…¶ç»“æŸæ ‡è®°
+* å¦‚æœç›¸ç­‰ï¼Œåˆ™è¿”å›1ï¼Œå¦åˆ™è¿”å›0ã€‚
 */
 int streq(const char *s1, const char *s2, int s2len)
 {
@@ -235,11 +235,11 @@ int streq(const char *s1, const char *s2, int s2len)
 }
 
 /*
-* ÅĞ¶ÏarrÊı×éÖĞÊÇ·ñ´æÔÚ×Ö·û´®str£¬Èç¹û´æÔÚÔò·µ»ØÆä±êºÅ£¨±êºÅÎª [Ë÷Òı] + 1£©£¬·ñÔò·µ»Ø0¡£
-* ±È½ÏÊ±Çø·Ö´óĞ¡Ğ´¡£
-* arr  - ´æ´¢ºÜ¶à×Ö·û´®µÄÊı×é£¬Êı×é×îºóÒ»¸öÔªËØ±ØĞëÎªNULL¡£
-* str  - ÅĞ¶ÏÊÇ·ñ´æÔÚµÄ×Ö·û´®
-* len  - ×Ö·û´®³¤¶È¡£ Èç¹û´«Èë-1£¬Ôò'\0'×÷ÎªÆä½áÊø±ê¼Ç¡£
+* åˆ¤æ–­arræ•°ç»„ä¸­æ˜¯å¦å­˜åœ¨å­—ç¬¦ä¸²strï¼Œå¦‚æœå­˜åœ¨åˆ™è¿”å›å…¶æ ‡å·ï¼ˆæ ‡å·ä¸º [ç´¢å¼•] + 1ï¼‰ï¼Œå¦åˆ™è¿”å›0ã€‚
+* æ¯”è¾ƒæ—¶åŒºåˆ†å¤§å°å†™ã€‚
+* arr  - å­˜å‚¨å¾ˆå¤šå­—ç¬¦ä¸²çš„æ•°ç»„ï¼Œæ•°ç»„æœ€åä¸€ä¸ªå…ƒç´ å¿…é¡»ä¸ºNULLã€‚
+* str  - åˆ¤æ–­æ˜¯å¦å­˜åœ¨çš„å­—ç¬¦ä¸²
+* len  - å­—ç¬¦ä¸²é•¿åº¦ã€‚ å¦‚æœä¼ å…¥-1ï¼Œåˆ™'\0'ä½œä¸ºå…¶ç»“æŸæ ‡è®°ã€‚
 */
 int str_in_array(const char **arr, const char *str, int len)
 {
@@ -255,11 +255,11 @@ int str_in_array(const char **arr, const char *str, int len)
 }
 
 /*
-* ºÏ²¢Â·¾¶£¬Èç¹ûfilename´«ÈëµÄÊÇ¾ø¶ÔÂ·¾¶£¬ÔòÖ±½Ó·µ»ØfilenameµÄ¿½±´¡£
-*   base     - »ùÄ¿Â¼
-*   basesz   - baseµÄ×Ö½Ú³¤¶È£¬´«Èë-1µÄ»°£¬½«Ê¹ÓÃstrlen()º¯Êı¶ÁÈ¡¡£
-*   filename - ÎÄ¼şÃû×Ö
-* Ê¹ÓÃÍêºó£¬Ğèµ÷ÓÃpcs_freeÀ´ÊÍ·Å·µ»ØÖµ
+* åˆå¹¶è·¯å¾„ï¼Œå¦‚æœfilenameä¼ å…¥çš„æ˜¯ç»å¯¹è·¯å¾„ï¼Œåˆ™ç›´æ¥è¿”å›filenameçš„æ‹·è´ã€‚
+*   base     - åŸºç›®å½•
+*   basesz   - baseçš„å­—èŠ‚é•¿åº¦ï¼Œä¼ å…¥-1çš„è¯ï¼Œå°†ä½¿ç”¨strlen()å‡½æ•°è¯»å–ã€‚
+*   filename - æ–‡ä»¶åå­—
+* ä½¿ç”¨å®Œåï¼Œéœ€è°ƒç”¨pcs_freeæ¥é‡Šæ”¾è¿”å›å€¼
 */
 char *combin_path(const char *base, int basesz, const char *filename)
 {
@@ -337,8 +337,8 @@ char *combin_path(const char *base, int basesz, const char *filename)
 }
 
 /*
-* ºÏ²¢unix¸ñÊ½µÄÂ·¾¶£¬Èç¹ûfilename´«ÈëµÄÊÇ¾ø¶ÔÂ·¾¶£¬ÔòÖ±½Ó·µ»ØfilenameµÄ¿½±´¡£
-* Ê¹ÓÃÍêºó£¬Ğèµ÷ÓÃpcs_freeÀ´ÊÍ·Å·µ»ØÖµ
+* åˆå¹¶unixæ ¼å¼çš„è·¯å¾„ï¼Œå¦‚æœfilenameä¼ å…¥çš„æ˜¯ç»å¯¹è·¯å¾„ï¼Œåˆ™ç›´æ¥è¿”å›filenameçš„æ‹·è´ã€‚
+* ä½¿ç”¨å®Œåï¼Œéœ€è°ƒç”¨pcs_freeæ¥é‡Šæ”¾è¿”å›å€¼
 */
 char *combin_unix_path(const char *base, const char *filename)
 {
@@ -376,7 +376,7 @@ char *combin_unix_path(const char *base, const char *filename)
 			p[basesz] = '\0';
 		}
 	}
-	else if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*Èç¹ûÊÇ¾ø¶ÔÂ·¾¶£¬Ö±½Ó·µ»Ø¸ÃÖµ*/
+	else if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*å¦‚æœæ˜¯ç»å¯¹è·¯å¾„ï¼Œç›´æ¥è¿”å›è¯¥å€¼*/
 		p = i_strdup(filename);
 	}
 	else {
@@ -402,9 +402,9 @@ char *combin_unix_path(const char *base, const char *filename)
 }
 
 /*
-* ĞŞÕıÂ·¾¶¡£
-* ¼´°ÑÂ·¾¶ÖĞ·´Ğ±¸ÜÌæ»»ÎªÕıĞ±¸Ü¡£
-* ĞŞÕıÍê³Éºó£¬Ô­Ñù·µ»Øpath
+* ä¿®æ­£è·¯å¾„ã€‚
+* å³æŠŠè·¯å¾„ä¸­åæ–œæ æ›¿æ¢ä¸ºæ­£æ–œæ ã€‚
+* ä¿®æ­£å®Œæˆåï¼ŒåŸæ ·è¿”å›path
 */
 char *fix_unix_path(char *path)
 {
@@ -417,10 +417,10 @@ char *fix_unix_path(char *path)
 }
 
 /*
-* ¶ÁÈ¡È«²¿ÎÄ¼şÄÚÈİ
-* file    - ´ı¶ÁÈ¡µÄÎÄ¼ş
-* pBuffer - ÎÄ¼şµÄÄÚÈİËùÔÚµÄÄÚ´æÖ¸Õë½«´æÈëpBufferÖ¸¶¨µÄÄÚ´æÖĞ
-* ·µ»Ø¶ÁÈ¡µ½µÄ×Ö½Ú´óĞ¡¡£Ê¹ÓÃÍê³Éºó£¬Ğèµ÷ÓÃpcs_free(*pBuffer)
+* è¯»å–å…¨éƒ¨æ–‡ä»¶å†…å®¹
+* file    - å¾…è¯»å–çš„æ–‡ä»¶
+* pBuffer - æ–‡ä»¶çš„å†…å®¹æ‰€åœ¨çš„å†…å­˜æŒ‡é’ˆå°†å­˜å…¥pBufferæŒ‡å®šçš„å†…å­˜ä¸­
+* è¿”å›è¯»å–åˆ°çš„å­—èŠ‚å¤§å°ã€‚ä½¿ç”¨å®Œæˆåï¼Œéœ€è°ƒç”¨pcs_free(*pBuffer)
 */
 int read_file(const char *file, char **pBuffer)
 {
@@ -466,7 +466,7 @@ int read_file(const char *file, char **pBuffer)
 	return size_of_file;
 }
 
-/*´Ó³ÌĞòÂ·¾¶ÖĞÕÒµ½ÎÄ¼şÃû¿ªÊ¼µÄÎ»ÖÃ£¬·µ»Ø¿ªÊ¼Î»ÖÃµÄÖ¸Õë*/
+/*ä»ç¨‹åºè·¯å¾„ä¸­æ‰¾åˆ°æ–‡ä»¶åå¼€å§‹çš„ä½ç½®ï¼Œè¿”å›å¼€å§‹ä½ç½®çš„æŒ‡é’ˆ*/
 const char *filename(char *path)
 {
 	const char *p;
@@ -478,10 +478,10 @@ const char *filename(char *path)
 }
 
 /*
-* »ñÈ¡Â·¾¶µÄ¸¸Â·¾¶£¬Èç¹ûÃ»ÓĞ¸¸Â·¾¶Ôò·µ»ØNULL¡£
-*   path  - µ±Ç°Â·¾¶
-*   len   - pathµÄ×Ö½Ú³¤¶È£¬Èç¹û´«Èë-1£¬ÔòÄÚ²¿Ê¹ÓÃstrlen()»ñÈ¡Æä³¤¶È
-* ·µ»ØÖµĞèÒªµ÷ÓÃpcs_free()
+* è·å–è·¯å¾„çš„çˆ¶è·¯å¾„ï¼Œå¦‚æœæ²¡æœ‰çˆ¶è·¯å¾„åˆ™è¿”å›NULLã€‚
+*   path  - å½“å‰è·¯å¾„
+*   len   - pathçš„å­—èŠ‚é•¿åº¦ï¼Œå¦‚æœä¼ å…¥-1ï¼Œåˆ™å†…éƒ¨ä½¿ç”¨strlen()è·å–å…¶é•¿åº¦
+* è¿”å›å€¼éœ€è¦è°ƒç”¨pcs_free()
 */
 char *base_dir(const char *path, int len)
 {
@@ -506,7 +506,7 @@ char *base_dir(const char *path, int len)
 
 /*
 string to time_t
-Ê±¼ä¸ñÊ½ 2009-3-24 0:00:08 »ò 2009-3-24
+æ—¶é—´æ ¼å¼ 2009-3-24 0:00:08 æˆ– 2009-3-24
 */
 int str2time(const char *str, time_t *timeData)
 {
@@ -530,7 +530,7 @@ int str2time(const char *str, time_t *timeData)
 	iMin = 0;
 	iSec = 0;
 	pPos = strstr(pPos + 1, " ");
-	//ÎªÁË¼æÈİÓĞĞ©Ã»¾«È·µ½Ê±·ÖÃëµÄ
+	//ä¸ºäº†å…¼å®¹æœ‰äº›æ²¡ç²¾ç¡®åˆ°æ—¶åˆ†ç§’çš„
 	if (pPos != NULL) {
 		iHour = atoi(pPos + 1);
 		pPos = strstr(pPos + 1, ":");
@@ -554,7 +554,7 @@ int str2time(const char *str, time_t *timeData)
 }
 
 /*
-time_t to string Ê±¼ä¸ñÊ½ 2009-3-24 0:00:08
+time_t to string æ—¶é—´æ ¼å¼ 2009-3-24 0:00:08
 */
 char *time2str(char *buf, const time_t *t)
 {

@@ -1,7 +1,7 @@
-#ifndef _PCS_MEM_H
+ï»¿#ifndef _PCS_MEM_H
 #define _PCS_MEM_H
 
-/* ×Ô¶¨Òåmalloc,free·½·¨¡£ÓÃÓÚ¼ì²éÄÚ´æĞ¹Â©¡£ */
+/* è‡ªå®šä¹‰malloc,freeæ–¹æ³•ã€‚ç”¨äºæ£€æŸ¥å†…å­˜æ³„æ¼ã€‚ */
 #ifdef WIN32
 # include <malloc.h>
 #else
@@ -15,7 +15,7 @@ extern void (*_pcs_mem_printf)(const char *format, ...);
    PCS_API void *pcs_mem_malloc(size_t size, const char *filename, int line);
    PCS_API void *pcs_mem_malloc_arg1(size_t sz);
    PCS_API void pcs_mem_free(void *p);
-   /*´òÓ¡Ğ¹Â©µÄÄÚ´æ*/
+   /*æ‰“å°æ³„æ¼çš„å†…å­˜*/
    PCS_API void pcs_mem_print_leak();
 
 #  define pcs_malloc(size)			pcs_mem_malloc(size, __FILE__, __LINE__)
