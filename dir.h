@@ -1,6 +1,13 @@
 #ifndef _PCS_SHELL_DIR_H_
 #define _PCS_SHELL_DIR_H_
 
+#define DEFAULT_MKDIR_ACCESS	0750	/*创建目录时默认权限，只有非Windows系统使用*/
+
+#define MKDIR_OK				0		/*目录创建成功*/
+#define MKDIR_FAIL				1		/*目录创建失败*/
+#define MKDIR_TARGET_IS_FILE	2		/*本地存在，且是文件*/
+
+
 typedef struct LocalFileInfo LocalFileInfo;
 
 struct LocalFileInfo
@@ -48,5 +55,14 @@ LocalFileInfo *GetDirectoryFiles(const char *dir, int recursive,
 如果执行成功则返回0，
 否则返回非0值。*/
 int SetFileLastModifyTime(const char *file, time_t mtime);
+
+/*
+* 递归创建目录
+*    path - 待创建的目录
+* 如果成功则返回MKDIR_OK，否则返回错误码，可能错误码有: MKDIR_FAIL, MKDIR_TARGET_IS_FILE。
+*/
+int CreateDirectoryRecursive(const char *path);
+
+
 
 #endif

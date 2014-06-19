@@ -5,7 +5,7 @@ OS_NAME = $(shell uname -s | cut -c1-6)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
 
 PCS_OBJS     = bin/cJSON.o bin/pcs.o bin/pcs_fileinfo.o bin/pcs_http.o bin/pcs_mem.o bin/pcs_pan_api_resinfo.o bin/pcs_slist.o bin/pcs_utils.o
-SHELL_OBJS   = bin/shell.o bin/dir.o bin/rb_tree_misc.o bin/rb_tree_stack.o bin/red_black_tree.o
+SHELL_OBJS   = bin/shell.o bin/dir.o bin/rb_tree_misc.o bin/rb_tree_stack.o bin/red_black_tree.o bin/shell_utils.o
 #CCFLAGS      = -DHAVE_ASPRINTF -DHAVE_ICONV
 ifeq ($(LC_OS_NAME), cygwin)
 CYGWIN_CCFLAGS = -largp
@@ -37,6 +37,8 @@ bin/shell.o: shell.c shell.h version.h dir.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) shell.c
 bin/dir.o: dir.c dir.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) dir.c
+bin/shell_utils.o: utils.c utils.h
+	$(CC) -o $@ -c $(PCS_CCFLAGS) utils.c
 bin/hashtable.o: hashtable.c hashtable.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) hashtable.c
 bin/rb_tree_misc.o: rb_tree/misc.c rb_tree/misc.h

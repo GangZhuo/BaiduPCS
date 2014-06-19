@@ -78,6 +78,9 @@
     <ClCompile Include="..\rb_tree\stack.c">
       <Filter>Source Files\rb_tree</Filter>
     </ClCompile>
+    <ClCompile Include="..\utils.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cJSON.h">
@@ -136,6 +139,9 @@
     </ClInclude>
     <ClInclude Include="..\rb_tree\stack.h">
       <Filter>Header Files\rb_tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\utils.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

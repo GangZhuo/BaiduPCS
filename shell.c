@@ -17,17 +17,11 @@
 #include "pcs/cJSON.h"
 #include "pcs/pcs_utils.h"
 #include "pcs/pcs.h"
-#include "version.h"
-#include "shell.h"
-#include "dir.h"
 #include "rb_tree/red_black_tree.h"
-
-#if defined(WIN32)
-# define mkdir _mkdir
-# define snprintf _snprintf
-#endif
-
-#define DEFAULT_MKDIR_ACCESS	0750	/*创建目录时默认权限，只有非Windows系统使用*/
+#include "version.h"
+#include "dir.h"
+#include "utils.h"
+#include "shell.h"
 
 #define PRINT_PAGE_SIZE			20		/*列出目录或列出比较结果时，分页大小*/
 
@@ -47,10 +41,6 @@
 #define FLAG_ON_LOCAL			1
 #define FLAG_ON_REMOTE			2
 #define FLAG_PARENT_NOT_ON_REMOTE 4
-
-#define MKDIR_OK				0		/*目录创建成功*/
-#define MKDIR_FAIL				1		/*目录创建失败*/
-#define MKDIR_TARGET_IS_FILE	2		/*本地存在，且是文件*/
 
 /* 文件元数据*/
 typedef struct MyMeta MyMeta;
@@ -113,168 +103,13 @@ struct RBEnumerateState
 	const char	*local_basedir;
 	const char	*remote_basedir;
 
+	/*在打印meta前调用一次*/
 	int (*preMeta)(MyMeta *meta, struct RBEnumerateState *s, void *state);
 	void *preMetaState;
 };
 
 static PcsBool is_login(ShellContext *context, const char *msg);
 
-#pragma region std_string(), std_password(), is_absolute_path() 三个函数
-
-#ifdef WIN32
-
-/*
- * 从标准输入中输入字符串
- * str  - 输入的字符串将填充到 str 中
- * size - 最多输入 size 个字节。
-*/
-static void std_string(char *str, int size)
-{
-	char c;
-	int i = 0;
-
-	while ((c = _getch()) != '\r' && c != '\n') {
-		if (c == '\b') {
-			if (i > 0) {
-				i--;
-				putchar(c);
-				putchar(' ');
-				putchar(c);
-			}
-		}
-		else if (isprint(c)) {
-			str[i] = c;
-			putchar(c);
-			i++;
-			if (i >= size) {
-				break;
-			}
-		}
-	}
-	str[i >= size ? (size - 1) : i] = '\0';
-	printf("\n");
-}
-
-/*
- * 从标准输入中输入密码，输入的字符不回显
- * password  - 输入的密码将填充到 password 中
- * size      - 最多输入size个字节。
- */
-static void std_password(char *password, int size)
-{
-	char c;
-	int i = 0;
-
-	while ((c = _getch()) != '\r' && c != '\n') {
-		if (c == '\b') {
-			if (i > 0)
-				i--;
-		}
-		else if (isprint(c)) {
-			password[i] = c;
-			//putchar('*');
-			i++;
-			if (i >= size) {
-				break;
-			}
-		}
-	}
-	password[i >= size ? (size - 1) : i] = '\0';
-	printf("\n");
-}
-
-static int is_absolute_path(const char *path)
-{
-	if (!path) return 0;
-	if (strlen(path) < 2) return 0;
-	if (path[1] != ':') return 0;
-	if (!((path[0] > 'a' && path[0] < 'z') || (path[0] > 'A' && path[0] < 'Z'))) return 0;
-	return 1;
-}
-
-#else
-
-#include <termios.h>
-#include <unistd.h>
-
-/*
-* 从标准输入中输入字符串
-* str  - 输入的字符串将填充到 str 中
-* size - 最多输入 size 个字节。
-*/
-static void std_string(char *str, int size)
-{
-	struct termios oflags, nflags;
-
-	/* disabling echo */
-	tcgetattr(fileno(stdin), &oflags);
-	nflags = oflags;
-	//nflags.c_lflag &= ~ECHO;
-	//nflags.c_lflag |= ECHONL;
-
-	if (tcsetattr(fileno(stdin), TCSANOW, &nflags) != 0) {
-		perror("tcsetattr");
-		return;
-	}
-
-	//printf("user name: ");
-	fgets(str, size, stdin);
-	str[size - 1] = 0;
-	str[strlen(str) - 1] = 0;
-	//printf("you typed '%s'\n", str);
-
-	/* restore terminal */
-	if (tcsetattr(fileno(stdin), TCSANOW, &oflags) != 0) {
-		perror("tcsetattr");
-		return;
-	}
-}
-
-/*
-* 从标准输入中输入密码，输入的字符不回显
-* password  - 输入的密码将填充到 password 中
-* size      - 最多输入size个字节。
-*/
-static void std_password(char *password, int size)
-{
-	struct termios oflags, nflags;
-
-	/* disabling echo */
-	tcgetattr(fileno(stdin), &oflags);
-	nflags = oflags;
-	nflags.c_lflag &= ~ECHO;
-	nflags.c_lflag |= ECHONL;
-
-	if (tcsetattr(fileno(stdin), TCSANOW, &nflags) != 0) {
-		perror("tcsetattr");
-		return;
-	}
-
-	//printf("password: ");
-	fgets(password, size, stdin);
-	password[size - 1] = 0;
-	password[strlen(password) - 1] = 0;
-	//printf("you typed '%s'\n", password);
-
-	/* restore terminal */
-	if (tcsetattr(fileno(stdin), TCSANOW, &oflags) != 0) {
-		perror("tcsetattr");
-		return;
-	}
-
-}
-
-static int is_absolute_path(const char *path)
-{
-	if (!path) return 0;
-	if (strlen(path) < 1) return 0;
-	if (path[0] != '/' && path[0] != '~') return 0;
-	return 1;
-}
-
-#endif
-
-#pragma endregion
 
 #pragma region 获取默认路径
 
@@ -287,12 +122,12 @@ static const char *contextfile()
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
 		strcat(filename, "\\.pcs");
-		mkdir(filename);
+		CreateDirectoryRecursive(filename);
 		strcat(filename, "\\pcs.context");
 #else
 		strcpy(filename, getenv("HOME"));
 		strcat(filename, "/.pcs");
-		mkdir(filename, DEFAULT_MKDIR_ACCESS);
+		CreateDirectoryRecursive(filename);
 		strcat(filename, "/pcs.context");
 #endif
 	}
@@ -307,13 +142,13 @@ static const char *cookiefile()
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
 		strcat(filename, "\\.pcs");
-		mkdir(filename);
+		CreateDirectoryRecursive(filename);
 		strcat(filename, "\\");
 		strcat(filename, "default.cookie");
 #else
 		strcpy(filename, getenv("HOME"));
 		strcat(filename, "/.pcs");
-		mkdir(filename, DEFAULT_MKDIR_ACCESS);
+		CreateDirectoryRecursive(filename);
 		strcat(filename, "/");
 		strcat(filename, "default.cookie");
 #endif
@@ -329,13 +164,13 @@ static const char *captchafile()
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
 		strcat(filename, "\\.pcs");
-		mkdir(filename);
+		CreateDirectoryRecursive(filename);
 		strcat(filename, "\\");
 		strcat(filename, "captcha.gif");
 #else
 		strcpy(filename, getenv("HOME"));
 		strcat(filename, "/.pcs");
-		mkdir(filename, DEFAULT_MKDIR_ACCESS);
+		CreateDirectoryRecursive(filename);
 		strcat(filename, "/");
 		strcat(filename, "captcha.gif");
 #endif
@@ -357,12 +192,12 @@ static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
 		strcat(filename, "\\.pcs");
-		mkdir(filename);
+		CreateDirectoryRecursive(filename);
 		strcat(filename, "\\vc.gif");
 #else
 		strcpy(filename, getenv("HOME"));
 		strcat(filename, "/.pcs");
-		mkdir(filename, DEFAULT_MKDIR_ACCESS);
+		CreateDirectoryRecursive(filename);
 		strcat(filename, "/vc.gif");
 #endif
 	}
@@ -414,408 +249,6 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 #pragma endregion
 
 #pragma region 公用函数
-
-/*
- * 读取全部文件内容
- * file    - 待读取的文件
- * pBuffer - 文件的内容所在的内存指针将存入pBuffer指定的内存中
- * 返回读取到的字节大小。使用完成后，需调用pcs_free(*pBuffer)
-*/
-static int read_file(const char *file, char **pBuffer)
-{
-	FILE *fp;
-	long int save_pos;
-	long size_of_file;
-	char *content;
-
-	fp = fopen(file, "rb");
-	if (!fp) {
-		//printf("Open file fail: %s\n", file);
-		return -1;
-	}
-	save_pos = ftell(fp);
-	fseek(fp, 0L, SEEK_END);
-	size_of_file = ftell(fp);
-	if (size_of_file < 3) {
-		printf("Wrong file size: Size=%d, %s\n", size_of_file, file);
-		fclose(fp);
-		return -1;
-	}
-	fseek(fp, save_pos, SEEK_SET);
-	content = (char *)pcs_malloc(size_of_file + 1);
-	save_pos = fread(content, 1, size_of_file, fp);
-	fclose(fp);
-	content[size_of_file] = '\0';
-	if ((((int)content[0]) & 0xEF) == 0xEF) {
-		if ((((int)content[1]) & 0xBB) == 0xBB) {
-			if ((((int)content[2]) & 0xBF) == 0xBF) {
-				content[0] = content[1] = content[2] = ' ';
-			}
-			else {
-				printf("Wrong UTF-8 BOM: BOM=0x%2X%2X%2X %s\n", content[0] & 0xFF, content[1] & 0xFF, content[2] & 0xFF, file);
-				return -1;
-			}
-		}
-		else {
-			printf("Wrong UTF-8 BOM: BOM=0x%2X%2X%2X %s\n", content[0] & 0xFF, content[1] & 0xFF, content[2] & 0xFF, file);
-			return -1;
-		}
-	}
-	*pBuffer = content;
-	return size_of_file;
-}
-
-/*
-string to time_t
-时间格式 2009-3-24 0:00:08 或 2009-3-24
-*/
-int str2time(const char *str, time_t *timeData)
-{
-	char *pBeginPos = (char*)str;
-	char *pPos = strstr(pBeginPos, "-");
-	int iYear, iMonth, iDay, iHour, iMin, iSec;
-	struct tm sourcedate = { 0 };
-	if (pPos == NULL) {
-		printf("strDateStr[%s] err \n", str);
-		return -1;
-	}
-	iYear = atoi(pBeginPos);
-	iMonth = atoi(pPos + 1);
-	pPos = strstr(pPos + 1, "-");
-	if (pPos == NULL) {
-		printf("strDateStr[%s] err \n", str);
-		return -1;
-	}
-	iDay = atoi(pPos + 1);
-	iHour = 0;
-	iMin = 0;
-	iSec = 0;
-	pPos = strstr(pPos + 1, " ");
-	//为了兼容有些没精确到时分秒的
-	if (pPos != NULL) {
-		iHour = atoi(pPos + 1);
-		pPos = strstr(pPos + 1, ":");
-		if (pPos != NULL) {
-			iMin = atoi(pPos + 1);
-			pPos = strstr(pPos + 1, ":");
-			if (pPos != NULL) {
-				iSec = atoi(pPos + 1);
-			}
-		}
-	}
-
-	sourcedate.tm_sec = iSec;
-	sourcedate.tm_min = iMin;
-	sourcedate.tm_hour = iHour;
-	sourcedate.tm_mday = iDay;
-	sourcedate.tm_mon = iMonth - 1;
-	sourcedate.tm_year = iYear - 1900;
-	*timeData = mktime(&sourcedate);
-	return 0;
-}
-
-/*
-time_t to string 时间格式 2009-3-24 0:00:08
-*/
-char *time2str(char *buf, const time_t *t)
-{
-	char chTmp[100] = { 0 };
-	struct tm *p;
-	p = localtime(t);
-	p->tm_year = p->tm_year + 1900;
-	p->tm_mon = p->tm_mon + 1;
-
-	snprintf(chTmp, sizeof(chTmp), "%04d-%02d-%02d %02d:%02d:%02d",
-		p->tm_year, p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec);
-	strcpy(buf, chTmp);
-	return 0;
-}
-
-/*从程序路径中找到文件名开始的位置，返回开始位置的指针*/
-static const char *filename(char *path)
-{
-	const char *p;
-	p = path;
-	p += strlen(p);
-	while (p > path && *p != '/' && *p != '\\') p--;
-	if (*p == '/' || *p == '\\') p++;
-	return p;
-}
-
-/*
-* 合并unix格式的路径，如果filename传入的是绝对路径，则直接返回filename的拷贝。
-*   base     - 基目录
-*   basesz   - base的字节长度，传入-1的话，将使用strlen()函数读取。
-*   filename - 文件名字
-* 使用完后，需调用pcs_free来释放返回值
-*/
-static char *combin_path(const char *base, int basesz, const char *filename)
-{
-	char *p, *p2;
-	int filenamesz, sz;
-
-	if (strcmp(filename, ".") == 0) {
-		p = (char *)pcs_malloc(basesz + 1);
-		assert(p);
-		memset(p, 0, basesz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-	}
-	else if (strcmp(filename, "..") == 0) {
-		p = (char *)pcs_malloc(basesz + 1);
-		assert(p);
-		memset(p, 0, basesz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-		basesz--;
-		if (p[basesz] == '/' || p[basesz] == '\\') p[basesz] = '\0';
-		basesz--;
-		while (basesz >= 0 && p[basesz] != '/' && p[basesz] != '\\') {
-			basesz--;
-		}
-		if (basesz < 0) {
-			p[0] = '\0';
-		}
-		else if (basesz == 0) {
-			p[1] = '\0';
-		}
-		else {
-			p[basesz] = '\0';
-		}
-	}
-	else if (is_absolute_path(filename) || !base || basesz == 0 || !base[0]) {
-		p = pcs_utils_strdup(filename);
-	}
-	else {
-		if (basesz == -1) basesz = strlen(base);
-		filenamesz = strlen(filename);
-		sz = basesz + filenamesz + 1;
-		p = (char *)pcs_malloc(sz + 1);
-		assert(p);
-		memset(p, 0, sz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-		if (filename[0] == '/' || filename[0] == '\\') {
-			if (p[basesz - 1] == '/' || p[basesz - 1] == '\\') {
-				p[basesz - 1] = '\0';
-			}
-		}
-		else {
-			if (p[basesz - 1] != '/' && p[basesz - 1] != '\\') {
-#ifdef WIN32
-				p[basesz] = '\\';
-#else
-				p[basesz] = '/';
-#endif
-				p[basesz + 1] = '\0';
-			}
-		}
-		strcat(p, filename);
-	}
-	p2 = p;
-	while (*p2) {
-#ifdef WIN32
-		if (*p2 == '/') *p2 = '\\';
-#else
-		if (*p2 == '\\') *p2 = '/';
-#endif
-		p2++;
-	}
-	return p;
-}
-
-/*
- * 合并unix格式的路径，如果filename传入的是绝对路径，则直接返回filename的拷贝。
- * 使用完后，需调用pcs_free来释放返回值
- */
-static char *combin_unix_path(const char *base, const char *filename)
-{
-	char *p, *p2;
-	int basesz, filenamesz, sz;
-
-	if (strcmp(filename, ".") == 0) {
-		basesz = strlen(base);
-		p = (char *)pcs_malloc(basesz + 1);
-		assert(p);
-		memset(p, 0, basesz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-	}
-	else if (strcmp(filename, "..") == 0) {
-		basesz = strlen(base);
-		p = (char *)pcs_malloc(basesz + 1);
-		assert(p);
-		memset(p, 0, basesz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-		basesz--;
-		if (p[basesz] == '/' || p[basesz] == '\\') p[basesz] = '\0';
-		basesz--;
-		while (basesz >= 0 && p[basesz] != '/' && p[basesz] != '\\') {
-			basesz--;
-		}
-		if (basesz < 0) {
-			p[0] = '\0';
-		}
-		else if (basesz == 0) {
-			p[1] = '\0';
-		}
-		else {
-			p[basesz] = '\0';
-		}
-	}
-	else if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*如果是绝对路径，直接返回该值*/
-		p = pcs_utils_strdup(filename);
-	}
-	else {
-		basesz = strlen(base);
-		filenamesz = strlen(filename);
-		sz = basesz + filenamesz + 1;
-		p = (char *)pcs_malloc(sz + 1);
-		assert(p);
-		memset(p, 0, sz + 1);
-		strcpy(p, base);
-		if (p[basesz - 1] != '/') {
-			p[basesz] = '/';
-			p[basesz + 1] = '\0';
-		}
-		strcat(p, filename);
-	}
-	p2 = p;
-	while (*p2) {
-		if (*p2 == '\\') *p2 = '/';
-		p2++;
-	}
-	return p;
-}
-
-/*
- * 修正路径。
- * 即把路径中正斜杠或反斜杠替换为正确的斜杠
-*/
-//static char *fix_path(char *path)
-//{
-//	char *p = path;
-//	while (*p) {
-//#ifdef WIN32
-//		if (*p == '/') *p = '\\';
-//#else
-//		if (*p == '\\') *p = '/';
-//#endif
-//		p++;
-//	}
-//	return path;
-//}
-
-/*
-* 修正路径。
-* 即把路径中反斜杠替换为正斜杠。
-* 修正完成后，原样返回path
-*/
-static char *fix_unix_path(char *path)
-{
-	char *p = path;
-	while (*p) {
-		if (*p == '\\') *p = '/';
-		p++;
-	}
-	return path;
-}
-
-/*
-* 修正路径。
-* 即把路径中反斜杠替换为正斜杠，同时判断最后一个字符是否是'/'，如果不是的话，则添加'/'。
-* 需要调用pcs_free释放返回值
-*/
-//static char *fix_unix_dir_path(char *path)
-//{
-//	char *result, *p;
-//	int sz = strlen(path);
-//	if (path[sz - 1] != '/' && path[sz - 1] != '\\') {
-//		result = (char *)pcs_malloc(strlen(path) + 2);
-//		strcpy(result, path);
-//		result[sz] = '/';
-//		result[sz + 1] = '\0';
-//	}
-//	else {
-//		result = (char *)pcs_malloc(strlen(path) + 1);
-//		strcpy(result, path);
-//	}
-//	p = result;
-//	while (*p) {
-//		if (*p == '\\') *p = '/';
-//		p++;
-//	}
-//	return result;
-//}
-
-/*
- * 获取路径的父路径，如果没有父路径则返回NULL。
- *   path  - 当前路径
- *   len   - path的字节长度，如果传入-1，则内部使用strlen()获取其长度
- * 返回值需要调用pcs_free()
-*/
-static char *base_dir(const char *path, int len)
-{
-	char *dir, *p;
-	if (!path) return NULL;
-	if (len == -1) len = strlen(path);
-	if (len == 0) return NULL;
-	dir = (char *)pcs_malloc(len + 1);
-	strcpy(dir, path);
-	p = dir + len - 1;
-	while (p > dir && *p != '/' && *p != '\\') p--;
-	if (p == dir) {
-		if (*p != '/' && *p != '\\') {
-			pcs_free(dir);
-			return NULL;
-		}
-		p[1] = '\0';
-	}
-	*p = '\0';
-	return dir;
-}
-
-/*
- * 递归创建目录
- *    path - 待创建的目录
- * 如果成功则返回0，否则返回错误码。
- * 
- */
-static int recursive_mkdir(const char *path)
-{
-	char *parent;
-	int rc, len;
-	LocalFileInfo *info;
-	if (!path || (len = strlen(path)) == 0)
-		return MKDIR_OK;
-	info = GetLocalFileInfo(path);
-	if (info && !info->isdir) {
-		DestroyLocalFileInfo(info);
-		return MKDIR_TARGET_IS_FILE;
-	}
-	if (info && info->isdir) {
-		DestroyLocalFileInfo(info);
-		return MKDIR_OK;
-	}
-	if (info) DestroyLocalFileInfo(info);
-	parent = base_dir(path, -1);
-	if (parent != NULL) {
-		rc = recursive_mkdir(parent);
-		pcs_free(parent);
-		if (rc != MKDIR_OK)
-			return rc;
-	}
-#ifdef WIN32
-	if (mkdir(path))
-#else
-	if (mkdir(path, DEFAULT_MKDIR_ACCESS))
-#endif
-		rc = MKDIR_FAIL;
-	else
-		rc = MKDIR_OK;
-	return rc;
-}
 
 /*把文件大小转换成字符串*/
 static const char *size_tostr(size_t size, int *fix_width, char ch)
@@ -985,18 +418,18 @@ static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCoun
 }
 
 /*打印字符串。如果len传入-1，则本函数等价于puts，否则，只打印len指定大小的字符串*/
-static void print_str(const char *str, int len)
-{
-	int i;
-	if (len == -1) {
-		puts(str);
-	}
-	else {
-		for (i = 0; i < len; i++) {
-			putchar(str[i]);
-		}
-	}
-}
+//static void print_str(const char *str, int len)
+//{
+//	int i;
+//	if (len == -1) {
+//		puts(str);
+//	}
+//	else {
+//		for (i = 0; i < len; i++) {
+//			putchar(str[i]);
+//		}
+//	}
+//}
 
 /*打印文件或目录的元数据*/
 static void print_fileinfo(PcsFileInfo *f, const char *prex)
@@ -1017,69 +450,6 @@ static void print_fileinfo(PcsFileInfo *f, const char *prex)
 		printf("%smd5:\t\t%s\n", prex, f->md5);
 		printf("%sdlink:\t\t%s\n", prex, f->dlink);
 	}
-}
-
-/*
- * 判断两个字符串是否相等。
- *  s1    - 以'\0'为结束标记的字符串
- *  s2    - 待比较的字符串
- *  s2len - s2字符串的字节长度。如果传入-1的话，则使用'\0'作为其结束标记
- * 如果相等，则返回1，否则返回0。
- */
-static int streq(const char *s1, const char *s2, int s2len)
-{
-	const char *p1 = s1, *p2 = s2;
-	int i = 0, rc = 1;
-	if (s2len == -1) {
-		for (i = 0; ; i++) {
-			if (!s1[i]) {
-				if (!s2[i]){
-					break;
-				}
-				else{
-					rc = 0;
-					break;
-				}
-			}
-			else if (!s2[i]) {
-				rc = 0;
-				break;
-			}
-			else if (s1[i] != s2[i]) {
-				rc = 0;
-				break;
-			}
-		}
-	}
-	else {
-		for (i = 0; i < s2len; i++) {
-			if (!s1[i] || s1[i] != s2[i]) {
-				rc = 0;
-				break;
-			}
-		}
-	}
-	return rc;
-}
-
-/*
- * 判断arr数组中是否存在字符串str，如果存在则返回其标号（标号为 [索引] + 1），否则返回0。
- * 比较时区分大小写。
- * arr  - 存储很多字符串的数组，数组最后一个元素必须为NULL。
- * str  - 判断是否存在的字符串
- * len  - 字符串长度。 如果传入-1，则'\0'作为其结束标记。
-*/
-static int str_in_array(const char **arr, const char *str, int len)
-{
-	int i = 0, rc = 0;
-	const char *p;
-	while ((p = arr[i++])) {
-		if (streq(p, str, len)) {
-			rc = i;
-			break;
-		}
-	}
-	return rc;
 }
 
 #pragma endregion
@@ -2373,6 +1743,7 @@ struct compare_arg
 
 	int			check_local_dir_exist;
 
+	/*当State准备好后调用一次本方法*/
 	void (*onRBEnumerateStatePrepared)(ShellContext *context, compare_arg *arg, rb_red_blk_tree *rb, struct RBEnumerateState *state, void *st);
 };
 
@@ -3485,7 +2856,7 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-#pragma region
+#pragma region synch
 
 static int synchOnComparedFile(ShellContext *context, compare_arg *arg, MyMeta *mm, void *state)
 {
@@ -3498,6 +2869,70 @@ static int synchOnComparedFile(ShellContext *context, compare_arg *arg, MyMeta *
 	return 0;
 }
 
+static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
+{
+	PcsRes res;
+	struct DownloadState ds = { 0 };
+	char *local_path, *remote_path, *dir;
+
+	if (meta->remote_isdir) { /*跳过目录*/
+		meta->op_st = OP_ST_SUCC;
+		return 0;
+	}
+
+	local_path = combin_path(s->local_basedir, -1, meta->path);
+
+	/*创建目录*/
+	dir = base_dir(local_path, -1);
+	if (dir) {
+		if (CreateDirectoryRecursive(dir) != MKDIR_OK) {
+			meta->msg = pcs_utils_strdup("Can't create the directory.");
+			meta->op_st = OP_ST_FAIL;
+			pcs_free(dir);
+			return -1;
+		}
+		pcs_free(dir);
+	}
+
+	/*打开文件*/
+	ds.pf = fopen(local_path, "wb");
+	if (!ds.pf) {
+		meta->msg = pcs_utils_sprintf("Can't open the local file: %s\n", local_path);;
+		meta->op_st = OP_ST_FAIL;
+		pcs_free(local_path);
+		return -1;
+	}
+
+	remote_path = combin_unix_path(s->remote_basedir, meta->path);
+
+	/*启动下载*/
+	pcs_setopts(s->context->pcs,
+		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
+		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
+		PCS_OPTION_END);
+	res = pcs_download(s->context->pcs, remote_path);
+	fclose(ds.pf);
+	if (res != PCS_OK) {
+		meta->msg = pcs_utils_strdup(pcs_strerror(s->context->pcs));;
+		meta->op_st = OP_ST_FAIL;
+		pcs_free(local_path);
+		pcs_free(remote_path);
+		return -1;
+	}
+
+	/*设置文件最后修改时间为网盘文件最后修改时间*/
+	SetFileLastModifyTime(local_path, meta->remote_mtime);
+	meta->op_st = OP_ST_SUCC;
+	pcs_free(local_path);
+	pcs_free(remote_path);
+	return 0;
+}
+
+static int synchUpload(MyMeta *meta, struct RBEnumerateState *s, void *state)
+{
+	return 0;
+}
+
 static int synchOnPrepare(MyMeta *meta, struct RBEnumerateState *s, void *state)
 {
 	if (meta->msg) {
@@ -3506,43 +2941,7 @@ static int synchOnPrepare(MyMeta *meta, struct RBEnumerateState *s, void *state)
 	}
 	switch (meta->op) {
 	case OP_LEFT: {
-		PcsRes res;
-		struct DownloadState ds = { 0 };
-		char *locPath, *remotePath, *dir;
-		if (meta->remote_isdir) { /*跳过目录*/
-			meta->op_st = OP_ST_SUCC;
-			break;
-		}
-		locPath = combin_path(s->local_basedir, -1, meta->path);
-		dir = base_dir(locPath, -1);
-		if (dir != NULL) {
-			if (recursive_mkdir(dir) != MKDIR_OK) {
-				meta->msg = pcs_utils_strdup("Can't create the directory.");
-				meta->op_st = OP_ST_FAIL;
-				pcs_free(dir);
-				break;
-			}
-			pcs_free(dir);
-		}
-		ds.pf = fopen(locPath, "wb");
-		if (!ds.pf) {
-			meta->msg = pcs_utils_sprintf("Can't open the local file: %s\n", locPath);;
-			meta->op_st = OP_ST_FAIL;
-			break;
-		}
-		pcs_setopts(s->context->pcs,
-			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
-			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
-			PCS_OPTION_END);
-		res = pcs_download(s->context->pcs, meta->path);
-		fclose(ds.pf);
-		if (res != PCS_OK) {
-			meta->msg = pcs_utils_strdup(pcs_strerror(s->context->pcs));;
-			meta->op_st = OP_ST_FAIL;
-			break;
-		}
-		SetFileLastModifyTime(locPath, meta->remote_mtime);
-		meta->op_st = OP_ST_SUCC;
+		synchDownload(meta, s, state);
 		break;
 	}
 	case OP_RIGHT: {

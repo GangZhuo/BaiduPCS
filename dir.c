@@ -316,3 +316,62 @@ int SetFileLastModifyTime(const char *file, time_t mtime)
 	ut.modtime = mtime;
 	return utime(file, &ut);
 }
+
+
+/*
+* 递归创建目录
+*    path - 待创建的目录
+* 如果成功则返回0，否则返回错误码。
+*
+*/
+int CreateDirectoryRecursive(const char *path)
+{
+	char *tmp, *p;
+	int len;
+	LocalFileInfo *info;
+
+	if (!path || (len = strlen(path)) == 0)
+		return MKDIR_OK;
+	info = GetLocalFileInfo(path);
+	if (info && !info->isdir) {
+		DestroyLocalFileInfo(info);
+		return MKDIR_TARGET_IS_FILE;
+	}
+	if (info && info->isdir) {
+		DestroyLocalFileInfo(info);
+		return MKDIR_OK;
+	}
+	if (info) DestroyLocalFileInfo(info);
+	tmp = (char *)alloca(len + 1);
+	strcpy(tmp, path);
+	p = tmp;
+	if (*p == '/' || *p == '\\') p++;
+	while (*p) {
+		if (*p == '/' || *p == '\\') {
+			*p = '\0';
+			info = GetLocalFileInfo(path);
+			if (info) {
+				if (!info->isdir) {
+					DestroyLocalFileInfo(info);
+					return MKDIR_TARGET_IS_FILE;
+				}
+				DestroyLocalFileInfo(info);
+			}
+			else {
+#ifdef WIN32
+				if (_mkdir(tmp))
+#else
+				if (mkdir(tmp, DEFAULT_MKDIR_ACCESS))
+#endif
+					return MKDIR_FAIL;
+			}
+#ifdef WIN32
+			*p = '\\';
+#else
+			*p = '/';
+#endif
+		}
+		p++;
+	}
+	return MKDIR_OK;
+}

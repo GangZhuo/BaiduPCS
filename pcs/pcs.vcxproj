@@ -91,6 +91,7 @@
     <ClCompile Include="..\rb_tree\stack.c" />
     <ClCompile Include="..\shell.c" />
     <ClCompile Include="..\sqlite\sqlite3.c" />
+    <ClCompile Include="..\utils.c" />
     <ClCompile Include="cJSON.c" />
     <ClCompile Include="pcs.c" />
     <ClCompile Include="pcs_fileinfo.c" />
@@ -109,6 +110,7 @@
     <ClInclude Include="..\shell.h" />
     <ClInclude Include="..\sqlite\sqlite3.h" />
     <ClInclude Include="..\sqlite\sqlite3ext.h" />
+    <ClInclude Include="..\utils.h" />
     <ClInclude Include="cJSON.h" />
     <ClInclude Include="openssl_aes.h" />
     <ClInclude Include="openssl_md5.h" />
