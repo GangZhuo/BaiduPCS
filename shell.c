@@ -23,6 +23,8 @@
 #include "utils.h"
 #include "shell.h"
 
+#define USAGE "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36"
+
 #define PRINT_PAGE_SIZE			20		/*列出目录或列出比较结果时，分页大小*/
 
 #define OP_NONE					0
@@ -36,6 +38,7 @@
 #define OP_ST_FAIL				2		/*操作失败*/
 #define OP_ST_SKIP				4		/*跳过本操作*/
 #define OP_ST_CONFUSE			8		/*困惑操作*/
+#define OP_ST_PROCESSING		16		/*正在执行操作*/
 
 #define FLAG_NONE				0
 #define FLAG_ON_LOCAL			1
@@ -250,6 +253,20 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 #pragma endregion
 
 #pragma region 公用函数
+
+/*回到上一行*/
+static inline void clear_current_print_line()
+{
+	//printf("\033[1A"); //先回到上一行
+	printf("\033[K");  //清除该行
+}
+
+/*回到上一行*/
+static inline void back_prev_print_line()
+{
+	printf("\033[1A"); //先回到上一行
+	printf("\033[K");  //清除该行
+}
 
 /*把文件大小转换成字符串*/
 static const char *size_tostr(size_t size, int *fix_width, char ch)
@@ -730,6 +747,7 @@ static void init_pcs(ShellContext *context)
 	pcs_setopts(context->pcs,
 		PCS_OPTION_PROGRESS_FUNCTION, (void *)&upload_progress,
 		PCS_OPTION_PROGRESS, (void *)((long)PcsFalse),
+		PCS_OPTION_USAGE, (void *)USAGE,
 		PCS_OPTION_END);
 	init_pcs_secure(context);
 }
@@ -1482,7 +1500,8 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 			: (meta->op_st == OP_ST_FAIL ? "[fail] "
 			: (meta->op_st == OP_ST_SKIP ? "[skip] "
 			: (meta->op_st == OP_ST_CONFUSE ? "[confus]"
-			: "[    ] "))));
+			: (meta->op_st == OP_ST_PROCESSING ? "[ing...]"
+			: "[    ] ")))));
 	}
 	if (meta->flag & FLAG_ON_LOCAL) {
 		printf("%s", meta->path);
@@ -1503,10 +1522,10 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 		: (meta->op == OP_CONFUSE ? "><"
 		: "  "))));
 	if (meta->flag & FLAG_ON_REMOTE) {
-		printf("%s%s%s", meta->remote_path, meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
+		printf("%s%s%s\n", meta->remote_path, meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
 	}
 	else {
-		printf("%s%s", meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
+		printf("%s%s\n", meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
 	}
 }
 
@@ -1565,20 +1584,24 @@ static int rb_print_meta(void *a, void *state)
 		print_meta_list_head(s->first, s->second, s->other, s->page_index);
 	}
 
+	if (s->process)
+		meta->op_st = OP_ST_PROCESSING;
+
 	print_meta_list_row(s->first, s->second, s->other, meta);
 	
 	if (s->process) {
 		int rc;
 		if ((rc = (*s->process)(meta, s, s->processState))) {
+			clear_current_print_line();
+			back_prev_print_line();
+			if (meta->op_st == OP_ST_PROCESSING) meta->op_st = OP_ST_FAIL;
+			print_meta_list_row(s->first, s->second, s->other, meta);
 			return rc;
 		}
-		putchar('\r');
+		clear_current_print_line();
+		back_prev_print_line();
 		print_meta_list_row(s->first, s->second, s->other, meta);
-		if (meta->msg) {
-			printf(" %s", meta->msg);
-		}
 	}
-	putchar('\n');
 
 	s->printed_count++;
 
@@ -1595,6 +1618,7 @@ static int rb_decide_op(void *a, void *state)
 	if (!meta || !s) return 0;
 	
 	decide_op(meta);
+	meta->op_st = OP_ST_NONE;
 
 	if (meta->parent) {
 		if (!(meta->parent->flag & FLAG_ON_REMOTE))
@@ -1634,6 +1658,170 @@ static int rb_decide_op(void *a, void *state)
 #pragma endregion
 
 #pragma region 各命令函数体
+
+/*
+ * 执行下载操作
+ *   context        - 上下文
+ *   local_file     - 文件本地存储路径
+ *   remote_file    - 远端文件
+ *   remote_mtime   - 远端文件的最后修改时间
+ *   local_basedir  - 本地存储路径是基于哪一个目录的
+ *   remote_basedir - 远端文件是基于哪一个目录的
+ *   pErrMsg        - 如果下载失败时，用于接收失败消息，如果无需失败消息，则传入NULL
+ *                    使用完后需调用pcs_free()
+ *   op_st          - 用于接收操作状态的。即 OP_ST_FAIL， OP_ST_SUCC， OP_ST_SKIP
+ * 成功后返回0，失败后返回非0值
+ */
+static inline int do_download(ShellContext *context, 
+	const char *local_file, const char *remote_file, time_t remote_mtime,
+	const char *local_basedir, const char *remote_basedir,
+	char **pErrMsg, int *op_st)
+{
+	PcsRes res;
+	struct DownloadState ds = { 0 };
+	char *local_path, *remote_path, *dir,
+		*tmp_local_path;
+
+	local_path = combin_path(local_basedir, -1, local_file);
+
+	/*创建目录*/
+	dir = base_dir(local_path, -1);
+	if (dir) {
+		if (CreateDirectoryRecursive(dir) != MKDIR_OK) {
+			if (pErrMsg) {
+				if (*pErrMsg) pcs_free(*pErrMsg);
+				(*pErrMsg) = pcs_utils_strdup("Error: Can't create the directory.");
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			pcs_free(dir);
+			pcs_free(local_path);
+			return -1;
+		}
+		pcs_free(dir);
+	}
+
+	tmp_local_path = (char *)pcs_malloc(strlen(local_path) + 14);
+	strcpy(tmp_local_path, local_path);
+	strcat(tmp_local_path, ".pcs_download");
+
+	/*打开文件*/
+	ds.pf = fopen(tmp_local_path, "wb");
+	if (!ds.pf) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("Error: Can't open or create the temp file: %s\n", tmp_local_path);
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		pcs_free(local_path);
+		return -1;
+	}
+
+	dir = combin_unix_path(context->workdir, remote_basedir);
+	if (!dir) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("Error: Can't combin remote path\n");
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		pcs_free(local_path);
+		return -1;
+	}
+	remote_path = combin_unix_path(dir, remote_file);
+	pcs_free(dir);
+	if (!dir) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("Error: Can't combin remote path\n");
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		pcs_free(local_path);
+		return -1;
+	}
+
+	/*启动下载*/
+	pcs_setopts(context->pcs,
+		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
+		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
+		PCS_OPTION_END);
+	res = pcs_download(context->pcs, remote_path);
+	fclose(ds.pf);
+	if (res != PCS_OK) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("Error: %s. remote_path=%s\n", pcs_strerror(context->pcs), remote_path);
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		pcs_free(local_path);
+		pcs_free(remote_path);
+		return -1;
+	}
+
+	DeleteFileRecursive(local_path);
+	if (rename(tmp_local_path, local_path)) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("Error: rename error. old=%s, new=%s\n", tmp_local_path, local_path);
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		pcs_free(local_path);
+		pcs_free(remote_path);
+		return -1;
+	}
+
+	/*设置文件最后修改时间为网盘文件最后修改时间*/
+	SetFileLastModifyTime(local_path, remote_mtime);
+	if (op_st) (*op_st) = OP_ST_SUCC;
+	pcs_free(tmp_local_path);
+	pcs_free(local_path);
+	pcs_free(remote_path);
+	return 0;
+}
+
+static inline int do_upload(ShellContext *context, 
+	const char *local_file, const char *remote_file, PcsBool is_force,
+	const char *local_basedir, const char *remote_basedir,
+	char **pErrMsg, int *op_st)
+{
+	PcsFileInfo *res = NULL;
+	char *local_path, *remote_path, *dir;
+
+	local_path = combin_path(local_basedir, -1, local_file);
+	dir = combin_unix_path(context->workdir, remote_basedir);
+	remote_path = combin_unix_path(dir, remote_file);
+	pcs_free(dir);
+	pcs_setopts(context->pcs,
+		PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
+		PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
+		PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
+		PCS_OPTION_END);
+	res = pcs_upload(context->pcs, remote_path, is_force, local_path);
+	if (!res || !res->path || !res->path[0]) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("Error: %s\n", pcs_strerror(context->pcs));
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		if (res) pcs_fileinfo_destroy(res);
+		pcs_free(local_path);
+		pcs_free(remote_path);
+		return -1;
+	}
+	if (op_st) (*op_st) = OP_ST_SUCC;
+	if (res) pcs_fileinfo_destroy(res);
+	pcs_free(local_path);
+	pcs_free(remote_path);
+	return 0;
+}
 
 /*打印网盘文件内容*/
 static int cmd_cat(ShellContext *context, int argc, char *argv[])
@@ -1944,7 +2132,6 @@ static int on_compared_file(ShellContext *context, compare_arg *arg, MyMeta *mm,
 	if (second < 10) second = 10;
 	print_meta_list_head(first, second, other, 0);
 	print_meta_list_row(first, second, other, mm);
-	putchar('\n');
 	print_meta_list_foot(first, second, other);
 	return 0;
 }
@@ -2129,15 +2316,12 @@ static int cmd_context(ShellContext *context, int argc, char *argv[])
 static int cmd_download(ShellContext *context, int argc, char *argv[])
 {
 	int is_force = 0;
-	char *path = NULL;
+	char *path = NULL, *errmsg = NULL;
 	const char *relPath = NULL, *locPath = NULL;
 	int i;
 
 	LocalFileInfo *local;
 	PcsFileInfo *meta;
-	PcsRes res;
-	struct DownloadState ds = { 0 };
-	time_t mtime;
 
 	if (is_print_usage(argc, argv)) {
 		usage_download(context);
@@ -2198,60 +2382,46 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 		}
 	}
 	if (local) DestroyLocalFileInfo(local);
-	ds.pf = fopen(locPath, "wb");
-	if (!ds.pf) {
-		printf("Error: Can't %s the local file: %s\n", (local ? "open" : "create"), locPath);
-		return -1;
-	}
 	/*检查本地文件 - 结束*/
 
 	//检查是否已经登录
 	if (!is_login(context, NULL)) {
-		fclose(ds.pf);
 		return -1;
 	}
 
 	path = combin_unix_path(context->workdir, relPath);
-	if (!path) {
-		fclose(ds.pf);
-		assert(path);
-		return -1;
-	}
 
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
 	if (!meta) {
 		printf("Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
-		fclose(ds.pf);
 		pcs_free(path);
 		return -1;
 	}
 	if (meta->isdir) {
 		printf("Error: The remote file is directory. \nYou can use 'synch -cd' command to download the directory.\n");
-		fclose(ds.pf);
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
 	}
-	mtime = (time_t)meta->server_mtime;
-	pcs_fileinfo_destroy(meta);
 	/*检查网盘文件 - 结束*/
 
 	/*开始下载*/
-	pcs_setopts(context->pcs, 
-		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
-		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
-		PCS_OPTION_END);
-	res = pcs_download(context->pcs, path);
-	fclose(ds.pf);
-	if (res != PCS_OK) {
-		printf("Error: %s\n", pcs_strerror(context->pcs));
+
+	if (do_download(context,
+		locPath, meta->path, meta->server_mtime,
+		"", context->workdir,
+		&errmsg, NULL)) {
+		printf("Error: %s\n", errmsg);
+		pcs_fileinfo_destroy(meta);
+		if (errmsg) pcs_free(errmsg);
 		pcs_free(path);
 		return -1;
 	}
+	pcs_fileinfo_destroy(meta);
+	if (errmsg) pcs_free(errmsg);
 	printf("Download %s Success.\n", path);
 	pcs_free(path);
-	SetFileLastModifyTime(locPath, mtime);
 	return 0;
 }
 
@@ -2910,105 +3080,6 @@ static int cmd_search(ShellContext *context, int argc, char *argv[])
 
 #pragma region synch
 
-static inline int synchDoDownload(ShellContext *context, MyMeta *meta, 
-	const char *local_basedir, const char *remote_basedir)
-{
-	PcsRes res;
-	struct DownloadState ds = { 0 };
-	char *local_path, *remote_path, *dir;
-
-	if (meta->remote_isdir) { /*跳过目录*/
-		meta->op_st = OP_ST_SUCC;
-		return 0;
-	}
-
-	local_path = combin_path(local_basedir, -1, meta->path);
-
-	/*创建目录*/
-	dir = base_dir(local_path, -1);
-	if (dir) {
-		if (CreateDirectoryRecursive(dir) != MKDIR_OK) {
-			if (meta->msg) pcs_free(meta->msg);
-			meta->msg = pcs_utils_strdup("Error: Can't create the directory.");
-			meta->op_st = OP_ST_FAIL;
-			pcs_free(dir);
-			pcs_free(local_path);
-			return -1;
-		}
-		pcs_free(dir);
-	}
-
-	/*打开文件*/
-	ds.pf = fopen(local_path, "wb");
-	if (!ds.pf) {
-		if (meta->msg) pcs_free(meta->msg);
-		meta->msg = pcs_utils_sprintf("Error: Can't open the local file: %s\n", local_path);;
-		meta->op_st = OP_ST_FAIL;
-		pcs_free(local_path);
-		return -1;
-	}
-
-	remote_path = combin_unix_path(remote_basedir, meta->path);
-
-	/*启动下载*/
-	pcs_setopts(context->pcs,
-		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
-		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
-		PCS_OPTION_END);
-	res = pcs_download(context->pcs, remote_path);
-	fclose(ds.pf);
-	if (res != PCS_OK) {
-		if (meta->msg) pcs_free(meta->msg);
-		meta->msg = pcs_utils_sprintf("Error: %s. remote_path=%s\n", pcs_strerror(context->pcs), remote_path);;
-		meta->op_st = OP_ST_FAIL;
-		pcs_free(local_path);
-		pcs_free(remote_path);
-		return -1;
-	}
-
-	/*设置文件最后修改时间为网盘文件最后修改时间*/
-	SetFileLastModifyTime(local_path, meta->remote_mtime);
-	meta->op_st = OP_ST_SUCC;
-	pcs_free(local_path);
-	pcs_free(remote_path);
-	return 0;
-}
-
-static inline int synchDoUpload(ShellContext *context, MyMeta *meta,
-	const char *local_basedir, const char *remote_basedir)
-{
-	PcsFileInfo *res = NULL;
-	char *local_path, *remote_path;
-
-	if (meta->remote_isdir) { /*跳过目录*/
-		meta->op_st = OP_ST_SUCC;
-		return 0;
-	}
-
-	local_path = combin_path(local_basedir, -1, meta->path);
-	remote_path = combin_unix_path(remote_basedir, meta->path);
-	pcs_setopts(context->pcs,
-		PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
-		PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
-		PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
-		PCS_OPTION_END);
-	res = pcs_upload(context->pcs, remote_path, PcsTrue, local_path);
-	if (!res || !res->path || !res->path[0]) {
-		if (meta->msg) pcs_free(meta->msg);
-		meta->msg = pcs_utils_sprintf("Error: %s\n", pcs_strerror(context->pcs));;
-		meta->op_st = OP_ST_FAIL;
-		if (res) pcs_fileinfo_destroy(res);
-		pcs_free(local_path);
-		pcs_free(remote_path);
-		return -1;
-	}
-	meta->op_st = OP_ST_SUCC;
-	if (res) pcs_fileinfo_destroy(res);
-	pcs_free(local_path);
-	pcs_free(remote_path);
-	return 0;
-}
-
 static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 {
 	if (s->dry_run) { /*演示操作，模拟成功*/
@@ -3016,7 +3087,15 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 		return 0;
 	}
 
-	return synchDoDownload(s->context, meta, s->local_basedir, s->remote_basedir);
+	if (meta->remote_isdir) { /*跳过目录*/
+		meta->op_st = OP_ST_SUCC;
+		return 0;
+	}
+
+	return do_download(s->context, 
+		meta->path, meta->remote_path, meta->remote_mtime, 
+		s->local_basedir, s->remote_basedir,
+		&meta->msg, &meta->op_st);
 }
 
 static int synchUpload(MyMeta *meta, struct RBEnumerateState *s, void *state)
@@ -3026,7 +3105,15 @@ static int synchUpload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 		return 0;
 	}
 
-	return synchDoUpload(s->context, meta, s->local_basedir, s->remote_basedir);
+	if (meta->remote_isdir) { /*跳过目录*/
+		meta->op_st = OP_ST_SUCC;
+		return 0;
+	}
+
+	return do_upload(s->context,
+		meta->path, (meta->flag & FLAG_ON_REMOTE) ? meta->remote_path : meta->path, PcsTrue,
+		s->local_basedir, s->remote_basedir,
+		&meta->msg, &meta->op_st);
 }
 
 static int synchOnPrepare(MyMeta *meta, struct RBEnumerateState *s, void *state)
@@ -3079,14 +3166,20 @@ static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void
 		if (arg->dry_run)
 			meta->op_st = OP_ST_SUCC;
 		else
-			synchDoDownload(context, meta, arg->local_file, arg->remote_file);
+			do_download(context,
+				meta->path, meta->remote_path, meta->remote_mtime,
+				arg->local_file, arg->remote_file,
+				&meta->msg, &meta->op_st);
 		break;
 	}
 	case OP_RIGHT: {
 		if (arg->dry_run)
 			meta->op_st = OP_ST_SUCC;
 		else
-			synchDoUpload(context, meta, arg->local_file, arg->remote_file);
+			do_upload(context,
+				meta->path, (meta->flag & FLAG_ON_REMOTE) ? meta->remote_path : meta->path, PcsTrue,
+				arg->local_file, arg->remote_file,
+				&meta->msg, &meta->op_st);
 		break;
 	}
 	case OP_EQ:
@@ -3103,7 +3196,6 @@ static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void
 	if (second < 10) second = 10;
 	print_meta_list_head(first, second, other, 0);
 	print_meta_list_row(first, second, other, meta);
-	putchar('\n');
 	print_meta_list_foot(first, second, other);
 	return 0;
 }
@@ -3130,7 +3222,7 @@ static int cmd_synch(ShellContext *context, int argc, char *argv[])
 static int cmd_upload(ShellContext *context, int argc, char *argv[])
 {
 	int is_force = 0;
-	char *path = NULL;
+	char *path = NULL, *errmsg = NULL;
 	const char *relPath = NULL, *locPath = NULL;
 	int i;
 
@@ -3220,25 +3312,23 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 		pcs_free(path);
 		return -1;
 	}
-	if (meta) pcs_fileinfo_destroy(meta);
 	/*检查网盘文件 - 结束*/
 
 	/*开始上传*/
-	pcs_setopts(context->pcs,
-		PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
-		PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
-		PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
-		PCS_OPTION_END);
-	meta = pcs_upload(context->pcs, path, is_force ? PcsTrue : PcsFalse, locPath);
-	if (!meta || !meta->path || !meta->path[0]) {
-		printf("Error: %s\n", pcs_strerror(context->pcs));
+	if (do_upload(context,
+		locPath, path, is_force ? PcsTrue : PcsFalse,
+		"", context->workdir,
+		&errmsg, NULL)) {
+		printf("Error: %s\n", errmsg);
+		if (errmsg) pcs_free(errmsg);
 		pcs_free(path);
 		if (meta) pcs_fileinfo_destroy(meta);
 		return -1;
 	}
 	printf("Upload %s to %s Success.\n", locPath, meta->path);
+	if (errmsg) pcs_free(errmsg);
 	pcs_free(path);
-	pcs_fileinfo_destroy(meta);
+	if (meta) pcs_fileinfo_destroy(meta);
 	return 0;
 }
 
@@ -3390,7 +3480,7 @@ int main(int argc, char *argv[])
 	init_context(&context, argc, argv);
 	restore_context(&context);
 	init_pcs(&context);
-	exec_cmd(&context, argc, argv);
+	rc = exec_cmd(&context, argc, argv);
 	save_context(&context);
 	free_context(&context);
 	pcs_mem_print_leak();
