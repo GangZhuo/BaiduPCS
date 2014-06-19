@@ -2418,9 +2418,9 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 		pcs_free(path);
 		return -1;
 	}
+	printf("Download %s to %s Success.\n", meta->path, locPath);
 	pcs_fileinfo_destroy(meta);
 	if (errmsg) pcs_free(errmsg);
-	printf("Download %s Success.\n", path);
 	pcs_free(path);
 	return 0;
 }
@@ -2483,7 +2483,10 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 		pcs_free(path);
 		return -1;
 	}
-	pcs_fileinfo_destroy(meta);
+	if (meta) {
+		pcs_fileinfo_destroy(meta);
+		meta = NULL;
+	}
 	/*检查网盘文件 - 结束*/
 
 	if (is_append) {
@@ -3325,7 +3328,7 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 		if (meta) pcs_fileinfo_destroy(meta);
 		return -1;
 	}
-	printf("Upload %s to %s Success.\n", locPath, meta->path);
+	printf("Upload %s to %s Success.\n", locPath, path);
 	if (errmsg) pcs_free(errmsg);
 	pcs_free(path);
 	if (meta) pcs_fileinfo_destroy(meta);
