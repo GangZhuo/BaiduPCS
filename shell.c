@@ -2109,8 +2109,12 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 			: "[    ] "))));
 	}
 	if (meta->flag & FLAG_ON_LOCAL) {
-		printf(meta->path);
+		printf("%s", meta->path);
 		i = strlen(meta->path);
+		if (meta->local_isdir && i > 0 && meta->path[i - 1] != '/' && meta->path[i - 1] != '\\') {
+			putchar('/');
+			i++;
+		}
 	}
 	else {
 		i = 0;
@@ -2237,6 +2241,7 @@ static int rb_decide_op(void *a, void *state)
 
 	if ((meta->flag & FLAG_ON_LOCAL)) {
 		len = strlen(meta->path);
+		if (meta->local_isdir) len++;
 		if (s->second < len) s->second = len;
 	}
 	s->cnt_valid_total++;
