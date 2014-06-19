@@ -5,9 +5,11 @@
 #ifdef WIN32
 # include <malloc.h>
 #include "openssl_aes.h"
+#include "openssl_md5.h"
 #else
 # include <alloca.h>
 #include <openssl/aes.h>
+#include <openssl/md5.h>
 #endif
 
 #include "pcs_defs.h"
@@ -16,6 +18,8 @@
 #include "pcs_http.h"
 #include "cJSON.h"
 #include "pcs.h"
+
+#define PCS_MD5_SIZE	16 /*MD5的长度，固定为16。修改为其他值将导致校验错误*/
 
 #define PCS_SKIP_SPACE(p) while((*p) && (*p == ' ' || *p == '\f' || *p == '\n' || *p == '\r' || *p == '\t' || *p == '\v')) p++
 
@@ -67,7 +71,7 @@ struct PcsDownloadState
 	Pcs					handle;
 	size_t				contentlength;
 	unsigned char		buffer[PCS_BUFFER_SIZE];
-	size_t				buffer_size;
+	int					buffer_size;
 	int					secure;
 
 	void				*userdata;
@@ -98,8 +102,12 @@ struct PcsAesState
 	unsigned char		key[AES_BLOCK_SIZE];
 	unsigned char		iv[AES_BLOCK_SIZE];
 	unsigned char		buffer[PCS_BUFFER_SIZE];
-	unsigned char		last_block_buffer[AES_BLOCK_SIZE]; /*128bits block*/
-	unsigned char		*last_block;
+	int					buffer_size;
+	unsigned char		last_block[AES_BLOCK_SIZE]; /*128bits block*/
+	int					last_block_size;
+
+
+	MD5_CTX				md5; /*用于文件校验*/
 };
 
 struct PcsUploadState
@@ -110,6 +118,8 @@ struct PcsUploadState
 	unsigned char		buffer[PCS_BUFFER_SIZE];
 	size_t				buffer_size;
 	int					secure;
+
+	int					eof;
 
 	struct PcsAesState	*aes;
 };
@@ -2129,29 +2139,93 @@ static void destroyPcsAesState(struct PcsAesState *state)
 	if (state) pcs_free(state);
 }
 
+static int pcs_download_aes_process_buffer(struct PcsDownloadState *state)
+{
+	struct pcs *pcs = (struct pcs *)state->handle;
+	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
+	int sz;
+
+	aes->buffer_size = (state->buffer_size / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+	if (aes->buffer_size == state->buffer_size) {
+		aes->buffer_size -= PCS_MD5_SIZE;
+		aes->buffer_size = (aes->buffer_size / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+	}
+	// decrypt AES_ENCRYPT
+	AES_cbc_encrypt(state->buffer, aes->buffer,
+		aes->buffer_size, &aes->aes, aes->iv, AES_DECRYPT);
+	state->buffer_size -= aes->buffer_size;
+	memcpy(state->buffer, &state->buffer[aes->buffer_size], state->buffer_size);
+	if (aes->buffer_size >= AES_BLOCK_SIZE) {
+		/*如果缓存中字节数超过last_block需要的字节数的话，
+		则把last_block的字节送出去。
+		然后把缓存中最后的字节填充到last_block中。
+		然后把缓存中剩余的字节送出去。*/
+		if (aes->last_block_size > 0){
+			MD5_Update(&aes->md5, aes->last_block, aes->last_block_size); /*用送出去的值更新MD5*/
+			sz = (*state->write)(aes->last_block,
+				aes->last_block_size, state->contentlength, state->write_state);
+			if (sz != aes->last_block_size) return -1;
+			aes->last_block_size = 0;
+		}
+		memcpy(aes->last_block,
+			&aes->buffer[aes->buffer_size - AES_BLOCK_SIZE],
+			AES_BLOCK_SIZE);
+		aes->last_block_size = AES_BLOCK_SIZE;
+		aes->buffer_size -= aes->last_block_size;
+		if (aes->buffer_size > 0) {
+			MD5_Update(&aes->md5, aes->buffer, aes->buffer_size); /*用送出去的值更新MD5*/
+			sz = (*state->write)(aes->buffer, aes->buffer_size,
+				state->contentlength, state->write_state);
+			if (sz != aes->buffer_size) return -1;
+		}
+	}
+	else {
+		int wsz = aes->buffer_size + aes->last_block_size - AES_BLOCK_SIZE; /*获取补齐last_block后还多余的字节数*/
+		if (wsz > 0) { /*如果有多余的数据的话，则送出去*/
+			MD5_Update(&aes->md5, aes->last_block, wsz); /*用送出去的值更新MD5*/
+			sz = (*state->write)(aes->last_block, wsz, state->contentlength, state->write_state);
+			if (sz != wsz) return -1;
+			memcpy(aes->last_block, &aes->last_block[wsz], aes->last_block_size - wsz);
+			aes->last_block_size -= wsz;
+			memcpy(&aes->last_block[aes->last_block_size], aes->buffer, aes->buffer_size);
+			aes->last_block_size += aes->buffer_size;
+		}
+		else {
+			/*如果不够last_block需要的字节数，则直接复制到last_block中*/
+			memcpy(&aes->last_block[aes->last_block_size], aes->buffer, aes->buffer_size);
+			aes->last_block_size += aes->buffer_size;
+		}
+	}
+	return 0;
+}
+
 static PcsBool pcs_download_aes_finish(void *userdata)
 {
 	struct PcsDownloadState *state = (struct PcsDownloadState *)userdata;
 	struct pcs *pcs = (struct pcs *)state->handle;
 	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
-	int l;
-	if (state->buffer_size > 0) {
-		if ((state->buffer_size % AES_BLOCK_SIZE) != 0) return PcsFalse;
-		if (aes->last_block) {
-			l = (*state->write)(aes->last_block, AES_BLOCK_SIZE, state->contentlength, state->write_state);
-			if (l != AES_BLOCK_SIZE) return PcsFalse;
-			aes->last_block = NULL;
-		}
-		// decrypt AES_ENCRYPT
-		AES_cbc_encrypt(state->buffer, aes->buffer, state->buffer_size, &aes->aes, aes->iv, AES_DECRYPT);
-		l = (*state->write)(aes->buffer, state->buffer_size - aes->head.polish, state->contentlength, state->write_state);
-		if (l != state->buffer_size - aes->head.polish) return PcsFalse;
-		state->buffer_size = 0;
+	int sz, i;
+	unsigned char md[PCS_MD5_SIZE], *p;
+	if (state->buffer_size != PCS_MD5_SIZE) {
+		pcs_set_errmsg(state->handle, "Broken file.");
+		return PcsFalse;
 	}
-	else if (aes->last_block) {
-		l = (*state->write)(aes->last_block, AES_BLOCK_SIZE - aes->head.polish, state->contentlength, state->write_state);
-		if (l != AES_BLOCK_SIZE - aes->head.polish) return PcsFalse;
-		aes->last_block = NULL;
+	if (aes->last_block) {
+		MD5_Update(&aes->md5, aes->last_block, aes->last_block_size - aes->head.polish); /*用送出去的值更新MD5*/
+		sz = (*state->write)(aes->last_block, aes->last_block_size - aes->head.polish, state->contentlength, state->write_state);
+		if (sz != aes->last_block_size - aes->head.polish) {
+			pcs_set_errmsg(state->handle, "Write wrong size data.");
+			return PcsFalse;
+		}
+		aes->last_block_size = 0;
+	}
+	MD5_Final(md, &aes->md5);
+	p = (unsigned char *)state->buffer;
+	for (i = 0; i < PCS_MD5_SIZE; i++) {
+		if (md[i] != p[i]) {
+			pcs_set_errmsg(state->handle, "Wrong secure key or broken file.");
+			return PcsFalse;
+		}
 	}
 	return PcsTrue;
 }
@@ -2198,7 +2272,7 @@ static size_t pcs_download_write_func(char *ptr, size_t size, size_t contentleng
 
 	state->contentlength = contentlength;
 	while (sz > 0) {
-		l = ((size_t)PCS_BUFFER_SIZE) - state->buffer_size;
+		l = (PCS_BUFFER_SIZE) - state->buffer_size;
 		if (l > sz) l = sz;
 		memcpy(&state->buffer[state->buffer_size], p, l);
 		state->buffer_size += l;
@@ -2207,7 +2281,12 @@ static size_t pcs_download_write_func(char *ptr, size_t size, size_t contentleng
 		if (!state->secure && state->buffer_size >= AES_BLOCK_SIZE) {
 			struct PcsAesHead head = { 0 };
 			readToAesHead(state->buffer, &head);
-			if (head.magic == PCS_AES_MAGIC && (head.bits == 128 || head.bits == 192 || head.bits == 256) && head.polish >= 0 && head.polish < AES_BLOCK_SIZE) {
+			if (head.magic == PCS_AES_MAGIC
+				&& (head.bits == 128
+				|| head.bits == 192
+				|| head.bits == 256)
+				&& head.polish >= 0
+				&& head.polish < AES_BLOCK_SIZE) { /*检测到文件被AES加密*/
 				aes = createPcsAesState(state->handle, head.bits, AES_DECRYPT, head.polish);
 				if (!aes) return 0;
 				state->userdata = aes;
@@ -2229,43 +2308,25 @@ static size_t pcs_download_write_func(char *ptr, size_t size, size_t contentleng
 				}
 				state->buffer_size -= AES_BLOCK_SIZE;
 				memcpy(state->buffer, &state->buffer[AES_BLOCK_SIZE], state->buffer_size);
+				MD5_Init(&aes->md5);
 			}
 			else {
 				state->secure = PCS_SECURE_PLAINTEXT;
 			}
 		}
-		if (state->buffer_size == PCS_BUFFER_SIZE) {
-			if (state->secure == PCS_SECURE_AES_CBC_128 || state->secure == PCS_SECURE_AES_CBC_192 || state->secure == PCS_SECURE_AES_CBC_256) {
-				if (aes->head.polish) {
-					if (aes->last_block) {
-						l = (*state->write)(aes->last_block, AES_BLOCK_SIZE, contentlength, state->write_state);
-						if (l != AES_BLOCK_SIZE) return 0;
-						aes->last_block = NULL;
-					}
-					// decrypt AES_ENCRYPT
-					AES_cbc_encrypt(state->buffer, aes->buffer, state->buffer_size, &aes->aes, aes->iv, AES_DECRYPT);
-					memcpy(aes->last_block_buffer, &aes->buffer[state->buffer_size - AES_BLOCK_SIZE], AES_BLOCK_SIZE);
-					aes->last_block = aes->last_block_buffer;
-					l = (*state->write)(aes->buffer, state->buffer_size - AES_BLOCK_SIZE, contentlength, state->write_state);
-					if (l != state->buffer_size - AES_BLOCK_SIZE) return 0;
-					state->buffer_size = 0;
-				}
-				else {
-					// decrypt AES_ENCRYPT
-					AES_cbc_encrypt(state->buffer, aes->buffer, state->buffer_size, &aes->aes, aes->iv, AES_DECRYPT);
-					l = (*state->write)(aes->buffer, state->buffer_size, contentlength, state->write_state);
-					if (l != state->buffer_size) return 0;
-					state->buffer_size = 0;
-				}
-			}
-			else if (state->secure == PCS_SECURE_PLAINTEXT) {
-				l = (*state->write)(state->buffer, state->buffer_size, contentlength, state->write_state);
-				if (l != state->buffer_size) return 0;
-				state->buffer_size = 0;
-			}
-			else {
+		if (state->secure == PCS_SECURE_AES_CBC_128
+			|| state->secure == PCS_SECURE_AES_CBC_192
+			|| state->secure == PCS_SECURE_AES_CBC_256) {
+			if (pcs_download_aes_process_buffer(state))
 				return 0;
-			}
+		}
+		else if (state->secure == PCS_SECURE_PLAINTEXT) {
+			l = (*state->write)(state->buffer, state->buffer_size, contentlength, state->write_state);
+			if (l != state->buffer_size) return 0;
+			state->buffer_size = 0;
+		}
+		else {
+			return 0;
 		}
 	}
 	return size;
@@ -2393,6 +2454,9 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 	else {
 		rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs);
 	}
+	if (rc != PCS_OK) {
+		return NULL;
+	}
 	if (dstsz) *dstsz = pcs->buffer_size;
 	return pcs->buffer;
 }
@@ -2412,6 +2476,11 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 	if (pcs->secure_enable
 		&& (pcs->secure_method == PCS_SECURE_AES_CBC_128 || pcs->secure_method == PCS_SECURE_AES_CBC_192 || pcs->secure_method == PCS_SECURE_AES_CBC_256)) {
 		struct PcsAesState *aes = NULL;
+		MD5_CTX md5;
+		unsigned char md5_value[PCS_MD5_SIZE];
+		MD5_Init(&md5);
+		MD5_Update(&md5, buffer, buffer_size);
+		MD5_Final(md5_value, &md5);
 		// set the encryption length
 		sz = 0;
 		if (buffer_size % AES_BLOCK_SIZE == 0) {
@@ -2420,7 +2489,7 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 		else {
 			sz = (buffer_size / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 		}
-		buf = (char *)pcs_malloc(sz + AES_BLOCK_SIZE);
+		buf = (char *)pcs_malloc(sz + AES_BLOCK_SIZE + PCS_MD5_SIZE);
 		if (!buf) {
 			pcs_set_errmsg(handle, "Can't alloc buffer for post data.");
 			pcs_free(filename);
@@ -2441,6 +2510,10 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 		AES_cbc_encrypt(buffer, &buf[AES_BLOCK_SIZE], buffer_size, &aes->aes, aes->iv, AES_ENCRYPT);
 		sz += AES_BLOCK_SIZE;
 		destroyPcsAesState(aes);
+
+		/*复制md5值到最后*/
+		memcpy(&buf[sz], md5_value, PCS_MD5_SIZE);
+		sz += PCS_MD5_SIZE;
 	}
 	if (pcs_http_form_addbuffer(pcs->http, &form, "file", buf, (long)sz, filename) != PcsTrue) {
 		pcs_set_errmsg(handle, "Can't build the post data.");
@@ -2465,16 +2538,27 @@ size_t pcs_upload_read_func(void *ptr, size_t size, size_t nmemb, void *userdata
 
 	if (buf_size == 0) {
 		sz = fread(aes->buffer, 1, PCS_BUFFER_SIZE, file);
-		if (sz % AES_BLOCK_SIZE != 0) {
-			buf_size = (sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-			memset(&aes->buffer[sz], 0, buf_size - sz);
+		if (ferror(file)) {
+			return CURL_READFUNC_ABORT;
 		}
-		else {
-			buf_size = sz;
+		if (sz > 0) {
+			MD5_Update(&aes->md5, aes->buffer, sz);
+			if ((sz % AES_BLOCK_SIZE) != 0) {
+				buf_size = (sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+				memset(&aes->buffer[sz], 0, buf_size - sz);
+			}
+			else {
+				buf_size = sz;
+			}
+			// encrypt (iv will change)
+			AES_cbc_encrypt(aes->buffer, buf, buf_size, &aes->aes, aes->iv, AES_ENCRYPT);
+			state->buffer_size = buf_size;
 		}
-		// encrypt (iv will change)
-		AES_cbc_encrypt(aes->buffer, buf, buf_size, &aes->aes, aes->iv, AES_ENCRYPT);
-		state->buffer_size = buf_size;
+		else if (!state->eof) {
+			MD5_Final(buf, &aes->md5);
+			buf_size = state->buffer_size = PCS_MD5_SIZE;
+			state->eof = 1;
+		}
 	}
 
 	if (buf_size > 0) {
@@ -2512,7 +2596,9 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 	pcs_clear_errmsg(handle);
 	filename = pcs_utils_filename(path);
 	if (pcs->secure_enable 
-		&& (pcs->secure_method == PCS_SECURE_AES_CBC_128 || pcs->secure_method == PCS_SECURE_AES_CBC_192 || pcs->secure_method == PCS_SECURE_AES_CBC_256)) {
+		&& (pcs->secure_method == PCS_SECURE_AES_CBC_128 
+		|| pcs->secure_method == PCS_SECURE_AES_CBC_192 
+		|| pcs->secure_method == PCS_SECURE_AES_CBC_256)) {
 		size_t file_size = 0, sz = 0;
 		state.file = fopen(local_filename, "rb");
 		if (state.file) {
@@ -2547,8 +2633,9 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 			return NULL;
 		}
 		state.aes = aes;
+		MD5_Init(&aes->md5);
 
-		if (pcs_http_form_addbufferfile(pcs->http, &form, "file", filename, &pcs_upload_read_func, &state, sz + AES_BLOCK_SIZE) != PcsTrue) {
+		if (pcs_http_form_addbufferfile(pcs->http, &form, "file", filename, &pcs_upload_read_func, &state, sz + AES_BLOCK_SIZE + PCS_MD5_SIZE) != PcsTrue) {
 			pcs_set_errmsg(handle, "Can't build the post data.");
 			pcs_free(filename);
 			destroyPcsAesState(aes);
