@@ -57,7 +57,7 @@ time_t FileTimeToTime_t(FILETIME ft, time_t *t)
 
 static char *combin_path(const char *base, const char *filename, const char **pName)
 {
-	char *p, *p2;
+	char *p;
 	int sz_base;
 
 	sz_base = strlen(base);
@@ -115,7 +115,6 @@ static char *filename_dup(const char *filename, const char **pName)
 static LocalFileInfo *CreateLocalFileInfo(const char *parentPath, const char *filename, int isdir, time_t mtime, size_t size, LocalFileInfo *parent)
 {
 	LocalFileInfo *info;
-	char *p;
 	info = (LocalFileInfo *)pcs_malloc(sizeof(LocalFileInfo));
 	if (!parentPath || !parentPath[0]) {
 		if (filename && filename[0])
