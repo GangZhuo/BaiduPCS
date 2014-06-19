@@ -36,6 +36,7 @@
 #ifdef WIN32
 # define utimbuf	_utimbuf
 # define utime		_utime
+# define rmdir		_rmdir
 #endif
 
 #ifdef WIN32
@@ -407,4 +408,45 @@ int CreateDirectoryRecursive(const char *path)
 			return MKDIR_FAIL;
 	}
 	return MKDIR_OK;
+}
+
+/*递归删除文件或目录
+成功返回0，否则返回非0值
+*/
+int DeleteFileRecursive(const char *path)
+{
+	LocalFileInfo *info, *p;
+	
+	info = GetLocalFileInfo(path);
+	if (!info) return 0;
+
+	if (info->isdir) {
+		p = info;
+		if (GetDirectoryFilesHelp(path, &p, 0, 0, NULL, info, NULL, NULL) < 0){
+			DestroyLocalFileInfoLink(info);
+			return -1;
+		}
+		p = info;
+		while (p) {
+			if (DeleteFileRecursive(p->path)) {
+				DestroyLocalFileInfoLink(info);
+				return -1;
+			}
+			p = p->next;
+		}
+		DestroyLocalFileInfoLink(info);
+		if (!p) {
+			if (rmdir(path))
+				return -1;
+		}
+	}
+	else {
+		if (remove(path)) {
+			DestroyLocalFileInfo(info);
+			return -1;
+		}
+	}
+	DestroyLocalFileInfo(info);
+	return 0;
+
 }

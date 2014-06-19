@@ -64,6 +64,11 @@ int SetFileLastModifyTime(const char *file, time_t mtime);
 */
 int CreateDirectoryRecursive(const char *path);
 
+/*递归删除文件或目录
+成功返回0，否则返回非0值
+*/
+int DeleteFileRecursive(const char *path);
+
 
 
 #endif
