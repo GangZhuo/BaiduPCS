@@ -483,9 +483,9 @@ int read_file(const char *file, char **pBuffer)
 }
 
 /*从程序路径中找到文件名开始的位置，返回开始位置的指针*/
-const char *filename(char *path)
+char *filename(char *path)
 {
-	const char *p;
+	char *p;
 	p = path;
 	p += strlen(p);
 	while (p > path && *p != '/' && *p != '\\') p--;

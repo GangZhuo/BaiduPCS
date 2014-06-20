@@ -46,20 +46,31 @@ Hashtable *ht_create(int capacity, int ignore_case, void (*free_value)(void *));
 void ht_destroy(Hashtable *ht);
 /*扩容哈希表。成功返回0，失败返回非0值。*/
 int ht_expand(Hashtable *ht, int capacity);
-/*添加一项到哈希表中。如果失败或已经存在，则返回非0值，否则返回0*/
-int ht_add(Hashtable *ht, const char *key, void *value);
+/*
+添加一项到哈希表中。
+key_size 传入-1时，自动使用strlen()计算
+如果失败或已经存在，则返回非0值，否则返回0
+*/
+int ht_add(Hashtable *ht, const char *key, int key_size, void *value);
+/*设置一个项的值，
+ * 如果key已经存在，则修改其值为value，并设定(*pOldVal)为旧值，
+ * 如果key不存在，则添加一个新项，不设置(*pOldVal)的值。
+ * 如果不需要接收旧值，设置 pOldVal 的值为 NULL。
+ * 如果失败，则返回非0值，否则返回0
+*/
+int ht_set(Hashtable *ht, const char *key, int key_size, void *value, void **pOldVal);
 /*
  * 从哈希表中移除一项。如果失败或不存在，则返回非0值，否则返回0。
  * 如果 pVal 值不为NULL，函数执行成功时，将把被移除项的value值写入pVal指定的地址中。
  * 如果不需要接收被移除项的值，设置 pVal 的值为 NULL。
 */
-int ht_remove(Hashtable *ht, const char *key, void **pVal);
+int ht_remove(Hashtable *ht, const char *key, int key_size, void **pVal);
 /*返回哈希表中是否存在该项。不存在返回0，存在返回1。*/
-int ht_has(Hashtable *ht, const char *key);
+int ht_has(Hashtable *ht, const char *key, int key_size);
 /*返回哈希表中key指定项的值。如果不存在则返回NULL，存在则返回实际值*/
-void *ht_get(Hashtable *ht, const char *key);
+void *ht_get(Hashtable *ht, const char *key, int key_size);
 /*返回哈希表中key指定的节点项。如果不存在则返回NULL，存在则返回该节点*/
-HashtableNode *ht_get_node(Hashtable *ht, const char *key);
+HashtableNode *ht_get_node(Hashtable *ht, const char *key, int key_size);
 /*清空哈希表。注意函数不会自动释放每项的值，清空前需迭代每一项来释放其值。*/
 int ht_clear(Hashtable *ht);
 
