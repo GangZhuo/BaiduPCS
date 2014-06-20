@@ -25,6 +25,8 @@
 
 #define USAGE "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36"
 
+#define DOWNLOAD_TEMP_FILE_SUFFIX ".pcs_download"
+
 #define PRINT_PAGE_SIZE			20		/*列出目录或列出比较结果时，分页大小*/
 
 #define OP_NONE					0
@@ -1389,7 +1391,9 @@ static void onGotLocalFile(LocalFileInfo *info, LocalFileInfo *parent, void *sta
 {
 	rb_red_blk_tree *rb = (rb_red_blk_tree *)state;
 	MyMeta *meta;
-
+	if (!info->isdir && endsWith(info->path, DOWNLOAD_TEMP_FILE_SUFFIX)) {
+		return;
+	}
 	fix_unix_path(info->path);
 	meta = meta_create(info->path);
 	meta->flag |= FLAG_ON_LOCAL;
@@ -1700,9 +1704,9 @@ static inline int do_download(ShellContext *context,
 		pcs_free(dir);
 	}
 
-	tmp_local_path = (char *)pcs_malloc(strlen(local_path) + 14);
+	tmp_local_path = (char *)pcs_malloc(strlen(local_path) + strlen(DOWNLOAD_TEMP_FILE_SUFFIX) + 1);
 	strcpy(tmp_local_path, local_path);
-	strcat(tmp_local_path, ".pcs_download");
+	strcat(tmp_local_path, DOWNLOAD_TEMP_FILE_SUFFIX);
 
 	/*打开文件*/
 	ds.pf = fopen(tmp_local_path, "wb");
@@ -3090,7 +3094,7 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 		return 0;
 	}
 
-	if (meta->local_isdir) { /*跳过目录*/
+	if (meta->remote_isdir) { /*跳过目录*/
 		meta->op_st = OP_ST_SUCC;
 		return 0;
 	}
@@ -3108,7 +3112,7 @@ static int synchUpload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 		return 0;
 	}
 
-	if (meta->remote_isdir) { /*跳过目录*/
+	if (meta->local_isdir) { /*跳过目录*/
 		meta->op_st = OP_ST_SUCC;
 		return 0;
 	}

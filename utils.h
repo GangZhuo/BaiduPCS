@@ -26,6 +26,13 @@ void std_password(char *password, int size);
 */
 int is_absolute_path(const char *path);
 
+/** detecting whether base is starts with str
+*/
+int startsWith(char* base, char* str);
+
+/** detecting whether base is ends with str
+*/
+int endsWith(char* base, char* str);
 
 /*
 * 判断两个字符串是否相等。

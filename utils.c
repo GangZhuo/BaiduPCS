@@ -191,6 +191,22 @@ int is_absolute_path(const char *path)
 
 #pragma endregion
 
+/** detecting whether base is starts with str
+*/
+int startsWith(char* base, char* str)
+{
+	return (strstr(base, str) - base) == 0;
+}
+
+/** detecting whether base is ends with str
+*/
+int endsWith(char* base, char* str)
+{
+	int blen = strlen(base);
+	int slen = strlen(str);
+	return (blen >= slen) && (strcmp(base + blen - slen, str) == 0);
+}
+
 /*
 * 判断两个字符串是否相等。
 *  s1    - 以'\0'为结束标记的字符串
