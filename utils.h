@@ -88,7 +88,7 @@ int read_file(const char *file, char **pBuffer);
 从程序路径中找到文件名开始的位置，
 返回开始位置的指针
 */
-const char *filename(char *path);
+char *filename(char *path);
 
 /*
 * 获取路径的父路径，如果没有父路径则返回NULL。

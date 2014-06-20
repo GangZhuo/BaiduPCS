@@ -21,11 +21,16 @@
 #include "version.h"
 #include "dir.h"
 #include "utils.h"
+#include "hashtable.h"
 #include "shell.h"
 
 #define USAGE "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36"
 
-#define DOWNLOAD_TEMP_FILE_SUFFIX ".pcs_download"
+#define PCS_CONTEXT_ENV				"PCS_CONTEXT"
+#define PCS_COOKIE_ENV				"PCS_COOKIE"
+#define PCS_CAPTCHA_ENV				"PCS_CAPTCHA"
+#define DOWNLOAD_TEMP_FILE_SUFFIX	".pcs_download"
+#define PCS_DEFAULT_CONTEXT_FILE	"/tmp/pcs_context.json"
 
 #define PRINT_PAGE_SIZE			20		/*列出目录或列出比较结果时，分页大小*/
 
@@ -46,6 +51,16 @@
 #define FLAG_ON_LOCAL			1
 #define FLAG_ON_REMOTE			2
 #define FLAG_PARENT_NOT_ON_REMOTE 4
+
+/*参数对象*/
+struct args
+{
+	char		*cmd;
+	Hashtable	*opts;
+	int			optc;
+	char		**argv;
+	int			argc;
+};
 
 /* 文件元数据*/
 typedef struct MyMeta MyMeta;
@@ -118,7 +133,25 @@ struct RBEnumerateState
 	const char *prefixion;
 };
 
+static char *app_name = NULL;
+
 static PcsBool is_login(ShellContext *context, const char *msg);
+
+/*判断是否存在opt选项
+存在则返回1，否则返回0*/
+static int has_opt(struct args *arg, const char *opt);
+
+/*判断是否存在opt选项，如果存在的话，把其值填入 （*pValue）中
+存在则返回1，否则返回0*/
+static int has_optEx(struct args *arg, const char *opt, char **pValue);
+
+/*测试arg中是否仅包含support指定的选项。
+arg  -
+support - 字符串数组
+count   - 数组元素个数，如果传入-1的话，则遇到一个空字符串，则认为数组结束
+如果测试通过则返回0，否则返回非零值*/
+static int test_opts(struct args *arg, const char **support, int count);
+
 
 #pragma region 获取默认路径
 
@@ -126,7 +159,8 @@ static PcsBool is_login(ShellContext *context, const char *msg);
 static const char *contextfile()
 {
 	static char filename[1024] = { 0 };
-
+	char *env_value = getenv(PCS_CONTEXT_ENV);
+	if (env_value) return env_value;
 	if (!filename[0]) {
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
@@ -147,6 +181,8 @@ static const char *contextfile()
 static const char *cookiefile()
 {
 	static char filename[1024] = { 0 };
+	char *env_value = getenv(PCS_COOKIE_ENV);
+	if (env_value) return env_value;
 	if (!filename[0]){ /*如果已经处理过，则直接返回*/
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
@@ -169,6 +205,8 @@ static const char *cookiefile()
 static const char *captchafile()
 {
 	static char filename[1024] = { 0 };
+	char *env_value = getenv(PCS_CAPTCHA_ENV);
+	if (env_value) return env_value;
 	if (!filename[0]){ /*如果已经处理过，则直接返回*/
 #ifdef WIN32
 		strcpy(filename, getenv("UserProfile"));
@@ -258,6 +296,14 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 #pragma endregion
 
 #pragma region 公用函数
+
+/*找到str第一次出现ch的位置*/
+static inline char *findchar(char *str, int ch)
+{
+	char *p = str;
+	while (*p && ((int)((unsigned int)(*p))) != ch) p++;
+	return p;
+}
 
 /*回到上一行*/
 static inline void clear_current_print_line()
@@ -566,31 +612,33 @@ static void save_context(ShellContext *context)
 	pcs_free(json);
 }
 
-/*还原保存的上下文*/
-static void restore_context(ShellContext *context)
+/*还原保存的上下文。
+成功返回0，失败返回非0值。*/
+static int restore_context(ShellContext *context, const char *filename)
 {
-	const char *filename;
 	char *filecontent = NULL;
 	int filesize = 0;
 	cJSON *root, *item;
 
-	filename = contextfile();
+	if (!filename)
+		filename = contextfile();
 	filesize = read_file(filename, &filecontent);
 	if (filesize <= 0) {
+		printf("Error: Can't read the context file (%s).\n", filename, app_name);
 		if (filecontent) pcs_free(filecontent);
-		return;
+		return -1;
 	}
 	root = cJSON_Parse(filecontent);
 	if (!root) {
-		printf("Broken JSON string \n%s", filecontent);
+		printf("Error: Broken context file (%s).\n", filename, app_name);
 		pcs_free(filecontent);
-		return;
+		return -1;
 	}
 
 	item = cJSON_GetObjectItem(root, "cookiefile");
 	if (item && item->valuestring && item->valuestring[0]) {
 		if (!is_absolute_path(item->valuestring)) {
-			printf("warning: invalid context.cookiefile, the value should be absolute path, default to %s.\n", context->cookiefile);
+			printf("warning: Invalid context.cookiefile, the value should be absolute path, use default value: %s.\n", context->cookiefile);
 		}
 		else {
 			if (context->cookiefile) pcs_free(context->cookiefile);
@@ -601,7 +649,7 @@ static void restore_context(ShellContext *context)
 	item = cJSON_GetObjectItem(root, "captchafile");
 	if (item && item->valuestring && item->valuestring[0]) {
 		if (!is_absolute_path(item->valuestring)) {
-			printf("warning: invalid context.captchafile, the value should be absolute path, default to %s.\n", context->captchafile);
+			printf("warning: Invalid context.captchafile, the value should be absolute path, use default value: %s.\n", context->captchafile);
 		}
 		else {
 			if (context->captchafile) pcs_free(context->captchafile);
@@ -612,7 +660,7 @@ static void restore_context(ShellContext *context)
 	item = cJSON_GetObjectItem(root, "workdir");
 	if (item && item->valuestring && item->valuestring[0]) {
 		if (item->valuestring[0] != '/') {
-			printf("warning: invalid context.workdir, the value should be absolute path, default to %s.\n", context->workdir);
+			printf("warning: Invalid context.workdir, the value should be absolute path, use default value: %s.\n", context->workdir);
 		}
 		else {
 			if (context->workdir) pcs_free(context->workdir);
@@ -623,7 +671,7 @@ static void restore_context(ShellContext *context)
 	item = cJSON_GetObjectItem(root, "list_page_size");
 	if (item) {
 		if (((int)item->valueint) < 1) {
-			printf("warning: invalid context.list_page_size, the value should be great than 0, default to %d.\n", context->list_page_size);
+			printf("warning: Invalid context.list_page_size, the value should be great than 0, use default value: %d.\n", context->list_page_size);
 		}
 		else {
 			context->list_page_size = (int)item->valueint;
@@ -633,7 +681,7 @@ static void restore_context(ShellContext *context)
 	item = cJSON_GetObjectItem(root, "list_sort_name");
 	if (item && item->valuestring && item->valuestring[0]) {
 		if (strcmp(item->valuestring, "name") && strcmp(item->valuestring, "time") && strcmp(item->valuestring, "size")) {
-			printf("warning: invalid context.list_sort_name, the value should be one of [name|time|size], default to '%s'.\n", context->list_sort_name);
+			printf("warning: Invalid context.list_sort_name, the value should be one of [name|time|size], use default value: %s.\n", context->list_sort_name);
 		}
 		else {
 			if (context->list_sort_name) pcs_free(context->list_sort_name);
@@ -644,7 +692,7 @@ static void restore_context(ShellContext *context)
 	item = cJSON_GetObjectItem(root, "list_sort_direction");
 	if (item && item->valuestring && item->valuestring[0]) {
 		if (strcmp(item->valuestring, "asc") && strcmp(item->valuestring, "desc")) {
-			printf("warning: invalid context.list_sort_direction, the value should be one of [asc|desc], default to '%s'.\n", context->list_sort_direction);
+			printf("warning: Invalid context.list_sort_direction, the value should be one of [asc|desc], use default value: %s.\n", context->list_sort_direction);
 		}
 		else {
 			if (context->list_sort_direction) pcs_free(context->list_sort_direction);
@@ -655,7 +703,7 @@ static void restore_context(ShellContext *context)
 	item = cJSON_GetObjectItem(root, "secure_method");
 	if (item && item->valuestring && item->valuestring[0]) {
 		if (strcmp(item->valuestring, "plaintext") && strcmp(item->valuestring, "aes-cbc-128") && strcmp(item->valuestring, "aes-cbc-192") && strcmp(item->valuestring, "aes-cbc-256")) {
-			printf("warning: invalid context.secure_method, the value should be one of [plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256], default to '%s'.\n", context->secure_method);
+			printf("warning: Invalid context.secure_method, the value should be one of [plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256], use default value: %s.\n", context->secure_method);
 		}
 		else {
 			if (context->secure_method) pcs_free(context->secure_method);
@@ -676,13 +724,16 @@ static void restore_context(ShellContext *context)
 
 	cJSON_Delete(root);
 	pcs_free(filecontent);
+	if (context->contextfile) pcs_free(context->contextfile);
+	context->contextfile = pcs_utils_strdup(filename);
+	return 0;
 }
 
 /*初始化上下文*/
-static void init_context(ShellContext *context, int argc, char *argv[])
+static void init_context(ShellContext *context, struct args *arg)
 {
 	memset(context, 0, sizeof(ShellContext));
-	context->name = pcs_utils_strdup(filename(argv[0]));
+	context->contextfile = pcs_utils_strdup(PCS_DEFAULT_CONTEXT_FILE);
 	context->cookiefile = pcs_utils_strdup(cookiefile());
 	context->captchafile = pcs_utils_strdup(captchafile());
 	context->workdir = pcs_utils_strdup("/");
@@ -698,7 +749,6 @@ static void init_context(ShellContext *context, int argc, char *argv[])
 /*释放上下文*/
 static void free_context(ShellContext *context)
 {
-	if (context->name) pcs_free(context->name);
 	if (context->cookiefile) pcs_free(context->cookiefile);
 	if (context->captchafile) pcs_free(context->captchafile);
 	if (context->workdir) pcs_free(context->workdir);
@@ -707,6 +757,7 @@ static void free_context(ShellContext *context)
 	if (context->pcs) pcs_destroy(context->pcs);
 	if (context->secure_method) pcs_free(context->secure_method);
 	if (context->secure_key) pcs_free(context->secure_key);
+	if (context->contextfile) pcs_free(context->contextfile);
 	memset(context, 0, sizeof(ShellContext));
 }
 
@@ -762,55 +813,55 @@ static void init_pcs(ShellContext *context)
 #pragma region 打印用法相关函数
 
 /*打印版本*/
-static void version(ShellContext *context)
+static void version()
 {
-	printf(program_full_name "\n", context->name);
+	printf(program_full_name "\n", app_name);
 }
 
 /*打印cat命令用法*/
-static void usage_cat(ShellContext *context)
+static void usage_cat()
 {
-	version(context);
-	printf("\nUsage: %s cat <path>\n", context->name);
+	version();
+	printf("\nUsage: %s cat <path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the file content\n");
 	printf("\nSamples:\n");
-	printf("  %s cat /music/list.txt\n", context->name);
-	printf("  %s cat list.txt\n", context->name);
-	printf("  %s cat \"/music/Europe and America/list.txt\"\n", context->name);
+	printf("  %s cat /music/list.txt\n", app_name);
+	printf("  %s cat list.txt\n", app_name);
+	printf("  %s cat \"/music/Europe and America/list.txt\"\n", app_name);
 }
 
 /*打印cd命令用法*/
-static void usage_cd(ShellContext *context)
+static void usage_cd()
 {
-	version(context);
-	printf("\nUsage: %s cd <path>\n", context->name);
+	version();
+	printf("\nUsage: %s cd <path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Change the work directory\n");
 	printf("\nSamples:\n");
-	printf("  %s cd /music\n", context->name);
-	printf("  %s cd subdir\n", context->name);
-	printf("  %s cd \"/music/Europe and America\"\n", context->name);
+	printf("  %s cd /music\n", app_name);
+	printf("  %s cd subdir\n", app_name);
+	printf("  %s cd \"/music/Europe and America\"\n", app_name);
 }
 
 /*打印copy命令用法*/
-static void usage_copy(ShellContext *context)
+static void usage_copy()
 {
-	version(context);
-	printf("\nUsage: %s copy <src> <dst>\n", context->name);
+	version();
+	printf("\nUsage: %s copy <src> <dst>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Copy the file|directory\n");
 	printf("\nSamples:\n");
-	printf("  %s copy src.txt dst.txt\n", context->name);
-	printf("  %s copy /music/src.mp3 /music/mp3/dst.mp3\n", context->name);
-	printf("  %s copy /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", context->name);
+	printf("  %s copy src.txt dst.txt\n", app_name);
+	printf("  %s copy /music/src.mp3 /music/mp3/dst.mp3\n", app_name);
+	printf("  %s copy /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", app_name);
 }
 
 /*打印compare命令用法*/
-static void usage_compare(ShellContext *context)
+static void usage_compare()
 {
-	version(context);
-	printf("\nUsage: %s compare [-redu] <local path> <net disk path>\n", context->name);
+	version();
+	printf("\nUsage: %s compare [-redu] <local path> <net disk path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the differents between local and net disk. \n"
 		   "  Default options is '-cdu'. \n");
@@ -821,195 +872,195 @@ static void usage_compare(ShellContext *context)
 	printf("  -r    Recursive compare the sub directories.\n");
 	printf("  -u    Print the files that is newer than the net disk.\n");
 	printf("\nSamples:\n");
-	printf("  %s compare ~/music /music\n", context->name);
-	printf("  %s compare music /music\n", context->name);
-	printf("  %s compare -r music /music\n", context->name);
+	printf("  %s compare ~/music /music\n", app_name);
+	printf("  %s compare music /music\n", app_name);
+	printf("  %s compare -r music /music\n", app_name);
 }
 
 /*打印context命令用法*/
-static void usage_context(ShellContext *context)
+static void usage_context()
 {
-	version(context);
-	printf("\nUsage: %s context\n", context->name);
+	version();
+	printf("\nUsage: %s context\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the context\n");
 	printf("\nSamples:\n");
-	printf("  %s context\n", context->name);
+	printf("  %s context\n", app_name);
 }
 
 /*打印download命令用法*/
-static void usage_download(ShellContext *context)
+static void usage_download()
 {
-	version(context);
-	printf("\nUsage: %s download [-f] <file> <local file>\n", context->name);
+	version();
+	printf("\nUsage: %s download [-f] <file> <local file>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Download the file\n");
 	printf("\nOptions:\n");
 	printf("  -f    Force override the local file when the file exists on local file system.\n");
 	printf("\nSamples:\n");
-	printf("  %s download dst.txt ~/dst.txt\n", context->name);
-	printf("  %s download dst.txt dst.txt\n", context->name);
-	printf("  %s download -f dst.txt ~/dst.txt\n", context->name);
-	printf("  %s download \"/music/dst.mp3\" \"/home/pcs/music/dst.mp3\"\n", context->name);
+	printf("  %s download dst.txt ~/dst.txt\n", app_name);
+	printf("  %s download dst.txt dst.txt\n", app_name);
+	printf("  %s download -f dst.txt ~/dst.txt\n", app_name);
+	printf("  %s download \"/music/dst.mp3\" \"/home/pcs/music/dst.mp3\"\n", app_name);
 }
 
 /*打印echo命令用法*/
-static void usage_echo(ShellContext *context)
+static void usage_echo()
 {
-	version(context);
-	printf("\nUsage: %s echo [-a] <path> <text>\n", context->name);
+	version();
+	printf("\nUsage: %s echo [-a] <path> <text>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Write the text into net disk file\n");
 	printf("\nOptions:\n");
 	printf("  -a    Append the text.\n");
 	printf("\nSamples:\n");
-	printf("  %s echo src.txt \"This is from 'echo' command.\" \n", context->name);
-	printf("  %s echo /docs/src.txt \"This is from 'echo' command.\"\n", context->name);
-	printf("  %s echo -a \"for test/src.txt\" \"This is from 'echo' command.\"\n", context->name);
+	printf("  %s echo src.txt \"This is from 'echo' command.\" \n", app_name);
+	printf("  %s echo /docs/src.txt \"This is from 'echo' command.\"\n", app_name);
+	printf("  %s echo -a \"for test/src.txt\" \"This is from 'echo' command.\"\n", app_name);
 }
 
 /*打印help命令用法*/
-static void usage_help(ShellContext *context)
+static void usage_help()
 {
-	version(context);
-	printf("\nUsage: %s help\n", context->name);
+	version();
+	printf("\nUsage: %s help\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the usage\n");
 	printf("\nSamples:\n");
-	printf("  %s help\n", context->name);
+	printf("  %s help\n", app_name);
 }
 
 /*打印list命令用法*/
-static void usage_list(ShellContext *context)
+static void usage_list()
 {
-	version(context);
-	printf("\nUsage: %s list [path]\n", context->name);
+	version();
+	printf("\nUsage: %s list [path]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  List the directory\n");
 	printf("\nSamples:\n");
-	printf("  %s list\n", context->name);
-	printf("  %s list /music\n", context->name);
-	printf("  %s list \"/music/Europe and America\"\n", context->name);
+	printf("  %s list\n", app_name);
+	printf("  %s list /music\n", app_name);
+	printf("  %s list \"/music/Europe and America\"\n", app_name);
 }
 
 /*打印login命令用法*/
-static void usage_login(ShellContext *context)
+static void usage_login()
 {
-	version(context);
-	printf("\nUsage: %s login [user name] [password]\n", context->name);
+	version();
+	printf("\nUsage: %s login [--username=<user name>] [--password=<password>]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  \n");
 	printf("\nSamples:\n");
-	printf("  %s login\n", context->name);
-	printf("  %s login gang\n", context->name);
-	printf("  %s login gang \"password\"\n", context->name);
+	printf("  %s login\n", app_name);
+	printf("  %s login --username=gang\n", app_name);
+	printf("  %s login --username=gang --password=\"password\"\n", app_name);
 }
 
 /*打印logout命令用法*/
-static void usage_logout(ShellContext *context)
+static void usage_logout()
 {
-	version(context);
-	printf("\nUsage: %s logout\n", context->name);
+	version();
+	printf("\nUsage: %s logout\n", app_name);
 	printf("\nDescription:\n");
 	printf("  \n");
 	printf("\nSamples:\n");
-	printf("  %s logout\n", context->name);
+	printf("  %s logout\n", app_name);
 }
 
 /*打印meta命令用法*/
-static void usage_meta(ShellContext *context)
+static void usage_meta()
 {
-	version(context);
-	printf("\nUsage: %s meta [path]\n", context->name);
+	version();
+	printf("\nUsage: %s meta [path]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the file|directory meta information\n");
 	printf("\nSamples:\n");
-	printf("  %s meta\n", context->name);
-	printf("  %s meta /music\n", context->name);
-	printf("  %s meta \"/music/Europe and America\"\n", context->name);
+	printf("  %s meta\n", app_name);
+	printf("  %s meta /music\n", app_name);
+	printf("  %s meta \"/music/Europe and America\"\n", app_name);
 }
 
 /*打印mkdir命令用法*/
-static void usage_mkdir(ShellContext *context)
+static void usage_mkdir()
 {
-	version(context);
-	printf("\nUsage: %s mkdir <path>\n", context->name);
+	version();
+	printf("\nUsage: %s mkdir <path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Make a new directory\n");
 	printf("\nSamples:\n");
-	printf("  %s mkdir subdir\n", context->name);
-	printf("  %s mkdir /music\n", context->name);
-	printf("  %s mkdir \"/music/Europe and America\"\n", context->name);
+	printf("  %s mkdir subdir\n", app_name);
+	printf("  %s mkdir /music\n", app_name);
+	printf("  %s mkdir \"/music/Europe and America\"\n", app_name);
 }
 
 /*打印move命令用法*/
-static void usage_move(ShellContext *context)
+static void usage_move()
 {
-	version(context);
-	printf("\nUsage: %s move <src> <dst>\n", context->name);
+	version();
+	printf("\nUsage: %s move <src> <dst>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Move the file|directory into other file|directory\n");
 	printf("\nSamples:\n");
-	printf("  %s move src.txt dst.txt\n", context->name);
-	printf("  %s move /music/src.mp3 /music/mp3/dst.mp3\n", context->name);
-	printf("  %s move /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", context->name);
+	printf("  %s move src.txt dst.txt\n", app_name);
+	printf("  %s move /music/src.mp3 /music/mp3/dst.mp3\n", app_name);
+	printf("  %s move /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", app_name);
 }
 
 /*打印pwd命令用法*/
-static void usage_pwd(ShellContext *context)
+static void usage_pwd()
 {
-	version(context);
-	printf("\nUsage: %s pwd\n", context->name);
+	version();
+	printf("\nUsage: %s pwd\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the current work directory\n");
 	printf("\nSamples:\n");
-	printf("  %s pwd\n", context->name);
+	printf("  %s pwd\n", app_name);
 }
 
 /*打印quota命令用法*/
-static void usage_quota(ShellContext *context)
+static void usage_quota()
 {
-	version(context);
-	printf("\nUsage: %s quota\n", context->name);
+	version();
+	printf("\nUsage: %s quota\n", app_name);
 	printf("\nOptions:\n");
 	printf("  -e    Print the exact size.\n");
 	printf("\nDescription:\n");
 	printf("  Print the quota\n");
 	printf("\nSamples:\n");
-	printf("  %s quota\n", context->name);
+	printf("  %s quota\n", app_name);
 }
 
 /*打印remove命令用法*/
-static void usage_remove(ShellContext *context)
+static void usage_remove()
 {
-	version(context);
-	printf("\nUsage: %s remove <path>\n", context->name);
+	version();
+	printf("\nUsage: %s remove <path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Remove the file|directory\n");
 	printf("\nSamples:\n");
-	printf("  %s remove src.txt\n", context->name);
-	printf("  %s remove /music/src.mp3\n", context->name);
-	printf("  %s remove \"/music/Europe and America/dst.mp3\"\n", context->name);
+	printf("  %s remove src.txt\n", app_name);
+	printf("  %s remove /music/src.mp3\n", app_name);
+	printf("  %s remove \"/music/Europe and America/dst.mp3\"\n", app_name);
 }
 
 /*打印rename命令用法*/
-static void usage_rename(ShellContext *context)
+static void usage_rename()
 {
-	version(context);
-	printf("\nUsage: %s rename <src> <new name>\n", context->name);
+	version();
+	printf("\nUsage: %s rename <src> <new name>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Rename the file|directory\n");
 	printf("\nSamples:\n");
-	printf("  %s rename src.txt dst.txt\n", context->name);
-	printf("  %s rename /music/src.mp3 dst.mp3\n", context->name);
-	printf("  %s rename \"/music/Europe and America/src.mp3\" \"dst 2.mp3\"\n", context->name);
+	printf("  %s rename src.txt dst.txt\n", app_name);
+	printf("  %s rename /music/src.mp3 dst.mp3\n", app_name);
+	printf("  %s rename \"/music/Europe and America/src.mp3\" \"dst 2.mp3\"\n", app_name);
 }
 
 /*打印list命令用法*/
-static void usage_set(ShellContext *context)
+static void usage_set()
 {
-	version(context);
-	printf("\nUsage: %s set <option>=<value> ...\n", context->name);
+	version();
+	printf("\nUsage: %s set <option>=<value> ...\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Change the context, you can print the context by 'context' command\n");
 	printf("\nOptions:\n");
@@ -1024,33 +1075,33 @@ static void usage_set(ShellContext *context)
 	printf("  secure_key          String     not null when 'secure_method' is not 'plaintext'\n");
 	printf("  secure_method       Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("\nSamples:\n");
-	printf("  %s set cookiefile=\"/tmp/pcs.cookie\"\n", context->name);
-	printf("  %s set cookiefile=\"/tmp/pcs.cookie\" captchafile=\"/tmp/vc.git\"\n", context->name);
-	printf("  %s set list_page_size=20 list_sort_name=name list_sort_direction=desc\n", context->name);
+	printf("  %s set cookiefile=\"/tmp/pcs.cookie\"\n", app_name);
+	printf("  %s set cookiefile=\"/tmp/pcs.cookie\" captchafile=\"/tmp/vc.git\"\n", app_name);
+	printf("  %s set list_page_size=20 list_sort_name=name list_sort_direction=desc\n", app_name);
 }
 
 /*打印search命令用法*/
-static void usage_search(ShellContext *context)
+static void usage_search()
 {
-	version(context);
-	printf("\nUsage: %s search [-r] [target dir] <key word>\n", context->name);
+	version();
+	printf("\nUsage: %s search [-r] [target dir] <key word>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Search the files in the specify directory\n");
 	printf("\nOptions:\n");
 	printf("  -r    Recursive search the sub directories.\n");
 	printf("\nSamples:\n");
-	printf("  %s search dst.txt\n", context->name);
-	printf("  %s search -r dst.txt\n", context->name);
-	printf("  %s search /music dst.mp3\n", context->name);
-	printf("  %s search -r /music dst.mp3\n", context->name);
-	printf("  %s search \"/music/Europe and America\" \"dst 2.mp3\"\n", context->name);
+	printf("  %s search dst.txt\n", app_name);
+	printf("  %s search -r dst.txt\n", app_name);
+	printf("  %s search /music dst.mp3\n", app_name);
+	printf("  %s search -r /music dst.mp3\n", app_name);
+	printf("  %s search \"/music/Europe and America\" \"dst 2.mp3\"\n", app_name);
 }
 
 /*打印synch命令用法*/
-static void usage_synch(ShellContext *context)
+static void usage_synch()
 {
-	version(context);
-	printf("\nUsage: %s synch [-redu] <local path> <net disk path>\n", context->name);
+	version();
+	printf("\nUsage: %s synch [-redu] <local path> <net disk path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Synch between local and net disk. You can 'compare' first. \n"
 		   "  Default options is '-cdu'. \n");
@@ -1068,60 +1119,62 @@ static void usage_synch(ShellContext *context)
 		   "        You can use 'compare -ur <local dir> <disk dir>' to view \n"
 		   "        how many and which files will upload.\n");
 	printf("\nSamples:\n");
-	printf("  %s synch ~/music /music\n", context->name);
-	printf("  %s synch music /music\n", context->name);
-	printf("  %s synch -r music /music\n", context->name);
+	printf("  %s synch ~/music /music\n", app_name);
+	printf("  %s synch music /music\n", app_name);
+	printf("  %s synch -r music /music\n", app_name);
 }
 
 /*打印upload命令用法*/
-static void usage_upload(ShellContext *context)
+static void usage_upload()
 {
-	version(context);
-	printf("\nUsage: %s upload [-f] <local file> <file>\n", context->name);
+	version();
+	printf("\nUsage: %s upload [-f] <local file> <file>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Upload the file\n");
 	printf("\nOptions:\n");
 	printf("  -f    Force override the local file when the file exists on local file system.\n");
 	printf("\nSamples:\n");
-	printf("  %s upload ~/dst.txt dst.txt\n", context->name);
-	printf("  %s upload dst.txt dst.txt\n", context->name);
-	printf("  %s upload -f ~/dst.txt dst.txt\n", context->name);
-	printf("  %s upload \"/home/pcs/music/dst.mp3\" \"/music/dst.mp3\"\n", context->name);
+	printf("  %s upload ~/dst.txt dst.txt\n", app_name);
+	printf("  %s upload dst.txt dst.txt\n", app_name);
+	printf("  %s upload -f ~/dst.txt dst.txt\n", app_name);
+	printf("  %s upload \"/home/pcs/music/dst.mp3\" \"/music/dst.mp3\"\n", app_name);
 }
 
 /*打印version命令用法*/
-static void usage_version(ShellContext *context)
+static void usage_version()
 {
-	version(context);
-	printf("\nUsage: %s version\n", context->name);
+	version();
+	printf("\nUsage: %s version\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the version\n");
 	printf("\nSamples:\n");
-	printf("  %s version\n", context->name);
+	printf("  %s version\n", app_name);
 }
 
 /*打印who命令用法*/
-static void usage_who(ShellContext *context)
+static void usage_who()
 {
-	version(context);
-	printf("\nUsage: %s who\n", context->name);
+	version();
+	printf("\nUsage: %s who\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the current user\n");
 	printf("\nSamples:\n");
-	printf("  %s who\n", context->name);
+	printf("  %s who\n", app_name);
 }
 
 /*打印用法*/
-static void usage(ShellContext *context)
+static void usage()
 {
-	version(context);
-	printf("\nUsage: %s command [options] [arg1|arg2...]\n", context->name);
+	version();
+	printf("\nUsage: %s command [options] [arg1|arg2...]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  The %s is client of baidu net disk. It supplied many functions, \n"
 		"  which can manage baidu net disk on terminal, such as ls, cp, rm, \n"
 		"  mv, rename, download, upload, search and so on. \n"
 		"  The %s provided AES encryption, which can protected your data.\n", 
-		context->name, context->name, context->name);
+		app_name, app_name, app_name);
+	printf("\nOptions:\n");
+	printf("  --context=<file path>  Specify context.\n");
 	printf("\nCommands:\n"
 		"  cat      Print the file content\n"
 		"  cd       Change the work directory\n"
@@ -1148,18 +1201,18 @@ static void usage(ShellContext *context)
 		"  version  Print the version\n"
 		"  who      Print the current user\n"
 		);
-	printf("Use '%s <command> -h' to print the details of the command. \n", context->name);
+	printf("Use '%s <command> -h' to print the details of the command. \n", app_name);
 	printf("Sample: \n");
-	printf("  %s cat -h\n", context->name);
-	printf("  %s cd /temp\n", context->name);
+	printf("  %s cat -h\n", app_name);
+	printf("  %s cd /temp\n", app_name);
 }
 
 #pragma endregion
 
 /*判断是否需要打印usage*/
-static inline int is_print_usage(int argc, char *argv[])
+static inline int is_print_usage(struct args *arg)
 {
-	return (argc == 1 && (strcmp(argv[0], "-h") == 0 || strcmp(argv[0], "-?") == 0 || strcmp(argv[0], "--help") == 0));
+	return has_opt(arg, "h") || has_opt(arg, "?") || has_opt(arg, "help");
 }
 
 /*
@@ -1856,21 +1909,21 @@ static inline int do_upload(ShellContext *context,
 }
 
 /*打印网盘文件内容*/
-static int cmd_cat(ShellContext *context, int argc, char *argv[])
+static int cmd_cat(ShellContext *context, struct args *arg)
 {
 	char *path;
 	const char *res;
 	size_t sz;
-	if (is_print_usage(argc, argv)) {
-		usage_cat(context);
+	if (is_print_usage(arg)) {
+		usage_cat();
 		return 0;
 	}
-	if (argc != 1) {
-		usage_cat(context);
+	if (arg->argc != 1 || arg->optc != 0) { /*只支持1个参数，不支持可选项*/
+		usage_cat();
 		return -1;
 	}
 	if (!is_login(context, NULL)) return -1;
-	path = combin_unix_path(context->workdir, argv[0]);
+	path = combin_unix_path(context->workdir, arg->argv[0]);
 	assert(path);
 	res = pcs_cat(context->pcs, path, &sz);
 	if (res == NULL) {
@@ -1884,20 +1937,20 @@ static int cmd_cat(ShellContext *context, int argc, char *argv[])
 }
 
 /*更改网盘当前工作目录*/
-static int cmd_cd(ShellContext *context, int argc, char *argv[])
+static int cmd_cd(ShellContext *context, struct args *arg)
 {
 	char *p;
 	PcsFileInfo *meta;
-	if (is_print_usage(argc, argv)) {
-		usage_cd(context);
+	if (is_print_usage(arg)) {
+		usage_cd();
 		return 0;
 	}
-	if (argc != 1) {
-		usage_cd(context);
+	if (arg->argc != 1 || arg->optc != 0) {
+		usage_cd();
 		return -1;
 	}
 	if (!is_login(context, NULL)) return -1;
-	p = combin_unix_path(context->workdir, argv[0]);
+	p = combin_unix_path(context->workdir, arg->argv[0]);
 	meta = pcs_meta(context->pcs, p);
 	if (!meta) {
 		printf("The target directory not exist, or have error: %s\n", pcs_strerror(context->pcs));
@@ -1919,23 +1972,23 @@ static int cmd_cd(ShellContext *context, int argc, char *argv[])
 }
 
 /*复制网盘文件*/
-static int cmd_copy(ShellContext *context, int argc, char *argv[])
+static int cmd_copy(ShellContext *context, struct args *arg)
 {
 	PcsPanApiRes *res;
 	PcsPanApiResInfoList *info;
 	PcsSList2 slist;
-	if (is_print_usage(argc, argv)) {
-		usage_copy(context);
+	if (is_print_usage(arg)) {
+		usage_copy();
 		return 0;
 	}
-	if (argc != 2) {
-		usage_copy(context);
+	if (arg->argc != 2 || arg->optc != 0) {
+		usage_copy();
 		return -1;
 	}
 	if (!is_login(context, NULL)) return -1;
 
-	slist.string1 = combin_unix_path(context->workdir, argv[0]); /* path */
-	slist.string2 = combin_unix_path(context->workdir, argv[1]); /* new_name */
+	slist.string1 = combin_unix_path(context->workdir, arg->argv[0]); /* path */
+	slist.string2 = combin_unix_path(context->workdir, arg->argv[1]); /* new_name */
 	slist.next = NULL;
 
 	res = pcs_copy(context->pcs, &slist);
@@ -1985,52 +2038,21 @@ struct compare_arg
  * 解析compare的参数。
  * 成功返回0；失败返回非0值
 */
-static int parse_compare_args(int argc, char *argv[], compare_arg *arg)
+static int parse_compare_args(struct args *g, compare_arg *cmpArg)
 {
-	int i;
-	char *p;
-	if (argc < 2) return -1;
-	for (i = 0; i < argc; i++) {
-		p = argv[i];
-		if (*p == '-') {
-			p++;
-			while (*p) {
-				switch (*p) {
-				case 'c':
-					if (arg->print_confuse) return -1; /*如果多次指定'-c'参数，则返回错误*/
-					arg->print_confuse = 1;
-					break;
-				case 'd':
-					if (arg->print_left) return -1;
-					arg->print_left = 1;
-					break;
-				case 'e':
-					if (arg->print_eq) return -1;
-					arg->print_eq = 1;
-					break;
-				case 'n':
-					if (arg->dry_run) return -1;
-					arg->dry_run = 1;
-					break;
-				case 'r':
-					if (arg->recursive) return -1;
-					arg->recursive = 1;
-					break;
-				case 'u':
-					if (arg->print_right) return -1;
-					arg->print_right = 1;
-					break;
-				default:
-					return -1;
-				}
-				p++;
-			}
-		}
-		else if (!arg->local_file) arg->local_file = argv[i];
-		else if (!arg->remote_file) arg->remote_file = argv[i];
-		else return -1;
-	}
-	if (!arg->local_file || !arg->remote_file) return -1;
+	const char *opts[] = { "c", "d", "e", "n", "r", "u", NULL };
+	if (g->argc != 2) return -1;
+	if (test_opts(g, opts, -1)) return -1;
+	cmpArg->print_confuse = has_opt(g, "c");
+	cmpArg->print_left = has_opt(g, "d");
+	cmpArg->print_eq = has_opt(g, "e");
+	cmpArg->dry_run = has_opt(g, "n");
+	cmpArg->recursive = has_opt(g, "r");
+	cmpArg->print_right = has_opt(g, "u");
+
+	cmpArg->local_file = g->argv[0];
+	cmpArg->remote_file = g->argv[1];
+	
 	return 0;
 }
 
@@ -2336,29 +2358,33 @@ static int compare(ShellContext *context, compare_arg *arg,
 }
 
 /*比较本地和网盘目录的异同*/
-static int cmd_compare(ShellContext *context, int argc, char *argv[])
+static int cmd_compare(ShellContext *context, struct args *arg)
 {
-	compare_arg arg = { 0 };
+	compare_arg cmpArg = { 0 };
 
-	if (is_print_usage(argc, argv) || parse_compare_args(argc, argv, &arg)) {
-		usage_compare(context);
+	if (is_print_usage(arg) || parse_compare_args(arg, &cmpArg)) {
+		usage_compare();
 		return 0;
 	}
 
-	arg.check_local_dir_exist = 1;
+	cmpArg.check_local_dir_exist = 1;
 
-	return compare(context, &arg, &on_compared_file, NULL, &on_compared_dir, NULL);
+	return compare(context, &cmpArg, &on_compared_file, NULL, &on_compared_dir, NULL);
 }
 
 #pragma endregion
 
 /*打印出上下文*/
-static int cmd_context(ShellContext *context, int argc, char *argv[])
+static int cmd_context(ShellContext *context, struct args *arg)
 {
 	char *json;
-	if (is_print_usage(argc, argv)) {
-		usage_context(context);
+	if (is_print_usage(arg)) {
+		usage_context();
 		return 0;
+	}
+	if (arg->argc != 0 || arg->optc != 0) {
+		usage_context();
+		return -1;
 	}
 	json = context2str(context);
 	assert(json);
@@ -2368,59 +2394,33 @@ static int cmd_context(ShellContext *context, int argc, char *argv[])
 }
 
 /*下载*/
-static int cmd_download(ShellContext *context, int argc, char *argv[])
+static int cmd_download(ShellContext *context, struct args *arg)
 {
+	const char *opts[] = { "f", NULL };
 	int is_force = 0;
 	char *path = NULL, *errmsg = NULL;
 	const char *relPath = NULL, *locPath = NULL;
-	int i;
 
 	LocalFileInfo *local;
 	PcsFileInfo *meta;
 
-	if (is_print_usage(argc, argv)) {
-		usage_download(context);
+	if (is_print_usage(arg)) {
+		usage_download();
 		return 0;
 	}
-	if (argc != 2 && argc != 3) {
-		usage_download(context);
+
+	if (arg->argc != 2) {
+		usage_download();
 		return -1;
 	}
-	/*解析参数 - 开始*/
-	if (argc == 2){
-		if (strcmp(argv[0], "-f") == 0 || strcmp(argv[1], "-f") == 0) {
-			usage_download(context);
-			return -1;
-		}
-		relPath = argv[0];
-		locPath = argv[1];
-	}
-	else if (argc == 3) {
-		for (i = 0; i < argc; i++) {
-			if (is_force == 0 && strcmp(argv[i], "-f") == 0) {
-				is_force = 1;
-			}
-			else if (relPath == NULL) {
-				relPath = argv[i];
-			}
-			else if (locPath == NULL) {
-				locPath = argv[i];
-			}
-			else {
-				usage_download(context);
-				return -1;
-			}
-		}
-		if (is_force == 0) {
-			usage_download(context);
-			return -1;
-		}
-	}
-	if (!locPath || !relPath) {
-		usage_download(context);
+	if (test_opts(arg, opts, -1)) {
+		usage_download();
 		return -1;
 	}
-	/*解析参数 - 结束*/
+
+	is_force = has_opt(arg, "f");
+	relPath = arg->argv[0];
+	locPath = arg->argv[1];
 
 	/*检查本地文件 - 开始*/
 	local = GetLocalFileInfo(locPath);
@@ -2481,50 +2481,32 @@ static int cmd_download(ShellContext *context, int argc, char *argv[])
 }
 
 /*输出文本到网盘某一个文件*/
-static int cmd_echo(ShellContext *context, int argc, char *argv[])
+static int cmd_echo(ShellContext *context, struct args *arg)
 {
+	const char *opts[] = { "a", NULL };
 	int is_append = 0;
 	char *path = NULL, *t = NULL;
 	const char *relPath = NULL, *text = NULL;
-	int i;
 	size_t sz;
 	PcsFileInfo *f;
 	PcsFileInfo *meta;
-	if (is_print_usage(argc, argv)) {
-		usage_echo(context);
+	if (is_print_usage(arg)) {
+		usage_echo();
 		return 0;
 	}
-	if (argc != 2 && argc != 3) {
-		usage_echo(context);
+	if (arg->argc != 2) {
+		usage_echo();
 		return -1;
 	}
-	/*解析参数 - 开始*/
-	if (argc == 2) {
-		relPath = argv[0];
-		text = argv[1];
+	if (test_opts(arg, opts, -1)) {
+		usage_echo();
+		return -1;
 	}
-	else {
-		for (i = 0; i < argc; i++) {
-			if (is_append == 0 && strcmp(argv[i], "-a") == 0) {
-				is_append = 1;
-			}
-			else if (relPath == NULL) {
-				relPath = argv[i];
-			}
-			else if (text == NULL) {
-				text = argv[i];
-			}
-			else {
-				usage_echo(context);
-				return -1;
-			}
-		}
-		if (!is_append) {
-			usage_echo(context);
-			return -1;
-		}
-	}
-	/*解析参数 - 结束*/
+
+	is_append = has_opt(arg, "a");
+	relPath = arg->argv[0];
+	text = arg->argv[1];
+
 	if (!is_login(context, NULL)) return -1;
 	path = combin_unix_path(context->workdir, relPath);
 	assert(path);
@@ -2571,7 +2553,7 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 		if (t != text) pcs_free(t);
 		return -1;
 	}
-	printf("Success. You can use '%s cat %s' to print the file content.\n", context->name, path);
+	printf("Success. You can use '%s cat %s' to print the file content.\n", app_name, path);
 	pcs_fileinfo_destroy(f);
 	pcs_free(path);
 	if (t != text) pcs_free(t);
@@ -2579,22 +2561,22 @@ static int cmd_echo(ShellContext *context, int argc, char *argv[])
 }
 
 /*打印帮助信息*/
-static int cmd_help(ShellContext *context, int argc, char *argv[])
+static int cmd_help(ShellContext *context, struct args *arg)
 {
-	if (is_print_usage(argc, argv)) {
-		usage_help(context);
+	if (is_print_usage(arg)) {
+		usage_help();
 		return 0;
 	}
-	if (argc != 0){
-		usage_help(context);
+	if (arg->argc != 0 || arg->optc != 0){
+		usage_help();
 		return -1;
 	}
-	usage(context);
+	usage();
 	return 0;
 }
 
 /*列出目录*/
-static int cmd_list(ShellContext *context, int argc, char *argv[])
+static int cmd_list(ShellContext *context, struct args *arg)
 {
 	char *path;
 	PcsFileInfoList *list = NULL;
@@ -2603,21 +2585,26 @@ static int cmd_list(ShellContext *context, int argc, char *argv[])
 	int fileCount = 0, dirCount = 0;
 	size_t totalSize = 0;
 
-	if (is_print_usage(argc, argv)) {
-		usage_list(context);
+	if (is_print_usage(arg)) {
+		usage_list();
 		return 0;
 	}
-	if (argc != 0 && argc != 1) {
-		usage_list(context);
+	if (arg->optc != 0){
+		usage_list();
 		return -1;
 	}
+
 	if (!is_login(context, NULL)) return -1;
 
-	if (argc == 0) {
+	if (arg->argc == 0) {
 		path = pcs_utils_strdup(context->workdir);
 	}
-	else if (argc == 1) {
-		path = combin_unix_path(context->workdir, argv[0]);
+	else if (arg->argc == 1) {
+		path = combin_unix_path(context->workdir, arg->argv[0]);
+	}
+	else {
+		usage_list();
+		return -1;
 	}
 
 	while (1) {
@@ -2660,16 +2647,21 @@ static int cmd_list(ShellContext *context, int argc, char *argv[])
 }
 
 /*登录*/
-static int cmd_login(ShellContext *context, int argc, char *argv[])
+static int cmd_login(ShellContext *context, struct args *arg)
 {
+	const char *opts[] = { "username", "password", NULL };
 	PcsRes pcsres;
-	char str[50];
-	if (is_print_usage(argc, argv)) {
-		usage_login(context);
+	char str[50], *p;
+	if (is_print_usage(arg)) {
+		usage_login();
 		return 0;
 	}
-	if (argc != 0 && argc != 1 && argc != 2) {
-		usage_login(context);
+	if (arg->argc != 0){
+		usage_login();
+		return -1;
+	}
+	if (test_opts(arg, opts, -1)) {
+		usage_login();
 		return -1;
 	}
 	if (is_login(context, "")) {
@@ -2677,16 +2669,16 @@ static int cmd_login(ShellContext *context, int argc, char *argv[])
 			"You can logout by 'logout' command and then relogin.\n");
 		return -1;
 	}
-	if (argc > 1) {
-		pcs_setopt(context->pcs, PCS_OPTION_USERNAME, argv[0]);
+	if (has_optEx(arg, "username", &p)) {
+		pcs_setopt(context->pcs, PCS_OPTION_USERNAME, p);
 	}
 	else {
 		printf("User Name: ");
 		std_string(str, 50);
 		pcs_setopt(context->pcs, PCS_OPTION_USERNAME, str);
 	}
-	if (argc > 2) {
-		pcs_setopt(context->pcs, PCS_OPTION_PASSWORD, argv[1]);
+	if (has_optEx(arg, "password", &p)) {
+		pcs_setopt(context->pcs, PCS_OPTION_PASSWORD, p);
 	}
 	else {
 		printf("Password: ");
@@ -2703,15 +2695,15 @@ static int cmd_login(ShellContext *context, int argc, char *argv[])
 }
 
 /*注销*/
-static int cmd_logout(ShellContext *context, int argc, char *argv[])
+static int cmd_logout(ShellContext *context, struct args *arg)
 {
 	PcsRes pcsres;
-	if (is_print_usage(argc, argv)) {
-		usage_logout(context);
+	if (is_print_usage(arg)) {
+		usage_logout();
 		return 0;
 	}
-	if (argc != 0) {
-		usage_logout(context);
+	if (arg->argc != 0 || arg->optc != 0) {
+		usage_logout();
 		return -1;
 	}
 	if (!is_login(context, "")) {
@@ -2728,21 +2720,21 @@ static int cmd_logout(ShellContext *context, int argc, char *argv[])
 }
 
 /*打印文件或目录的元数据*/
-static int cmd_meta(ShellContext *context, int argc, char *argv[])
+static int cmd_meta(ShellContext *context, struct args *arg)
 {
 	char *path;
 	PcsFileInfo *fi;
-	if (is_print_usage(argc, argv)) {
-		usage_meta(context);
+	if (is_print_usage(arg)) {
+		usage_meta();
 		return 0;
 	}
-	if (argc != 0 && argc != 1) {
-		usage_meta(context);
+	if ((arg->argc != 0 && arg->argc != 1) || (arg->optc != 0)) {
+		usage_meta();
 		return -1;
 	}
 	if (!is_login(context, NULL)) return -1;
-	if (argc == 1)
-		path = combin_unix_path(context->workdir, argv[0]);
+	if (arg->argc == 1)
+		path = combin_unix_path(context->workdir, arg->argv[0]);
 	else
 		path = context->workdir;
 	assert(path);
@@ -2759,20 +2751,20 @@ static int cmd_meta(ShellContext *context, int argc, char *argv[])
 }
 
 /*创建目录*/
-static int cmd_mkdir(ShellContext *context, int argc, char *argv[])
+static int cmd_mkdir(ShellContext *context, struct args *arg)
 {
 	PcsRes res;
 	char *path;
-	if (is_print_usage(argc, argv)) {
-		usage_mkdir(context);
+	if (is_print_usage(arg)) {
+		usage_mkdir();
 		return 0;
 	}
-	if (argc != 1) {
-		usage_mkdir(context);
+	if (arg->argc != 1 || arg->optc != 0) {
+		usage_mkdir();
 		return -1;
 	}
 	if (!is_login(context, NULL)) return -1;
-	path = combin_unix_path(context->workdir, argv[0]);
+	path = combin_unix_path(context->workdir, arg->argv[0]);
 	assert(path);
 	res = pcs_mkdir(context->pcs, path);
 	if (res != PCS_OK) {
@@ -2786,22 +2778,22 @@ static int cmd_mkdir(ShellContext *context, int argc, char *argv[])
 }
 
 /*移动文件*/
-static int cmd_move(ShellContext *context, int argc, char *argv[])
+static int cmd_move(ShellContext *context, struct args *arg)
 {
 	PcsPanApiRes *res;
 	PcsSList2 slist;
 	PcsPanApiResInfoList *info;
-	if (is_print_usage(argc, argv)) {
-		usage_move(context);
+	if (is_print_usage(arg)) {
+		usage_move();
 		return 0;
 	}
-	if (argc != 2) {
-		usage_move(context);
+	if (arg->argc != 2 || arg->optc != 0) {
+		usage_move();
 		return -1;
 	}
 	if (!is_login(context, NULL)) return -1;
-	slist.string1 = combin_unix_path(context->workdir, argv[0]); /* path */
-	slist.string2 = combin_unix_path(context->workdir, argv[1]); /* new_name */
+	slist.string1 = combin_unix_path(context->workdir, arg->argv[0]); /* path */
+	slist.string2 = combin_unix_path(context->workdir, arg->argv[1]); /* new_name */
 	slist.next = NULL;
 
 	res = pcs_move(context->pcs, &slist);
@@ -2827,14 +2819,14 @@ static int cmd_move(ShellContext *context, int argc, char *argv[])
 }
 
 /*打印当前工作目录*/
-static int cmd_pwd(ShellContext *context, int argc, char *argv[])
+static int cmd_pwd(ShellContext *context, struct args *arg)
 {
-	if (is_print_usage(argc, argv)) {
-		usage_pwd(context);
+	if (is_print_usage(arg)) {
+		usage_pwd();
 		return 0;
 	}
-	if (argc != 0){
-		usage_pwd(context);
+	if (arg->argc != 0 || arg->optc != 0){
+		usage_pwd();
 		return -1;
 	}
 	//if (!is_login(context, NULL)) return -1;
@@ -2843,27 +2835,29 @@ static int cmd_pwd(ShellContext *context, int argc, char *argv[])
 }
 
 /*打印配额*/
-static int cmd_quota(ShellContext *context, int argc, char *argv[])
+static int cmd_quota(ShellContext *context, struct args *arg)
 {
+	const char *opts[] = { "e", NULL };
 	PcsRes pcsres;
 	size_t quota, used;
 	int is_exact = 0;
 	char str[32] = { 0 };
-	if (is_print_usage(argc, argv)) {
-		usage_quota(context);
+	if (is_print_usage(arg)) {
+		usage_quota();
 		return 0;
 	}
-	if (argc != 0 && argc != 1){
-		usage_quota(context);
+
+	if (arg->argc != 0) {
+		usage_quota();
 		return -1;
 	}
-	if (argc == 1) {
-		if (strcmp(argv[0], "-e")) {
-			usage_quota(context);
-			return -1;
-		}
-		is_exact = 1;
+	if (test_opts(arg, opts, -1)) {
+		usage_quota();
+		return -1;
 	}
+
+	is_exact = has_opt(arg, "e");
+
 	if (!is_login(context, NULL)) return -1;
 	pcsres = pcs_quota(context->pcs, &quota, &used);
 	if (pcsres != PCS_OK) {
@@ -2887,21 +2881,21 @@ static int cmd_quota(ShellContext *context, int argc, char *argv[])
 }
 
 /*删除文件*/
-static int cmd_remove(ShellContext *context, int argc, char *argv[])
+static int cmd_remove(ShellContext *context, struct args *arg)
 {
 	PcsPanApiRes *res;
 	PcsSList slist;
 	PcsPanApiResInfoList *info;
-	if (is_print_usage(argc, argv)) {
-		usage_remove(context);
+	if (is_print_usage(arg)) {
+		usage_remove();
 		return 0;
 	}
-	if (argc != 1) {
-		usage_remove(context);
+	if (arg->argc != 1 || arg->optc != 0) {
+		usage_remove();
 		return -1;
 	}
 	if (!is_login(context, NULL)) return -1;
-	slist.string = combin_unix_path(context->workdir, argv[0]); /* path */
+	slist.string = combin_unix_path(context->workdir, arg->argv[0]); /* path */
 	slist.next = NULL;
 
 	res = pcs_delete(context->pcs, &slist);
@@ -2924,21 +2918,21 @@ static int cmd_remove(ShellContext *context, int argc, char *argv[])
 }
 
 /*重命名文件*/
-static int cmd_rename(ShellContext *context, int argc, char *argv[])
+static int cmd_rename(ShellContext *context, struct args *arg)
 {
 	PcsPanApiRes *res;
 	PcsSList2 slist;
 	PcsPanApiResInfoList *info;
 	char *p;
-	if (is_print_usage(argc, argv)) {
-		usage_rename(context);
+	if (is_print_usage(arg)) {
+		usage_rename();
 		return 0;
 	}
-	if (argc != 2) {
-		usage_rename(context);
+	if (arg->argc != 2 || arg->optc != 0) {
+		usage_rename();
 		return -1;
 	}
-	p = argv[1];
+	p = arg->argv[1];
 	while (*p) {
 		if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' || *p == '?' || *p == '"' || *p == '<' || *p == '>' || *p == '|') {
 			printf("The file name can't include \"/\\:*?\"<>|\"\n");
@@ -2947,8 +2941,8 @@ static int cmd_rename(ShellContext *context, int argc, char *argv[])
 		p++;
 	}
 	if (!is_login(context, NULL)) return -1;
-	slist.string1 = combin_unix_path(context->workdir, argv[0]); /* path */
-	slist.string2 = argv[1]; /* new_name */
+	slist.string1 = combin_unix_path(context->workdir, arg->argv[0]); /* path */
+	slist.string2 = arg->argv[1]; /* new_name */
 	slist.next = NULL;
 
 	res = pcs_rename(context->pcs, &slist);
@@ -2971,23 +2965,23 @@ static int cmd_rename(ShellContext *context, int argc, char *argv[])
 }
 
 /*更改上下文设置*/
-static int cmd_set(ShellContext *context, int argc, char *argv[])
+static int cmd_set(ShellContext *context, struct args *arg)
 {
 	int i, key_len;
 	char *key, *val;
-	if (is_print_usage(argc, argv)) {
-		usage_set(context);
+	if (is_print_usage(arg)) {
+		usage_set();
 		return 0;
 	}
-	if (argc == 0) {
-		usage_set(context);
+	if (arg->argc == 0) {
+		usage_set();
 		return -1;
 	}
-	for (i = 0; i < argc; i++) {
-		key = val = argv[i];
+	for (i = 0; i < arg->argc; i++) {
+		key = val = arg->argv[i];
 		while (*val && *val != '=') val++;
 		if (*val != '=') {
-			usage_set(context);
+			usage_set();
 			return -1;
 		}
 		key_len = val - key;
@@ -2995,49 +2989,49 @@ static int cmd_set(ShellContext *context, int argc, char *argv[])
 
 		if (streq("cookiefile", key, key_len)) {
 			if (set_cookiefile(context, val)) {
-				usage_set(context);
+				usage_set();
 				return -1;
 			}
 		}
 		else if (streq("captchafile", key, key_len)) {
 			if (set_captchafile(context, val)) {
-				usage_set(context);
+				usage_set();
 				return -1;
 			}
 		}
 		else if (streq("list_page_size", key, key_len)) {
 			if (set_list_page_size(context, val)) {
-				usage_set(context);
+				usage_set();
 				return -1;
 			}
 		}
 		else if (streq("list_sort_name", key, key_len)) {
 			if (set_list_sort_name(context, val)) {
-				usage_set(context);
+				usage_set();
 				return -1;
 			}
 		}
 		else if (streq("list_sort_direction", key, key_len)) {
 			if (set_list_sort_direction(context, val)) {
-				usage_set(context);
+				usage_set();
 				return -1;
 			}
 		}
 		else if (streq("secure_method", key, key_len)) {
 			if (set_secure_method(context, val)) {
-				usage_set(context);
+				usage_set();
 				return -1;
 			}
 		}
 		else if (streq("secure_key", key, key_len)) {
 			if (set_secure_key(context, val)) {
-				usage_set(context);
+				usage_set();
 				return -1;
 			}
 		}
 		else if (streq("secure_enable", key, key_len)) {
 			if (set_secure_enable(context, val)) {
-				usage_set(context);
+				usage_set();
 				return -1;
 			}
 		}
@@ -3045,70 +3039,42 @@ static int cmd_set(ShellContext *context, int argc, char *argv[])
 			printf("warning: unknow option %s\n", key);
 		}
 	}
-	printf("Success. You can view context by '%s context'\n", context->name);
+	printf("Success. You can view context by '%s context'\n", app_name);
 	return 0;
 }
 
 /*搜索文件*/
-static int cmd_search(ShellContext *context, int argc, char *argv[])
+static int cmd_search(ShellContext *context, struct args *arg)
 {
+	const char *opts[] = { "r", NULL };
 	int is_recursive = 0;
 	char *path = NULL;
 	const char *relPath = NULL, *keyword = NULL;
-	int i;
 
 	PcsFileInfoList *list = NULL;
 
-	if (is_print_usage(argc, argv)) {
-		usage_search(context);
+	if (is_print_usage(arg)) {
+		usage_search();
 		return 0;
 	}
-	if (argc < 1 || argc > 3) {
-		usage_search(context);
+	if (test_opts(arg, opts, -1)) {
+		usage_search();
 		return -1;
 	}
-	/*解析参数 - 开始*/
-	if (argc == 1) {
-		if (strcmp(argv[0], "-r") == 0) {
-			usage_search(context);
-			return -1;
-		}
-		else {
-			keyword = argv[0];
-		}
+
+	is_recursive = has_opt(arg, "r");
+
+	if (arg->argc == 1) {
+		keyword = arg->argv[0];
 	}
-	else if (argc == 2){
-		if (strcmp(argv[0], "-r") == 0) {
-			is_recursive = 1;
-			keyword = argv[1];
-		}
-		else {
-			relPath = argv[0];
-			keyword = argv[1];
-		}
+	else if (arg->argc == 2) {
+		relPath = arg->argv[0];
+		keyword = arg->argv[1];
 	}
-	else if (argc == 3) {
-		for (i = 0; i < argc; i++) {
-			if (is_recursive == 0 && strcmp(argv[i], "-r") == 0) {
-				is_recursive = 1;
-			}
-			else if (relPath == NULL) {
-				relPath = argv[i];
-			}
-			else if (keyword == NULL) {
-				keyword = argv[i];
-			}
-			else {
-				usage_search(context);
-				return -1;
-			}
-		}
-		if (is_recursive == 0) {
-			usage_search(context);
-			return -1;
-		}
+	else {
+		usage_search();
+		return 0;
 	}
-	/*解析参数 - 结束*/
 
 	if (!is_login(context, NULL)) return -1;
 
@@ -3266,77 +3232,51 @@ static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void
 }
 
 /*同步本地和网盘目录*/
-static int cmd_synch(ShellContext *context, int argc, char *argv[])
+static int cmd_synch(ShellContext *context, struct args *arg)
 {
-	compare_arg arg = { 0 };
+	compare_arg cmpArg = { 0 };
 
-	if (is_print_usage(argc, argv) || parse_compare_args(argc, argv, &arg)) {
-		usage_synch(context);
+	if (is_print_usage(arg) || parse_compare_args(arg, &cmpArg)) {
+		usage_synch();
 		return 0;
 	}
 
-	arg.check_local_dir_exist = 0;
-	arg.onRBEnumerateStatePrepared = &synchOnRBEnumStatePrepared;
+	cmpArg.check_local_dir_exist = 0;
+	cmpArg.onRBEnumerateStatePrepared = &synchOnRBEnumStatePrepared;
 
-	return compare(context, &arg, &synchFile, NULL, &on_compared_dir, NULL);
+	return compare(context, &cmpArg, &synchFile, NULL, &on_compared_dir, NULL);
 }
 
 #pragma endregion
 
 /*上传*/
-static int cmd_upload(ShellContext *context, int argc, char *argv[])
+static int cmd_upload(ShellContext *context, struct args *arg)
 {
+	const char *opts[] = { "f", NULL };
 	int is_force = 0;
 	char *path = NULL, *errmsg = NULL;
 	const char *relPath = NULL, *locPath = NULL;
-	int i;
 
 	LocalFileInfo *local;
 	PcsFileInfo *meta;
 
-	if (is_print_usage(argc, argv)) {
-		usage_upload(context);
+	if (is_print_usage(arg)) {
+		usage_upload();
 		return 0;
 	}
-	if (argc != 2 && argc != 3) {
-		usage_upload(context);
+
+	if (arg->argc != 2) {
+		usage_upload();
 		return -1;
 	}
-	/*解析参数 - 开始*/
-	if (argc == 2){
-		if (strcmp(argv[0], "-f") == 0 || strcmp(argv[1], "-f") == 0) {
-			usage_upload(context);
-			return -1;
-		}
-		locPath = argv[0];
-		relPath = argv[1];
-	}
-	else if (argc == 3) {
-		for (i = 0; i < argc; i++) {
-			if (is_force == 0 && strcmp(argv[i], "-f") == 0) {
-				is_force = 1;
-			}
-			else if (locPath == NULL) {
-				locPath = argv[i];
-			}
-			else if (relPath == NULL) {
-				relPath = argv[i];
-			}
-			else {
-				usage_upload(context);
-				return -1;
-			}
-		}
-		if (is_force == 0) {
-			usage_upload(context);
-			return -1;
-		}
-	}
-	if (!locPath || !relPath) {
-		usage_upload(context);
+	if (test_opts(arg, opts, -1)) {
+		usage_upload();
 		return -1;
 	}
-	/*解析参数 - 结束*/
+
+	is_force = has_opt(arg, "f");
+	locPath = arg->argv[0];
+	relPath = arg->argv[1];
 
 	/*检查本地文件 - 开始*/
 	local = GetLocalFileInfo(locPath);
@@ -3398,29 +3338,29 @@ static int cmd_upload(ShellContext *context, int argc, char *argv[])
 }
 
 /*打印版本*/
-static int cmd_version(ShellContext *context, int argc, char *argv[])
+static int cmd_version(ShellContext *context, struct args *arg)
 {
-	if (is_print_usage(argc, argv)) {
-		usage_version(context);
+	if (is_print_usage(arg)) {
+		usage_version();
 		return 0;
 	}
-	if (argc != 0){
-		usage_version(context);
+	if (arg->argc != 0 || arg->optc != 0){
+		usage_version();
 		return -1;
 	}
-	version(context);
+	version();
 	return 0;
 }
 
 /*打印当前登录用户*/
-static int cmd_who(ShellContext *context, int argc, char *argv[])
+static int cmd_who(ShellContext *context, struct args *arg)
 {
-	if (is_print_usage(argc, argv)) {
-		usage_who(context);
+	if (is_print_usage(arg)) {
+		usage_who();
 		return 0;
 	}
-	if (argc != 0){
-		usage_who(context);
+	if (arg->argc != 0 || arg->optc != 0){
+		usage_who();
 		return -1;
 	}
 	if (!is_login(context, NULL)) return -1;
@@ -3428,109 +3368,243 @@ static int cmd_who(ShellContext *context, int argc, char *argv[])
 	return 0;
 }
 
-/*路由到具体的命令函数*/
-static int exec_cmd(ShellContext *context, int argc, char *argv[])
-{
-	const char *cmd;
-	int cmd_argc;
-	char **cmd_argv;
-	int rc;
-	if (argc < 2) {
-		usage(context);
-		return -1;
-	}
-	cmd = argv[1];
-	cmd_argc = argc > 2 ? (argc - 2) : 0;
-	cmd_argv = cmd_argc > 0 ? &argv[2] : NULL;
+#pragma endregion
 
-	if (strcmp(cmd, "cat") == 0) {
-		rc = cmd_cat(context, cmd_argc, cmd_argv);
+/*路由到具体的命令函数*/
+static int exec_cmd(ShellContext *context, struct args *arg)
+{
+	int rc;
+
+	if (strcmp(arg->cmd, "cat") == 0) {
+		rc = cmd_cat(context, arg);
 	}
-	else if (strcmp(cmd, "cd") == 0) {
-		rc = cmd_cd(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "cd") == 0) {
+		rc = cmd_cd(context, arg);
 	}
-	else if (strcmp(cmd, "copy") == 0 || strcmp(cmd, "cp") == 0) {
-		rc = cmd_copy(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "copy") == 0
+		|| strcmp(arg->cmd, "cp") == 0) {
+		rc = cmd_copy(context, arg);
 	}
-	else if (strcmp(cmd, "compare") == 0 || strcmp(cmd, "c") == 0) {
-		rc = cmd_compare(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "compare") == 0
+		|| strcmp(arg->cmd, "c") == 0) {
+		rc = cmd_compare(context, arg);
 	}
-	else if (strcmp(cmd, "context") == 0 || strcmp(cmd, "config") == 0) {
-		rc = cmd_context(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "context") == 0
+		|| strcmp(arg->cmd, "config") == 0) {
+		rc = cmd_context(context, arg);
 	}
-	else if (strcmp(cmd, "download") == 0 || strcmp(cmd, "d") == 0) {
-		rc = cmd_download(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "download") == 0
+		|| strcmp(arg->cmd, "d") == 0) {
+		rc = cmd_download(context, arg);
 	}
-	else if (strcmp(cmd, "echo") == 0) {
-		rc = cmd_echo(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "echo") == 0) {
+		rc = cmd_echo(context, arg);
 	}
-	else if (strcmp(cmd, "list") == 0 || strcmp(cmd, "ls") == 0) {
-		rc = cmd_list(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "list") == 0
+		|| strcmp(arg->cmd, "ls") == 0) {
+		rc = cmd_list(context, arg);
 	}
-	else if (strcmp(cmd, "login") == 0) {
-		rc = cmd_login(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "login") == 0) {
+		rc = cmd_login(context, arg);
 	}
-	else if (strcmp(cmd, "logout") == 0) {
-		rc = cmd_logout(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "logout") == 0) {
+		rc = cmd_logout(context, arg);
 	}
-	else if (strcmp(cmd, "meta") == 0) {
-		rc = cmd_meta(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "meta") == 0) {
+		rc = cmd_meta(context, arg);
 	}
-	else if (strcmp(cmd, "mkdir") == 0) {
-		rc = cmd_mkdir(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "mkdir") == 0) {
+		rc = cmd_mkdir(context, arg);
 	}
-	else if (strcmp(cmd, "move") == 0 || strcmp(cmd, "mv") == 0) {
-		rc = cmd_move(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "move") == 0
+		|| strcmp(arg->cmd, "mv") == 0) {
+		rc = cmd_move(context, arg);
 	}
-	else if (strcmp(cmd, "pwd") == 0) {
-		rc = cmd_pwd(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "pwd") == 0) {
+		rc = cmd_pwd(context, arg);
 	}
-	else if (strcmp(cmd, "quota") == 0) {
-		rc = cmd_quota(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "quota") == 0) {
+		rc = cmd_quota(context, arg);
 	}
-	else if (strcmp(cmd, "remove") == 0 || strcmp(cmd, "rm") == 0) {
-		rc = cmd_remove(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "remove") == 0
+		|| strcmp(arg->cmd, "rm") == 0) {
+		rc = cmd_remove(context, arg);
 	}
-	else if (strcmp(cmd, "rename") == 0 || strcmp(cmd, "ren") == 0) {
-		rc = cmd_rename(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "rename") == 0
+		|| strcmp(arg->cmd, "ren") == 0) {
+		rc = cmd_rename(context, arg);
 	}
-	else if (strcmp(cmd, "set") == 0) {
-		rc = cmd_set(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "set") == 0) {
+		rc = cmd_set(context, arg);
 	}
-	else if (strcmp(cmd, "search") == 0) {
-		rc = cmd_search(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "search") == 0) {
+		rc = cmd_search(context, arg);
 	}
-	else if (strcmp(cmd, "synch") == 0 || strcmp(cmd, "s") == 0) {
-		rc = cmd_synch(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "synch") == 0
+		|| strcmp(arg->cmd, "s") == 0) {
+		rc = cmd_synch(context, arg);
 	}
-	else if (strcmp(cmd, "upload") == 0 || strcmp(cmd, "u") == 0) {
-		rc = cmd_upload(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "upload") == 0
+		|| strcmp(arg->cmd, "u") == 0) {
+		rc = cmd_upload(context, arg);
 	}
-	else if (strcmp(cmd, "version") == 0
-		|| strcmp(cmd, "ver") == 0
-		|| strcmp(cmd, "-v") == 0 
-		|| strcmp(cmd, "-V") == 0
-		|| strcmp(cmd, "-version") == 0
-		|| strcmp(cmd, "--version") == 0
-		|| strcmp(cmd, "-ver") == 0
-		|| strcmp(cmd, "--ver") == 0) {
-		rc = cmd_version(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "version") == 0
+		|| strcmp(arg->cmd, "ver") == 0
+		|| strcmp(arg->cmd, "-v") == 0 
+		|| strcmp(arg->cmd, "-V") == 0
+		|| strcmp(arg->cmd, "-version") == 0
+		|| strcmp(arg->cmd, "--version") == 0
+		|| strcmp(arg->cmd, "-ver") == 0
+		|| strcmp(arg->cmd, "--ver") == 0) {
+		rc = cmd_version(context, arg);
 	}
-	else if (strcmp(cmd, "who") == 0) {
-		rc = cmd_who(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "who") == 0) {
+		rc = cmd_who(context, arg);
 	}
-	else if (strcmp(cmd, "help") == 0
-		|| strcmp(cmd, "-h") == 0
-		|| strcmp(cmd, "-H") == 0
-		|| strcmp(cmd, "-?") == 0
-		|| strcmp(cmd, "?") == 0
-		|| strcmp(cmd, "-help") == 0
-		|| strcmp(cmd, "--help") == 0) {
-		rc = cmd_help(context, cmd_argc, cmd_argv);
+	else if (strcmp(arg->cmd, "help") == 0
+		|| strcmp(arg->cmd, "-h") == 0
+		|| strcmp(arg->cmd, "-H") == 0
+		|| strcmp(arg->cmd, "-?") == 0
+		|| strcmp(arg->cmd, "?") == 0
+		|| strcmp(arg->cmd, "-help") == 0
+		|| strcmp(arg->cmd, "--help") == 0) {
+		rc = cmd_help(context, arg);
 	}
 	else {
-		usage(context);
+		usage();
 		rc = -1;
+	}
+	return rc;
+}
+
+#pragma region 解析参数
+
+/*用于释放struct arg中opts哈希表中的值字段*/
+static void free_opt(void *p)
+{
+	if (p) pcs_free(p);
+}
+
+/*解析参数*/
+static int parse_arg(struct args *arg, int argc, char *argv[])
+{
+	int i, j = 0;
+	char *p, *op, *val;
+	for (i = 1; i < argc; ++i) {
+		p = argv[i];
+		if (*p == '-') {
+			arg->optc++;
+		}
+		else {
+			arg->argc++;
+		}
+	}
+	if (arg->argc < 1) return -1; /*至少有一个参数，指明子命令。*/
+	arg->argc--;
+	if (arg->optc > 0) arg->opts = ht_create((int)((float)arg->optc * HASH_EXTEND_MULTIPLIER), 0, &free_opt);
+	if (arg->argc > 0) arg->argv = (char **)pcs_malloc(arg->argc * sizeof(char *));
+	for (i = 1; i < argc; ++i) {
+		p = argv[i];
+		if (*p == '-') {
+			p++;
+			if (*p == '-') {
+				p++;
+				val = findchar(p, '=');
+				if (ht_has(arg->opts, p, val - p)) return -1; /*重复指定参数*/
+				if (ht_add(arg->opts, p, val - p, (*val) == '=' ? pcs_utils_strdup(val + 1) : NULL))
+					return -1; /*添加到哈希表中失败*/
+			}
+			else {
+				op = p;
+				while (*op) {
+					if (ht_has(arg->opts, op, 1)) return -1; /*重复指定参数*/
+					if (ht_add(arg->opts, op, 1, NULL))
+						return -1; /*添加到哈希表中失败*/
+					op++;
+				}
+			}
+		}
+		else if (!arg->cmd) {
+			arg->cmd = p;
+		}
+		else {
+			arg->argv[j++] = p;
+		}
+	}
+	return 0;
+}
+
+static void free_args(struct args *arg)
+{
+	if (arg->opts) ht_destroy(arg->opts);
+	if (arg->argv) pcs_free(arg->argv);
+}
+
+/*判断是否存在opt选项*/
+static int has_opt(struct args *arg, const char *opt)
+{
+	if (arg->opts) {
+		return ht_has(arg->opts, opt, -1);
+	}
+	return 0;
+}
+
+/*判断是否存在opt选项，如果存在的话，把其值填入 （*pValue）中*/
+static int has_optEx(struct args *arg, const char *opt, char **pValue)
+{
+	if (arg->opts) {
+		HashtableNode *node = ht_get_node(arg->opts, opt, -1);
+		if (node) {
+			if (pValue) (*pValue) = node->value;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/*测试arg中是否仅包含support指定的选项。
+  arg  - 
+  support - 字符串数组
+  count   - 数组元素个数，如果传入-1的话，则遇到一个空字符串，则认为数组结束
+  如果测试通过则返回0，否则返回非零值*/
+static int test_opts(struct args *arg, const char **support, int count)
+{
+	if (!arg->opts) return 0;
+	if (count != -1) {
+		int i, co = 0;
+		const char *p;
+		for (i = 0; i < count; i++) {
+			p = support[i];
+			if (ht_has(arg->opts, p, -1))
+				co++;
+		}
+		return arg->opts->count - co;
+	}
+	else {
+		int co = 0;
+		const char **p = support;
+		while ((*p) && (*(*p))) {
+			if (ht_has(arg->opts, *p, -1))
+				co++;
+			p++;
+		}
+		return arg->opts->count - co;
+	}
+}
+
+/*
+删除一个选项。
+删除成功返回0，否则返回非0值。
+执行成功，且 pValue不为NULL，则把被删除项的值写入 (*pValue)。注意值需要调用pcs_free()
+*/
+static int remove_opt(struct args *arg, const char *opt, char **pValue)
+{
+	char *val = NULL;
+	if (!arg->opts) return -1;
+	int rc = ht_remove(arg->opts, opt, -1, (void *)(pValue ? pValue : &val));
+	if (rc == 0) {
+		if (val) pcs_free(val);
+		arg->optc--;
 	}
 	return rc;
 }
@@ -3539,15 +3613,38 @@ static int exec_cmd(ShellContext *context, int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	ShellContext context;
+	struct args arg = { 0 };
+	ShellContext context = { 0 };
 	int rc = 0;
+	char *errmsg = NULL, *val = NULL;
+	app_name = filename(argv[0]);
+	if (parse_arg(&arg, argc, argv)) {
+		usage();
+		free_args(&arg);
+		return -1;
+	}
 	hook_cjson();
-	init_context(&context, argc, argv);
-	restore_context(&context);
+	init_context(&context, &arg);
+	if (has_optEx(&arg, "context", &val)) {
+		if (restore_context(&context, val)) {
+			rc = -1;
+			goto exit_main;
+		}
+		remove_opt(&arg, "context", NULL);
+	}
+	else {
+		restore_context(&context, NULL);
+	}
+	if (errmsg) {
+		printf("%s\n", errmsg);
+		pcs_free(errmsg);
+	}
 	init_pcs(&context);
-	rc = exec_cmd(&context, argc, argv);
+	rc = exec_cmd(&context, &arg);
 	save_context(&context);
+exit_main:
 	free_context(&context);
+	free_args(&arg);
 	pcs_mem_print_leak();
 	return rc;
 }

@@ -11,7 +11,7 @@
 /* shell 的上下文 */
 typedef struct ShellContext
 {
-	char		*name; /*程序名字*/
+	char		*contextfile; /*上下文文件的路径*/
 	char		*cookiefile; /*Cookie文件路径*/
 	char		*captchafile; /*验证码图片路径*/
 	char		*workdir; /*当前工作目录*/

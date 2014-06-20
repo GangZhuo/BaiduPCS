@@ -5,13 +5,14 @@
 #include "pcs/pcs_mem.h"
 #include "hashtable.h"
 
-static unsigned int calcHash1(const char *key, int ignore_case)
+static unsigned int calcHash1(const char *key, int key_size, int ignore_case)
 {
 	register unsigned int nr = 1, nr2 = 4, ch;
-	const char *p = key;
-	while (*p) {
-		ch = (unsigned int)*p++;
-		if (ch >= 'A' && ch <= 'Z' && ignore_case && (p == key || !(p[-1] & 0x80)))
+	int i;
+	if (key_size == -1) key_size = strlen(key);
+	for (i = 0; i < key_size; i++) {
+		ch = (unsigned int)key[i];
+		if (ch >= 'A' && ch <= 'Z' && ignore_case && (i == 0 || !(key[i - 1] & 0x80)))
 			ch += 'a' - 'A';
 		nr ^= (((nr & 63) + nr2) * ch) + (nr << 8);
 		nr2 += 3;
@@ -19,39 +20,43 @@ static unsigned int calcHash1(const char *key, int ignore_case)
 	return nr;
 }
 
-static unsigned int calcHash2(const char *key)
+static unsigned int calcHash2(const char *key, int key_size)
 {
 	unsigned int hash = 0;
-	while (*key) {
+	int i;
+	if (key_size == -1) key_size = strlen(key);
+	for (i = 0; i < key_size; i++) {
 		hash *= 16777619;
-		hash ^= (unsigned int) *key++;
+		hash ^= (unsigned int) key[i];
 	}
 	return (hash);
 }
 
-static unsigned int calcHash3(const char *key)
+static unsigned int calcHash3(const char *key, int key_size)
 {
-	register unsigned int h;
-	register const char *p;
-
-	for(h = 0, p = key; *p ; p++)
-		h = 31 * h + ((unsigned int)*p);
+	unsigned int h;
+	int i;
+	if (key_size == -1) key_size = strlen(key);
+	for (h = 0, i = 0; i < key_size; i++)
+		h = 31 * h + ((unsigned int)key[i]);
 	return h;
 }
 
-static HashtableNode *node_create(const char *key, void *value, unsigned int hashA, unsigned int hashB)
+static HashtableNode *node_create(const char *key, int key_size, void *value, unsigned int hashA, unsigned int hashB)
 {
 	HashtableNode *node;
 	node = (HashtableNode *) pcs_malloc(sizeof(HashtableNode));
 	if (!node)
 		return NULL;
 	memset (node, 0, sizeof(HashtableNode));
-	node->key = (char *) pcs_malloc(strlen(key) + 1);
+	if (key_size == -1) key_size = strlen(key);
+	node->key = (char *)pcs_malloc(key_size + 1);
 	if (!node->key) {
 		pcs_free(node);
 		return NULL;
 	}
-	strcpy(node->key, key);
+	memcpy(node->key, key, key_size);
+	node->key[key_size] = '\0';
 	node->value = value;
 	node->hashA = hashA;
 	node->hashB = hashB;
@@ -73,17 +78,20 @@ static void node_destroy(HashtableNode *node, void(*free_value)(void *))
 	}
 }
 
-static int table_add_item(HashtableNode **table, int real_capacity, const char *key, void *value, int ignore_case)
+static int table_add_item(HashtableNode **table, int real_capacity, const char *key, int key_size, void *value, int ignore_case)
 {
 	//不同的字符串三次hash还会碰撞的几率无限接近于不可能
-	unsigned int nHash = calcHash1(key, ignore_case),
-		nHashA = calcHash2(key),
-		nHashB = calcHash3(key);
-	unsigned int pos = nHash % real_capacity;
-	HashtableNode *last = NULL, 
-		*p = table[pos];
+	unsigned int nHash, nHashA, nHashB;
+	unsigned int pos;
+	HashtableNode *last = NULL, *p;
+	if (key_size == -1) key_size = strlen(key);
+	nHash = calcHash1(key, ignore_case, key_size);
+	nHashA = calcHash2(key, key_size);
+	nHashB = calcHash3(key, key_size);
+	pos = nHash % real_capacity;
+	p = table[pos];
 	if (!p) {
-		table[pos] = node_create(key, value, nHashA, nHashB);
+		table[pos] = node_create(key, key_size, value, nHashA, nHashB);
 		if (!table[pos])
 			return -1;
 		return 0;
@@ -99,7 +107,7 @@ static int table_add_item(HashtableNode **table, int real_capacity, const char *
 		return -1;
 	}
 	else {
-		p = node_create(key, value, nHashA, nHashB);
+		p = node_create(key, key_size, value, nHashA, nHashB);
 		if (!p)
 			return -1;
 		last->next = p;
@@ -107,16 +115,57 @@ static int table_add_item(HashtableNode **table, int real_capacity, const char *
 	return 0;
 }
 
-static HashtableNode *table_get_item(HashtableNode **table, int real_capacity, const char *key, int ignore_case)
+static int table_set_item(HashtableNode **table, int real_capacity, const char *key, int key_size, void *value, int ignore_case, int *pHasOld, void **pOldVal)
 {
-	unsigned int nHash = calcHash1(key, ignore_case),
-		nHashA, nHashB;
-	unsigned int pos = nHash % real_capacity;
-	HashtableNode *p = table[pos];
-	if (!p)
-		return NULL;
-	nHashA = calcHash2(key);
-	nHashB = calcHash3(key);
+	//不同的字符串三次hash还会碰撞的几率无限接近于不可能
+	unsigned int nHash, nHashA, nHashB;
+	unsigned int pos;
+	HashtableNode *last = NULL, *p;
+	if (key_size == -1) key_size = strlen(key);
+	nHash = calcHash1(key, ignore_case, key_size);
+	nHashA = calcHash2(key, key_size);
+	nHashB = calcHash3(key, key_size);
+	pos = nHash % real_capacity;
+	p = table[pos];
+	if (pHasOld) (*pHasOld) = 0;
+	if (!p) {
+		table[pos] = node_create(key, key_size, value, nHashA, nHashB);
+		if (!table[pos]) return -1;
+		return 0;
+	}
+	while (p) {
+		if (p->hashA == nHashA && p->hashB == nHashB) {
+			break;
+		}
+		last = p;
+		p = p->next;
+	}
+	if (p) {
+		if (pHasOld) (*pHasOld) = 1;
+		if (pOldVal) (*pOldVal) = p->value;
+		p->value = value;
+		return 0;
+	}
+	else {
+		p = node_create(key, key_size, value, nHashA, nHashB);
+		if (!p) return -1;
+		last->next = p;
+	}
+	return 0;
+}
+
+static HashtableNode *table_get_item(HashtableNode **table, int real_capacity, const char *key, int key_size, int ignore_case)
+{
+	unsigned int nHash, nHashA, nHashB;
+	unsigned int pos;
+	HashtableNode *p;
+	if (key_size == -1) key_size = strlen(key);
+	nHash = calcHash1(key, ignore_case, key_size);
+	pos = nHash % real_capacity;
+	p = table[pos];
+	if (!p) return NULL;
+	nHashA = calcHash2(key, key_size);
+	nHashB = calcHash3(key, key_size);
 	while (p) {
 		if (p->hashA == nHashA && p->hashB == nHashB) {
 			break;
@@ -126,15 +175,18 @@ static HashtableNode *table_get_item(HashtableNode **table, int real_capacity, c
 	return p;
 }
 
-static HashtableNode *table_remove_item(HashtableNode **table, int real_capacity, const char *key, int ignore_case)
+static HashtableNode *table_remove_item(HashtableNode **table, int real_capacity, const char *key, int key_size, int ignore_case)
 {
-	unsigned int nHash = calcHash1(key, ignore_case),
-		nHashA, nHashB;
-	unsigned int pos = nHash % real_capacity;
-	HashtableNode *p = table[pos], *prev = NULL;
+	unsigned int nHash, nHashA, nHashB;
+	unsigned int pos;
+	HashtableNode *p, *prev = NULL;
+	if (key_size == -1) key_size = strlen(key);
+	nHash = calcHash1(key, ignore_case, key_size);
+	pos = nHash % real_capacity;
+	p = table[pos];
 	if (p) {
-		nHashA = calcHash2(key);
-		nHashB = calcHash3(key);
+		nHashA = calcHash2(key, key_size);
+		nHashB = calcHash3(key, key_size);
 		while (p) {
 			if (p->hashA == nHashA && p->hashB == nHashB) {
 				break;
@@ -214,7 +266,7 @@ int ht_expand(Hashtable *ht, int capacity)
 	for(i = 0; i < ht->real_capacity; i++) {
 		node = ht->table[i];
 		while(node) {
-			if (table_add_item(table, real_capacity, node->key, node->value, ht->ignore_case)) {
+			if (table_add_item(table, real_capacity, node->key, -1, node->value, ht->ignore_case)) {
 				table_destroy(table, real_capacity, NULL);
 				return -1;
 			}
@@ -230,45 +282,59 @@ int ht_expand(Hashtable *ht, int capacity)
 	return 0;
 }
 
-int ht_add(Hashtable *ht, const char *key, void *value)
+int ht_add(Hashtable *ht, const char *key, int key_size, void *value)
 {
 	if (ht->count >= ht->capacity) {
 		if (ht_expand(ht, ht->count * 2))
 			return -1;
 	}
-	if (table_add_item(ht->table, ht->real_capacity, key, value, ht->ignore_case))
+	if (table_add_item(ht->table, ht->real_capacity, key, key_size, value, ht->ignore_case))
 		return -1;
 	ht->count++;
 	return 0;
 }
 
-int ht_remove(Hashtable *ht, const char *key, void **pVal)
+int ht_set(Hashtable *ht, const char *key, int key_size, void *value, void **pOldVal)
 {
-	HashtableNode *p = table_remove_item(ht->table, ht->real_capacity, key, ht->ignore_case);
+	void *oldVal = NULL;
+	int rc, pHasOld;
+	rc = table_set_item(ht->table, ht->real_capacity, key, key_size, value, ht->ignore_case, &pHasOld, pOldVal ? pOldVal : &oldVal);
+	if (oldVal && ht->free_value) (*ht->free_value)(oldVal); /*如果pOldVal传入NULL，且有旧值时，自动释放*/
+	if (!pHasOld) ht->count++;
+	return rc;
+}
+
+int ht_remove(Hashtable *ht, const char *key, int key_size, void **pVal)
+{
+	HashtableNode *p;
+	p = table_remove_item(ht->table, ht->real_capacity, key, key_size, ht->ignore_case);
 	if (p) {
 		if (pVal) *pVal = p->value;
-		node_destroy(p, NULL);
+		node_destroy(p, pVal ? NULL : ht->free_value);
+		ht->count--;
 		return 0;
 	}
 	return -1;
 }
 
-void *ht_get(Hashtable *ht, const char *key)
+void *ht_get(Hashtable *ht, const char *key, int key_size)
 {
-	HashtableNode *p = table_get_item(ht->table, ht->real_capacity, key, ht->ignore_case);
+	HashtableNode *p;
+	p = table_get_item(ht->table, ht->real_capacity, key, key_size, ht->ignore_case);
 	if (!p)
 		return NULL;
 	return p->value;
 }
 
-HashtableNode *ht_get_node(Hashtable *ht, const char *key)
+HashtableNode *ht_get_node(Hashtable *ht, const char *key, int key_size)
 {
-	return table_get_item(ht->table, ht->real_capacity, key, ht->ignore_case);
+	return table_get_item(ht->table, ht->real_capacity, key, key_size, ht->ignore_case);
 }
 
-int ht_has(Hashtable *ht, const char *key)
+int ht_has(Hashtable *ht, const char *key, int key_size)
 {
-	HashtableNode *p = table_get_item(ht->table, ht->real_capacity, key, ht->ignore_case);
+	HashtableNode *p;
+	p = table_get_item(ht->table, ht->real_capacity, key, key_size, ht->ignore_case);
 	return (p ? 1 : 0);
 }
 
