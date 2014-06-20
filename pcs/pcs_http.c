@@ -407,11 +407,6 @@ static inline char *pcs_http_perform(struct pcs_http *http)
 		http->strerror = pcs_utils_sprintf("%d %s", httpcode, http->res_body);
 		return NULL;
 	}
-	{
-		FILE *pf = fopen("d:\\a.txt", "wb");
-		fwrite(http->res_body, 1, http->res_body_size, pf);
-		fclose(pf);
-	}
 	if (http->response_func)
 		(*http->response_func)((unsigned char *)http->res_body, (size_t)http->res_body_size, http->response_data);
 	return http->res_body;
