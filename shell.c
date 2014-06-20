@@ -104,6 +104,7 @@ struct RBEnumerateState
 
 	int		printed_count;
 	int		page_index;
+	int		page_enable;
 
 	const char	*local_basedir;
 	const char	*remote_basedir;
@@ -113,6 +114,8 @@ struct RBEnumerateState
 	void *processState;
 
 	int dry_run;
+
+	const char *prefixion;
 };
 
 static PcsBool is_login(ShellContext *context, const char *msg);
@@ -1439,16 +1442,19 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursive)
 static inline void decide_op(MyMeta *meta)
 {
 	if ((meta->flag & FLAG_ON_LOCAL) && (meta->flag & FLAG_ON_REMOTE)) { /*文件在本地和网盘中都存在*/
-		if ((meta->local_isdir && !meta->remote_isdir) || (!meta->local_isdir && meta->remote_isdir)) {
-			meta->op = OP_CONFUSE;
+		if (meta->local_isdir && meta->remote_isdir) {
+			meta->op = OP_EQ;
 		}
-		else {
+		else if (!meta->local_isdir && !meta->remote_isdir) {
 			if (meta->local_mtime < meta->remote_mtime)
 				meta->op = OP_LEFT;
 			else if (meta->local_mtime > meta->remote_mtime)
 				meta->op = OP_RIGHT;
 			else
 				meta->op = OP_EQ;
+		}
+		else {
+			meta->op = OP_CONFUSE;
 		}
 	}
 	else if (meta->flag & FLAG_ON_LOCAL) {
@@ -1469,12 +1475,9 @@ static inline void decide_op(MyMeta *meta)
  *   other  - 剩下列的总宽度，不包括第三列。第三列宽度为固定值2
  *   page_index - 分页编号，不打印分页的话，传入0
 */
-static void print_meta_list_head(int first, int second, int other, int page_index)
+static void print_meta_list_head(int first, int second, int other)
 {
 	int i, total = 0;
-	if (page_index) {
-		printf("\nPAGE#%d\n", page_index);
-	}
 	for (i = 0; i < first; i++) putchar(' ');
 	if (first > 0) putchar(' ');
 	printf("Local File");
@@ -1534,23 +1537,36 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 }
 
 /*
+* 打印统计
+*/
+static void print_meta_list_statistic(struct RBEnumerateState *s)
+{
+	int i, total = 0;
+
+	printf("\nStatistic:\n");
+	if (s->first > 0) total += s->first + 1;
+	total += s->second + 1;
+	total += 2 + 1; /*2为列头"OP"的长度，1为分隔空白*/
+	total += s->other;
+	for (i = 0; i < total; i++) putchar('-');
+	putchar('\n');
+	printf("Download: %d, Upload: %d\n"
+		   "Confuse: %d, Equal: %d, Other: %d\n"
+		   "Total: %d\n",
+		s->cnt_left, s->cnt_right, s->cnt_confuse, s->cnt_eq, s->cnt_none, s->cnt_total);
+}
+
+/*
 * 打印显示meta时的列表头
 *   first  - 第一列宽度，第一列为操作成功还是失败的标记列。不存在时，传入0
 *   second - 第二列宽度，第二列为本地文件的路径
 *   other  - 剩下列的总宽度，不包括第三列。第三列宽度为固定值2
 */
-static void print_meta_list_foot(int first, int second, int other)
+static void print_meta_list_notes(int first, int second, int other)
 {
-	//int i;
-	//int total = 0;
-	//if (first > 0) total += first + 1;
-	//total += second + 1;
-	//total += 2 + 1; /*2为列头"OP"的长度，1为分隔空白*/
-	//total += other;
-	//for (i = 0; i < total; i++) putchar('-');
 	printf("\nNotes:\n"
-		   "  <- means the right file will download into \n"
-		   "     the local file system. \n");
+		"  <- means the right file will download into \n"
+		"     the local file system. \n");
 	printf("  -> means the left file will upload into the disk. \n");
 	printf("  == means left file same as right file. \n");
 	printf("  >< means confuse, don't known how to. \n");
@@ -1576,16 +1592,28 @@ static int rb_print_meta(void *a, void *state)
 	if (!meta || !s || !rb_print_enabled(meta, s)) return 0;
 
 	if (s->printed_count == 0) {
-		print_meta_list_head(s->first, s->second, s->other, s->page_size > 0 ? s->page_index : 0);
+		if (s->page_enable && s->page_size > 0)
+			printf("\n%sPAGE #%d\n", s->prefixion ? s->prefixion : "", s->page_index);
+		else
+			putchar('\n');
+		print_meta_list_head(s->first, s->second, s->other);
 	}
-	else if (s->page_size > 0 && (s->printed_count % s->page_size) == 0) {
+	else if (s->page_enable && s->page_size > 0 && (s->printed_count % s->page_size) == 0) {
 		s->page_index++;
-		printf("\nPrint next page#%d [Y|N]? ", s->page_index);
+		printf("\nPrint next page #%d?\n"
+			   "  yes - Continue print\n"
+			   "  no  - Abort print]\n"
+			   "  YES - Continue print and close the paging\n"
+			   "Default yes: ", s->page_index);
 		std_string(tmp, 8);
 		if (strlen(tmp) != 0 && pcs_utils_strcmpi(tmp, "y") && pcs_utils_strcmpi(tmp, "yes")) {
 			return -1;
 		}
-		print_meta_list_head(s->first, s->second, s->other, s->page_index);
+		if (strlen(tmp) != 0 && (strcmp(tmp, "Y") == 0 || strcmp(tmp, "YES") == 0)) {
+			s->page_enable = 0;
+		}
+		printf("\n%sPAGE #%d\n", s->prefixion ? s->prefixion : "", s->page_index);
+		print_meta_list_head(s->first, s->second, s->other);
 	}
 
 	if (s->process)
@@ -2134,27 +2162,30 @@ static int on_compared_file(ShellContext *context, compare_arg *arg, MyMeta *mm,
 	int first, second, other;
 	first = 0; second = strlen(mm->path); other = 13;
 	if (second < 10) second = 10;
-	print_meta_list_head(first, second, other, 0);
+	print_meta_list_head(first, second, other);
 	print_meta_list_row(first, second, other, mm);
-	print_meta_list_foot(first, second, other);
+	print_meta_list_notes(first, second, other);
 	return 0;
 }
 
 static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_tree *rb, void *st)
 {
 	struct RBEnumerateState state = { 0 };
-	if (!arg->print_eq && !arg->print_left && !arg->print_right && !arg->print_confuse)
-		state.print_op = OP_LEFT | OP_RIGHT | OP_CONFUSE;
+	int print_notes = 0;
+	if (!arg->print_eq && !arg->print_left && !arg->print_right && !arg->print_confuse) {
+		arg->print_left = arg->print_right = arg->print_confuse = 1;
+	}
 	if (arg->print_eq) state.print_op |= OP_EQ;
 	if (arg->print_left) state.print_op |= OP_LEFT;
 	if (arg->print_right) state.print_op |= OP_RIGHT;
-	if (arg->print_confuse) state.print_op |= OP_CONFUSE;
+	//if (arg->print_confuse) state.print_op |= OP_CONFUSE;
 	state.print_flag = FLAG_ON_LOCAL | FLAG_ON_REMOTE;
 	state.no_print_flag = FLAG_PARENT_NOT_ON_REMOTE;
 	state.tree = rb;
 	state.context = context;
 	state.page_size = context->list_page_size;
 	state.page_index = 1;
+	state.page_enable = 1;
 	state.dry_run = arg->dry_run;
 	state.local_basedir = arg->local_file;
 	state.remote_basedir = arg->remote_file;
@@ -2167,10 +2198,30 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 	if (arg->onRBEnumerateStatePrepared)
 		(*arg->onRBEnumerateStatePrepared)(context, arg, rb, &state, st);
 	rb->EnumerateInfo = &rb_print_meta;
-	RBTreeEnumerateInfo(rb);
-	if (state.printed_count == 0)
-		print_meta_list_head(state.first, state.second, state.other, 0);
-	print_meta_list_foot(state.first, state.second, state.other);
+	if (state.print_op && state.print_flag) {
+		RBTreeEnumerateInfo(rb);
+		if (state.printed_count == 0)
+			print_meta_list_head(state.first, state.second, state.other);
+		print_notes = 1;
+	}
+	if (state.cnt_confuse > 0 && arg->print_confuse && !(state.print_op & OP_CONFUSE)) {
+		//printf("\nwarning: There are number of confuse items. The confuse means that don't know how to process.\n");
+		state.print_op = OP_CONFUSE;
+		state.page_index = 1;
+		state.printed_count = 0;
+		state.prefixion = "[Confuse] ";
+		putchar('\n');
+		RBTreeEnumerateInfo(rb);
+		if (state.printed_count > 0) {
+			print_notes = 1;
+		}
+	}
+	if (print_notes) {
+		putchar('\n');
+		print_meta_list_statistic(&state);
+		putchar('\n');
+		print_meta_list_notes(state.first, state.second, state.other);
+	}
 	return 0;
 }
 
@@ -3208,9 +3259,9 @@ static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void
 	}
 	first = 6; second = strlen(meta->path); other = 13;
 	if (second < 10) second = 10;
-	print_meta_list_head(first, second, other, 0);
+	print_meta_list_head(first, second, other);
 	print_meta_list_row(first, second, other, meta);
-	print_meta_list_foot(first, second, other);
+	print_meta_list_notes(first, second, other);
 	return 0;
 }
 
