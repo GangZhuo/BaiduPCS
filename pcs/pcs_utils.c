@@ -90,7 +90,7 @@ PCS_API char* pcs_utils_readable_size(double size/*in bytes*/, char *buf, int bu
 		i++;
 	}
 	memset(buf, 0, buf_size);
-	snprintf(buf, buf_size, "%.*f%s%s", i, size, sp ? sp : "", units[i]);
+	snprintf(buf, buf_size, "%.2f%s%s", (float)size, sp ? sp : "", units[i]);
 	return buf;
 }
 
