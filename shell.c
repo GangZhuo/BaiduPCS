@@ -1689,9 +1689,9 @@ static int rb_print_meta(void *a, void *state)
 		s->page_index++;
 		printf("\nPrint next page #%d?\n"
 			   "  yes - Continue print\n"
-			   "  no  - Abort print]\n"
-			   "  YES - Continue print and close the paging\n"
-			   "Default yes: ", s->page_index);
+			   "  no  - Abort print\n"
+			   "  YES - Continue, but print all left items\n"
+			   "Press <enter> to continue or input your choice: ", s->page_index);
 		std_string(tmp, 8);
 		if (strlen(tmp) != 0 && pcs_utils_strcmpi(tmp, "y") && pcs_utils_strcmpi(tmp, "yes")) {
 			return -1;
@@ -1859,7 +1859,7 @@ static inline int do_download(ShellContext *context,
 		return -1;
 	}
 
-	dir = combin_unix_path(context->workdir, remote_basedir);
+	dir = combin_net_disk_path(context->workdir, remote_basedir);
 	if (!dir) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
@@ -1871,7 +1871,7 @@ static inline int do_download(ShellContext *context,
 		pcs_free(local_path);
 		return -1;
 	}
-	remote_path = combin_unix_path(dir, remote_file);
+	remote_path = combin_net_disk_path(dir, remote_file);
 	pcs_free(dir);
 	if (!dir) {
 		if (pErrMsg) {
@@ -1937,8 +1937,8 @@ static inline int do_upload(ShellContext *context,
 	char *local_path, *remote_path, *dir;
 
 	local_path = combin_path(local_basedir, -1, local_file);
-	dir = combin_unix_path(context->workdir, remote_basedir);
-	remote_path = combin_unix_path(dir, remote_file);
+	dir = combin_net_disk_path(context->workdir, remote_basedir);
+	remote_path = combin_net_disk_path(dir, remote_file);
 	pcs_free(dir);
 	pcs_setopts(context->pcs,
 		PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
@@ -1979,7 +1979,7 @@ static int cmd_cat(ShellContext *context, struct args *arg)
 		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
-	path = combin_unix_path(context->workdir, arg->argv[0]);
+	path = combin_net_disk_path(context->workdir, arg->argv[0]);
 	assert(path);
 	res = pcs_cat(context->pcs, path, &sz);
 	if (res == NULL) {
@@ -2006,7 +2006,7 @@ static int cmd_cd(ShellContext *context, struct args *arg)
 		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
-	p = combin_unix_path(context->workdir, arg->argv[0]);
+	p = combin_net_disk_path(context->workdir, arg->argv[0]);
 	meta = pcs_meta(context->pcs, p);
 	if (!meta) {
 		printf("The target directory not exist, or have error: %s\n", pcs_strerror(context->pcs));
@@ -2043,8 +2043,8 @@ static int cmd_copy(ShellContext *context, struct args *arg)
 	}
 	if (!is_login(context, NULL)) return -1;
 
-	slist.string1 = combin_unix_path(context->workdir, arg->argv[0]); /* path */
-	slist.string2 = combin_unix_path(context->workdir, arg->argv[1]); /* new_name */
+	slist.string1 = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
+	slist.string2 = combin_net_disk_path(context->workdir, arg->argv[1]); /* new_name */
 	slist.next = NULL;
 
 	res = pcs_copy(context->pcs, &slist);
@@ -2326,7 +2326,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 	}
 
 	//拼接出网盘文件的完整路径
-	path = combin_unix_path(context->workdir, arg->remote_file);
+	path = combin_net_disk_path(context->workdir, arg->remote_file);
 	if (!path) {
 		DestroyLocalFileInfo(local);
 		return -1;
@@ -2423,7 +2423,10 @@ static int cmd_compare(ShellContext *context, struct args *arg)
 		usage_compare();
 		return 0;
 	}
-
+	if (parse_compare_args(arg, &cmpArg)) {
+		usage_compare();
+		return -1;
+	}
 	cmpArg.check_local_dir_exist = 1;
 
 	return compare(context, &cmpArg, &on_compared_file, NULL, &on_compared_dir, NULL);
@@ -2495,7 +2498,7 @@ static int cmd_download(ShellContext *context, struct args *arg)
 		return -1;
 	}
 
-	path = combin_unix_path(context->workdir, relPath);
+	path = combin_net_disk_path(context->workdir, relPath);
 
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
@@ -2553,7 +2556,7 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 	text = arg->argv[1];
 
 	if (!is_login(context, NULL)) return -1;
-	path = combin_unix_path(context->workdir, relPath);
+	path = combin_net_disk_path(context->workdir, relPath);
 	assert(path);
 	sz = strlen(text);
 
@@ -2762,7 +2765,7 @@ static int cmd_list(ShellContext *context, struct args *arg)
 		path = pcs_utils_strdup(context->workdir);
 	}
 	else if (arg->argc == 1) {
-		path = combin_unix_path(context->workdir, arg->argv[0]);
+		path = combin_net_disk_path(context->workdir, arg->argv[0]);
 	}
 	else {
 		usage_list();
@@ -2892,7 +2895,7 @@ static int cmd_meta(ShellContext *context, struct args *arg)
 	}
 	if (!is_login(context, NULL)) return -1;
 	if (arg->argc == 1)
-		path = combin_unix_path(context->workdir, arg->argv[0]);
+		path = combin_net_disk_path(context->workdir, arg->argv[0]);
 	else
 		path = context->workdir;
 	assert(path);
@@ -2922,7 +2925,7 @@ static int cmd_mkdir(ShellContext *context, struct args *arg)
 		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
-	path = combin_unix_path(context->workdir, arg->argv[0]);
+	path = combin_net_disk_path(context->workdir, arg->argv[0]);
 	assert(path);
 	res = pcs_mkdir(context->pcs, path);
 	if (res != PCS_OK) {
@@ -2950,8 +2953,8 @@ static int cmd_move(ShellContext *context, struct args *arg)
 		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
-	slist.string1 = combin_unix_path(context->workdir, arg->argv[0]); /* path */
-	slist.string2 = combin_unix_path(context->workdir, arg->argv[1]); /* new_name */
+	slist.string1 = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
+	slist.string2 = combin_net_disk_path(context->workdir, arg->argv[1]); /* new_name */
 	slist.next = NULL;
 
 	res = pcs_move(context->pcs, &slist);
@@ -3046,7 +3049,7 @@ static int cmd_remove(ShellContext *context, struct args *arg)
 		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
-	slist.string = combin_unix_path(context->workdir, arg->argv[0]); /* path */
+	slist.string = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
 	slist.next = NULL;
 
 	res = pcs_delete(context->pcs, &slist);
@@ -3092,7 +3095,7 @@ static int cmd_rename(ShellContext *context, struct args *arg)
 		p++;
 	}
 	if (!is_login(context, NULL)) return -1;
-	slist.string1 = combin_unix_path(context->workdir, arg->argv[0]); /* path */
+	slist.string1 = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
 	slist.string2 = arg->argv[1]; /* new_name */
 	slist.next = NULL;
 
@@ -3230,7 +3233,7 @@ static int cmd_search(ShellContext *context, struct args *arg)
 		path = pcs_utils_strdup(context->workdir);
 	}
 	else {
-		path = combin_unix_path(context->workdir, relPath);
+		path = combin_net_disk_path(context->workdir, relPath);
 	}
 
 	list = pcs_search(context->pcs, path, keyword, is_recursive ? PcsTrue : PcsFalse);
@@ -3392,7 +3395,10 @@ static int cmd_synch(ShellContext *context, struct args *arg)
 		usage_synch();
 		return 0;
 	}
-
+	if (parse_compare_args(arg, &cmpArg)) {
+		usage_compare();
+		return -1;
+	}
 	cmpArg.check_local_dir_exist = 0;
 	cmpArg.onRBEnumerateStatePrepared = &synchOnRBEnumStatePrepared;
 
@@ -3444,7 +3450,7 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 		return -1;
 	}
 
-	path = combin_unix_path(context->workdir, relPath);
+	path = combin_net_disk_path(context->workdir, relPath);
 	if (!path) {
 		assert(path);
 		return -1;
