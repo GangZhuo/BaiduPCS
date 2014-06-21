@@ -59,7 +59,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)win32\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>argpd.lib;libcurld.lib;openssld.lib;libssh2d.lib;zlibd.lib;wsock32.lib;wldap32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>argpd.lib;libcurld.lib;openssld.lib;libssh2d.lib;zlibd.lib;wsock32.lib;wldap32.lib;ws2_32.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -80,7 +80,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(SolutionDir)win32\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>argp.lib;libcurl.lib;openssl.lib;libssh2.lib;zlib.lib;wsock32.lib;wldap32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>argp.lib;libcurl.lib;openssl.lib;libssh2.lib;zlib.lib;wsock32.lib;wldap32.lib;ws2_32.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

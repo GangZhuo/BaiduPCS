@@ -170,7 +170,8 @@ LocalFileInfo *GetLocalFileInfo(const char *file)
 	}
 #else
 	struct stat st;
-	stat(file, &st);
+	if (stat(file, &st))
+		return NULL;
 	if (S_ISDIR(st.st_mode)) /*为目录*/
 		info = CreateLocalFileInfo(file, NULL, 1, st.st_mtime, 0, NULL);
 	else if (S_ISREG(st.st_mode)) /*为文件*/
@@ -257,8 +258,8 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 			strcpy(subdir, dir);
 			if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "\\");
 			strcat(subdir, ent->d_name);
-			stat(subdir, &st);
-			info->mtime = st.st_mtime;
+			if (!stat(subdir, &st))
+				info->mtime = st.st_mtime;
 			if (pCnt) (*pCnt)++;
 			if (on) (*on)(info, parent, state);
 			if (recursive) {
@@ -278,8 +279,8 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 			strcpy(subdir, dir);
 			if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "\\");
 			strcat(subdir, ent->d_name);
-			stat(subdir, &st);
-			info->mtime = st.st_mtime;
+			if (!stat(subdir, &st))
+				info->mtime = st.st_mtime;
 			info->size = st.st_size;
 			pcs_free(subdir);
 			if (pCnt) (*pCnt)++;
