@@ -4,13 +4,15 @@
 #include <string.h>
 #include <assert.h>
 #include <time.h>
-
+#include <locale.h>
 #ifdef WIN32
-#  include <conio.h>
-#  include <direct.h>
+# include <conio.h>
+# include <direct.h>
+# include <WinSock2.h>
+# include <Windows.h>
 #else
-#  include <inttypes.h>
-#  include <termios.h>
+# include <inttypes.h>
+# include <termios.h>
 #endif
 
 #include "pcs/pcs_mem.h"
@@ -21,7 +23,10 @@
 #include "version.h"
 #include "dir.h"
 #include "utils.h"
-#include "hashtable.h"
+#include "arg.h"
+#ifdef WIN32
+# include "utf8.h"
+#endif
 #include "shell.h"
 
 #define USAGE "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36"
@@ -51,16 +56,6 @@
 #define FLAG_ON_LOCAL			1
 #define FLAG_ON_REMOTE			2
 #define FLAG_PARENT_NOT_ON_REMOTE 4
-
-/*参数对象*/
-struct args
-{
-	char		*cmd;
-	Hashtable	*opts;
-	int			optc;
-	char		**argv;
-	int			argc;
-};
 
 /* 文件元数据*/
 typedef struct MyMeta MyMeta;
@@ -135,23 +130,104 @@ struct RBEnumerateState
 
 static char *app_name = NULL;
 
+/*
+* 检查是否登录
+*   msg   - 检测到未登录时的打印消息。传入NULL的话，则使用默认消息。
+*/
 static PcsBool is_login(ShellContext *context, const char *msg);
 
-/*判断是否存在opt选项
-存在则返回1，否则返回0*/
-static int has_opt(struct args *arg, const char *opt);
+#ifdef WIN32
 
-/*判断是否存在opt选项，如果存在的话，把其值填入 （*pValue）中
-存在则返回1，否则返回0*/
-static int has_optEx(struct args *arg, const char *opt, char **pValue);
+/*判断当前操作系统编码是否是UTF-8编码*/
+int u8_is_utf8_sys()
+{
+	UINT codepage = GetConsoleCP();
+	return codepage == 65001;
+}
 
-/*测试arg中是否仅包含support指定的选项。
-arg  -
-support - 字符串数组
-count   - 数组元素个数，如果传入-1的话，则遇到一个空字符串，则认为数组结束
-如果测试通过则返回0，否则返回非零值*/
-static int test_opts(struct args *arg, const char **support, int count);
+/*多字节字符转换成UTF-8编码*/
+int u8_mbs_toutf8(char *dest, int sz, const char *src, int srcsz)
+{
+	wchar_t *unicode;
+	int wchars, err;
 
+	wchars = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, src, srcsz, NULL, 0);
+	if (wchars == 0) {
+		fprintf(stderr, "Unicode translation error %d\n", GetLastError());
+		return -1;
+	}
+
+	unicode = (wchar_t *)alloca((wchars + 1) * sizeof(unsigned short));
+	err = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, src, srcsz, unicode, wchars);
+	if (err != wchars) {
+		fprintf(stderr, "Unicode translation error %d\n", GetLastError());
+		return -1;
+	}
+	unicode[wchars] = L'\0';
+	return u8_toutf8(dest, sz, unicode, wchars);
+}
+
+int u8_mbs_toutf8_size(const char *src, int srcsz)
+{
+	wchar_t *unicode;
+	int wchars, err;
+
+	wchars = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, src, srcsz, NULL, 0);
+	if (wchars == 0) {
+		fprintf(stderr, "Unicode translation error %d\n", GetLastError());
+		return -1;
+	}
+
+	unicode = (wchar_t *)alloca((wchars + 1) * sizeof(unsigned short));
+	err = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, src, srcsz, unicode, wchars);
+	if (err != wchars) {
+		fprintf(stderr, "Unicode translation error %d\n", GetLastError());
+		return -1;
+	}
+	unicode[wchars] = L'\0';
+	//wprintf(L"UNICODE: %ls\n", unicode);
+	return u8_size(unicode, wchars);
+}
+
+int u8_tombs(char *dest, int sz, const char *src, int srcsz)
+{
+	int unicode_size;
+	wchar_t *unicode;
+	//int unicode_len;
+	int /*chars,*/ err;
+
+	unicode_size = u8_wc_size(src, srcsz);
+	unicode = (wchar_t *)alloca((unicode_size + 1) * sizeof(unsigned short));
+	unicode[unicode_size] = L'\0';
+	u8_toucs(unicode, unicode_size, src, srcsz);
+
+	err = WideCharToMultiByte(GetConsoleCP(), WC_COMPOSITECHECK, unicode, unicode_size, dest, sz, NULL, NULL);
+	if (err < 1)
+	{
+		fprintf(stderr, "Unicode translation error %d\n", GetLastError());
+		return -1;
+	}
+
+	return err;
+}
+
+int u8_tombs_size(const char *src, int srcsz)
+{
+	int unicode_size;
+	wchar_t *unicode;
+	//int unicode_len;
+	int /*chars,*/ err;
+
+	unicode_size = u8_wc_size(src, srcsz);
+	unicode = (wchar_t *)alloca((unicode_size + 1) * sizeof(unsigned short));
+	unicode[unicode_size] = L'\0';
+	u8_toucs(unicode, unicode_size, src, srcsz);
+
+	err = WideCharToMultiByte(GetConsoleCP(), WC_COMPOSITECHECK, unicode, unicode_size, NULL, 0, NULL, NULL);
+	return err;
+}
+# define printf u8_printf
+#endif
 
 #pragma region 获取默认路径
 
@@ -417,7 +493,7 @@ static void print_filelist_head(int size_width)
 	putchar(' ');
 	putchar(' ');
 	putchar(' ');
-	puts("File Name");
+	printf("File Name\n");
 }
 
 /*打印文件列表的数据行*/
@@ -438,7 +514,7 @@ static void print_filelist_row(PcsFileInfo *f, int size_width)
 	putchar(' ');
 	print_time("%s", f->server_mtime);
 	putchar(' ');
-	puts(f->path);
+	printf("%s\n", f->path);
 }
 
 /*打印文件列表*/
@@ -485,20 +561,6 @@ static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCoun
 	if (pDirCount) *pDirCount += cnt_dir;
 	if (pTotalSize) *pTotalSize += total;
 }
-
-/*打印字符串。如果len传入-1，则本函数等价于puts，否则，只打印len指定大小的字符串*/
-//static void print_str(const char *str, int len)
-//{
-//	int i;
-//	if (len == -1) {
-//		puts(str);
-//	}
-//	else {
-//		for (i = 0; i < len; i++) {
-//			putchar(str[i]);
-//		}
-//	}
-//}
 
 /*打印文件或目录的元数据*/
 static void print_fileinfo(PcsFileInfo *f, const char *prex)
@@ -1209,34 +1271,6 @@ static void usage()
 
 #pragma endregion
 
-/*判断是否需要打印usage*/
-static inline int is_print_usage(struct args *arg)
-{
-	return has_opt(arg, "h") || has_opt(arg, "?") || has_opt(arg, "help");
-}
-
-/*
- * 检查是否登录，如果未登录则登录
- *   msg   - 检测到未登录时的打印消息。传入NULL的话，则使用默认消息。
-*/
-static PcsBool is_login(ShellContext *context, const char *msg)
-{
-	PcsRes pcsres;
-	time_t now;
-	time(&now);
-	pcsres = pcs_islogin(context->pcs);
-	if (pcsres == PCS_LOGIN)
-		return PcsTrue;
-	if (msg) {
-		if (msg[0])
-			printf("%s\n", msg);
-	}
-	else {
-		printf("You are not logon or your session is time out. You can login by 'login' command.\n");
-	}
-	return PcsFalse;
-}
-
 #pragma region 'set'命令的分支函数
 
 /*设置上下文中的cookiefile值*/
@@ -1342,10 +1376,10 @@ static int set_secure_key(ShellContext *context, const char *val)
 static int set_secure_enable(ShellContext *context, const char *val)
 {
 	if (!val || !val[0]) return -1;
-	if (strcmp(val, "true") == 0) {
+	if (strcmp(val, "true") == 0 || strcmp(val, "1") == 0) {
 		context->secure_enable = 1;
 	}
-	else if (strcmp(val, "false") == 0) {
+	else if (strcmp(val, "false") == 0 || strcmp(val, "0") == 0) {
 		context->secure_enable = 0;
 	}
 	else {
@@ -1745,6 +1779,28 @@ static int rb_decide_op(void *a, void *state)
 #pragma region 各命令函数体
 
 /*
+ * 检查是否登录
+ *   msg   - 检测到未登录时的打印消息。传入NULL的话，则使用默认消息。
+*/
+static PcsBool is_login(ShellContext *context, const char *msg)
+{
+	PcsRes pcsres;
+	time_t now;
+	time(&now);
+	pcsres = pcs_islogin(context->pcs);
+	if (pcsres == PCS_LOGIN)
+		return PcsTrue;
+	if (msg) {
+		if (msg[0])
+			printf("%s\n", msg);
+	}
+	else {
+		printf("You are not logon or your session is time out. You can login by 'login' command.\n");
+	}
+	return PcsFalse;
+}
+
+/*
  * 执行下载操作
  *   context        - 上下文
  *   local_file     - 文件本地存储路径
@@ -1914,13 +1970,13 @@ static int cmd_cat(ShellContext *context, struct args *arg)
 	char *path;
 	const char *res;
 	size_t sz;
-	if (is_print_usage(arg)) {
-		usage_cat();
-		return 0;
-	}
-	if (arg->argc != 1 || arg->optc != 0) { /*只支持1个参数，不支持可选项*/
+	if (test_arg(arg, 1, 1, "h", "help", NULL)) {
 		usage_cat();
 		return -1;
+	}
+	if (has_opts(arg, "h","help", NULL)) {
+		usage_cat();
+		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
 	path = combin_unix_path(context->workdir, arg->argv[0]);
@@ -1941,13 +1997,13 @@ static int cmd_cd(ShellContext *context, struct args *arg)
 {
 	char *p;
 	PcsFileInfo *meta;
-	if (is_print_usage(arg)) {
-		usage_cd();
-		return 0;
-	}
-	if (arg->argc != 1 || arg->optc != 0) {
+	if (test_arg(arg, 1, 1, "h", "help", NULL)) {
 		usage_cd();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_cd();
+		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
 	p = combin_unix_path(context->workdir, arg->argv[0]);
@@ -1977,13 +2033,13 @@ static int cmd_copy(ShellContext *context, struct args *arg)
 	PcsPanApiRes *res;
 	PcsPanApiResInfoList *info;
 	PcsSList2 slist;
-	if (is_print_usage(arg)) {
-		usage_copy();
-		return 0;
-	}
-	if (arg->argc != 2 || arg->optc != 0) {
+	if (test_arg(arg, 2, 2, "h", "help", NULL)) {
 		usage_copy();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_copy();
+		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
 
@@ -2040,9 +2096,6 @@ struct compare_arg
 */
 static int parse_compare_args(struct args *g, compare_arg *cmpArg)
 {
-	const char *opts[] = { "c", "d", "e", "n", "r", "u", NULL };
-	if (g->argc != 2) return -1;
-	if (test_opts(g, opts, -1)) return -1;
 	cmpArg->print_confuse = has_opt(g, "c");
 	cmpArg->print_left = has_opt(g, "d");
 	cmpArg->print_eq = has_opt(g, "e");
@@ -2362,7 +2415,11 @@ static int cmd_compare(ShellContext *context, struct args *arg)
 {
 	compare_arg cmpArg = { 0 };
 
-	if (is_print_usage(arg) || parse_compare_args(arg, &cmpArg)) {
+	if (test_arg(arg, 2, 2, "c", "d", "e", "r", "u", "h", "help", NULL)) {
+		usage_compare();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
 		usage_compare();
 		return 0;
 	}
@@ -2378,13 +2435,13 @@ static int cmd_compare(ShellContext *context, struct args *arg)
 static int cmd_context(ShellContext *context, struct args *arg)
 {
 	char *json;
-	if (is_print_usage(arg)) {
-		usage_context();
-		return 0;
-	}
-	if (arg->argc != 0 || arg->optc != 0) {
+	if (test_arg(arg, 0, 0, "h", "help", NULL)) {
 		usage_context();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_context();
+		return 0;
 	}
 	json = context2str(context);
 	assert(json);
@@ -2396,7 +2453,6 @@ static int cmd_context(ShellContext *context, struct args *arg)
 /*下载*/
 static int cmd_download(ShellContext *context, struct args *arg)
 {
-	const char *opts[] = { "f", NULL };
 	int is_force = 0;
 	char *path = NULL, *errmsg = NULL;
 	const char *relPath = NULL, *locPath = NULL;
@@ -2404,18 +2460,13 @@ static int cmd_download(ShellContext *context, struct args *arg)
 	LocalFileInfo *local;
 	PcsFileInfo *meta;
 
-	if (is_print_usage(arg)) {
+	if (test_arg(arg, 2, 2, "f", "h", "help", NULL)) {
+		usage_download();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
 		usage_download();
 		return 0;
-	}
-
-	if (arg->argc != 2) {
-		usage_download();
-		return -1;
-	}
-	if (test_opts(arg, opts, -1)) {
-		usage_download();
-		return -1;
 	}
 
 	is_force = has_opt(arg, "f");
@@ -2483,26 +2534,20 @@ static int cmd_download(ShellContext *context, struct args *arg)
 /*输出文本到网盘某一个文件*/
 static int cmd_echo(ShellContext *context, struct args *arg)
 {
-	const char *opts[] = { "a", NULL };
 	int is_append = 0;
 	char *path = NULL, *t = NULL;
 	const char *relPath = NULL, *text = NULL;
 	size_t sz;
 	PcsFileInfo *f;
 	PcsFileInfo *meta;
-	if (is_print_usage(arg)) {
+	if (test_arg(arg, 2, 2, "a", "h", "help", NULL)) {
+		usage_echo();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
 		usage_echo();
 		return 0;
 	}
-	if (arg->argc != 2) {
-		usage_echo();
-		return -1;
-	}
-	if (test_opts(arg, opts, -1)) {
-		usage_echo();
-		return -1;
-	}
-
 	is_append = has_opt(arg, "a");
 	relPath = arg->argv[0];
 	text = arg->argv[1];
@@ -2563,16 +2608,133 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 /*打印帮助信息*/
 static int cmd_help(ShellContext *context, struct args *arg)
 {
-	if (is_print_usage(arg)) {
-		usage_help();
-		return 0;
-	}
-	if (arg->argc != 0 || arg->optc != 0){
+	int rc;
+	char *cmd;
+	if (test_arg(arg, 0, 1, "h", "help", NULL)) {
 		usage_help();
 		return -1;
 	}
-	usage();
-	return 0;
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_help();
+		return 0;
+	}
+	if (arg->argc == 0) {
+		usage();
+		return 0;
+	}
+	cmd = arg->argv[0];
+	if (strcmp(cmd, "cat") == 0) {
+		usage_cat();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "cd") == 0) {
+		usage_cd();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "copy") == 0
+		|| strcmp(cmd, "cp") == 0) {
+		usage_copy();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "compare") == 0
+		|| strcmp(cmd, "c") == 0) {
+		usage_compare();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "context") == 0
+		|| strcmp(cmd, "config") == 0) {
+		usage_context();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "download") == 0
+		|| strcmp(cmd, "d") == 0) {
+		usage_download();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "echo") == 0) {
+		usage_echo();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "list") == 0
+		|| strcmp(cmd, "ls") == 0) {
+		usage_list();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "login") == 0) {
+		usage_login();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "logout") == 0) {
+		usage_logout();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "meta") == 0) {
+		usage_meta();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "mkdir") == 0) {
+		usage_mkdir();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "move") == 0
+		|| strcmp(cmd, "mv") == 0) {
+		usage_move();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "pwd") == 0) {
+		usage_pwd();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "quota") == 0) {
+		usage_quota();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "remove") == 0
+		|| strcmp(cmd, "rm") == 0) {
+		usage_remove();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "rename") == 0
+		|| strcmp(cmd, "ren") == 0) {
+		usage_rename();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "set") == 0) {
+		usage_set();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "search") == 0) {
+		usage_search();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "synch") == 0
+		|| strcmp(cmd, "s") == 0) {
+		usage_synch();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "upload") == 0
+		|| strcmp(cmd, "u") == 0) {
+		usage_upload();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "version") == 0) {
+		usage_version();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "who") == 0) {
+		usage_who();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "help") == 0
+		|| strcmp(cmd, "?") == 0) {
+		usage_help();
+		rc = 0;
+	}
+	else {
+		usage();
+		rc = -1;
+	}
+	return rc;
 }
 
 /*列出目录*/
@@ -2585,13 +2747,13 @@ static int cmd_list(ShellContext *context, struct args *arg)
 	int fileCount = 0, dirCount = 0;
 	size_t totalSize = 0;
 
-	if (is_print_usage(arg)) {
-		usage_list();
-		return 0;
-	}
-	if (arg->optc != 0){
+	if (test_arg(arg, 0, 1, "h", "help", NULL)) {
 		usage_list();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_list();
+		return 0;
 	}
 
 	if (!is_login(context, NULL)) return -1;
@@ -2649,27 +2811,22 @@ static int cmd_list(ShellContext *context, struct args *arg)
 /*登录*/
 static int cmd_login(ShellContext *context, struct args *arg)
 {
-	const char *opts[] = { "username", "password", NULL };
 	PcsRes pcsres;
-	char str[50], *p;
-	if (is_print_usage(arg)) {
+	char str[50], *p = NULL;
+	if (test_arg(arg, 0, 0, "username", "password", "h", "help", NULL)) {
+		usage_login();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
 		usage_login();
 		return 0;
-	}
-	if (arg->argc != 0){
-		usage_login();
-		return -1;
-	}
-	if (test_opts(arg, opts, -1)) {
-		usage_login();
-		return -1;
 	}
 	if (is_login(context, "")) {
 		printf("You have been logon, you can use 'who' command to print the UID. \n"
 			"You can logout by 'logout' command and then relogin.\n");
 		return -1;
 	}
-	if (has_optEx(arg, "username", &p)) {
+	if (has_optEx(arg, "username", &p) && p && strlen(p) > 0) {
 		pcs_setopt(context->pcs, PCS_OPTION_USERNAME, p);
 	}
 	else {
@@ -2677,7 +2834,8 @@ static int cmd_login(ShellContext *context, struct args *arg)
 		std_string(str, 50);
 		pcs_setopt(context->pcs, PCS_OPTION_USERNAME, str);
 	}
-	if (has_optEx(arg, "password", &p)) {
+
+	if (has_optEx(arg, "password", &p) && p && strlen(p) > 0) {
 		pcs_setopt(context->pcs, PCS_OPTION_PASSWORD, p);
 	}
 	else {
@@ -2698,13 +2856,13 @@ static int cmd_login(ShellContext *context, struct args *arg)
 static int cmd_logout(ShellContext *context, struct args *arg)
 {
 	PcsRes pcsres;
-	if (is_print_usage(arg)) {
-		usage_logout();
-		return 0;
-	}
-	if (arg->argc != 0 || arg->optc != 0) {
+	if (test_arg(arg, 0, 0, "h", "help", NULL)) {
 		usage_logout();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_logout();
+		return 0;
 	}
 	if (!is_login(context, "")) {
 		printf("You are not login, you can use 'login' command to login.\n");
@@ -2724,13 +2882,13 @@ static int cmd_meta(ShellContext *context, struct args *arg)
 {
 	char *path;
 	PcsFileInfo *fi;
-	if (is_print_usage(arg)) {
-		usage_meta();
-		return 0;
-	}
-	if ((arg->argc != 0 && arg->argc != 1) || (arg->optc != 0)) {
+	if (test_arg(arg, 0, 1, "h", "help", NULL)) {
 		usage_meta();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_meta();
+		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
 	if (arg->argc == 1)
@@ -2755,13 +2913,13 @@ static int cmd_mkdir(ShellContext *context, struct args *arg)
 {
 	PcsRes res;
 	char *path;
-	if (is_print_usage(arg)) {
-		usage_mkdir();
-		return 0;
-	}
-	if (arg->argc != 1 || arg->optc != 0) {
+	if (test_arg(arg, 1, 1, "h", "help", NULL)) {
 		usage_mkdir();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_mkdir();
+		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
 	path = combin_unix_path(context->workdir, arg->argv[0]);
@@ -2783,13 +2941,13 @@ static int cmd_move(ShellContext *context, struct args *arg)
 	PcsPanApiRes *res;
 	PcsSList2 slist;
 	PcsPanApiResInfoList *info;
-	if (is_print_usage(arg)) {
-		usage_move();
-		return 0;
-	}
-	if (arg->argc != 2 || arg->optc != 0) {
+	if (test_arg(arg, 2, 2, "h", "help", NULL)) {
 		usage_move();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_move();
+		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
 	slist.string1 = combin_unix_path(context->workdir, arg->argv[0]); /* path */
@@ -2821,15 +2979,14 @@ static int cmd_move(ShellContext *context, struct args *arg)
 /*打印当前工作目录*/
 static int cmd_pwd(ShellContext *context, struct args *arg)
 {
-	if (is_print_usage(arg)) {
-		usage_pwd();
-		return 0;
-	}
-	if (arg->argc != 0 || arg->optc != 0){
+	if (test_arg(arg, 0, 0, "h", "help", NULL)) {
 		usage_pwd();
 		return -1;
 	}
-	//if (!is_login(context, NULL)) return -1;
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_pwd();
+		return 0;
+	}
 	printf("%s\n", context->workdir);
 	return 0;
 }
@@ -2842,20 +2999,14 @@ static int cmd_quota(ShellContext *context, struct args *arg)
 	size_t quota, used;
 	int is_exact = 0;
 	char str[32] = { 0 };
-	if (is_print_usage(arg)) {
+	if (test_arg(arg, 0, 0, "e", "h", "help", NULL)) {
+		usage_quota();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
 		usage_quota();
 		return 0;
 	}
-
-	if (arg->argc != 0) {
-		usage_quota();
-		return -1;
-	}
-	if (test_opts(arg, opts, -1)) {
-		usage_quota();
-		return -1;
-	}
-
 	is_exact = has_opt(arg, "e");
 
 	if (!is_login(context, NULL)) return -1;
@@ -2886,13 +3037,13 @@ static int cmd_remove(ShellContext *context, struct args *arg)
 	PcsPanApiRes *res;
 	PcsSList slist;
 	PcsPanApiResInfoList *info;
-	if (is_print_usage(arg)) {
-		usage_remove();
-		return 0;
-	}
-	if (arg->argc != 1 || arg->optc != 0) {
+	if (test_arg(arg, 1, 1, "h", "help", NULL)) {
 		usage_remove();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_remove();
+		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
 	slist.string = combin_unix_path(context->workdir, arg->argv[0]); /* path */
@@ -2924,13 +3075,13 @@ static int cmd_rename(ShellContext *context, struct args *arg)
 	PcsSList2 slist;
 	PcsPanApiResInfoList *info;
 	char *p;
-	if (is_print_usage(arg)) {
-		usage_rename();
-		return 0;
-	}
-	if (arg->argc != 2 || arg->optc != 0) {
+	if (test_arg(arg, 2, 2, "h", "help", NULL)) {
 		usage_rename();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_rename();
+		return 0;
 	}
 	p = arg->argv[1];
 	while (*p) {
@@ -2967,76 +3118,73 @@ static int cmd_rename(ShellContext *context, struct args *arg)
 /*更改上下文设置*/
 static int cmd_set(ShellContext *context, struct args *arg)
 {
-	int i, key_len;
-	char *key, *val;
-	if (is_print_usage(arg)) {
-		usage_set();
-		return 0;
-	}
-	if (arg->argc == 0) {
+	char *val = NULL;
+	if (test_arg(arg, 0, 0, 
+		"cookie_file", "captcha_file", 
+		"list_page_size", "list_sort_name", "list_sort_direction",
+		"secure_method", "secure_key", "secure_enable",
+		"h", "help", NULL) && arg->optc == 0) {
 		usage_set();
 		return -1;
 	}
-	for (i = 0; i < arg->argc; i++) {
-		key = val = arg->argv[i];
-		while (*val && *val != '=') val++;
-		if (*val != '=') {
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_set();
+		return 0;
+	}
+
+	if (has_optEx(arg, "cookie_file", &val)) {
+		if (set_cookiefile(context, val)) {
 			usage_set();
 			return -1;
 		}
-		key_len = val - key;
-		val++;
+	}
 
-		if (streq("cookiefile", key, key_len)) {
-			if (set_cookiefile(context, val)) {
-				usage_set();
-				return -1;
-			}
+	if (has_optEx(arg, "captcha_file", &val)) {
+		if (set_captchafile(context, val)) {
+			usage_set();
+			return -1;
 		}
-		else if (streq("captchafile", key, key_len)) {
-			if (set_captchafile(context, val)) {
-				usage_set();
-				return -1;
-			}
+	}
+
+	if (has_optEx(arg, "list_page_size", &val)) {
+		if (set_list_page_size(context, val)) {
+			usage_set();
+			return -1;
 		}
-		else if (streq("list_page_size", key, key_len)) {
-			if (set_list_page_size(context, val)) {
-				usage_set();
-				return -1;
-			}
+	}
+
+	if (has_optEx(arg, "list_sort_name", &val)) {
+		if (set_list_sort_name(context, val)) {
+			usage_set();
+			return -1;
 		}
-		else if (streq("list_sort_name", key, key_len)) {
-			if (set_list_sort_name(context, val)) {
-				usage_set();
-				return -1;
-			}
+	}
+
+	if (has_optEx(arg, "list_sort_direction", &val)) {
+		if (set_list_sort_direction(context, val)) {
+			usage_set();
+			return -1;
 		}
-		else if (streq("list_sort_direction", key, key_len)) {
-			if (set_list_sort_direction(context, val)) {
-				usage_set();
-				return -1;
-			}
+	}
+
+	if (has_optEx(arg, "secure_method", &val)) {
+		if (set_secure_method(context, val)) {
+			usage_set();
+			return -1;
 		}
-		else if (streq("secure_method", key, key_len)) {
-			if (set_secure_method(context, val)) {
-				usage_set();
-				return -1;
-			}
+	}
+
+	if (has_optEx(arg, "secure_key", &val)) {
+		if (set_secure_key(context, val)) {
+			usage_set();
+			return -1;
 		}
-		else if (streq("secure_key", key, key_len)) {
-			if (set_secure_key(context, val)) {
-				usage_set();
-				return -1;
-			}
-		}
-		else if (streq("secure_enable", key, key_len)) {
-			if (set_secure_enable(context, val)) {
-				usage_set();
-				return -1;
-			}
-		}
-		else {
-			printf("warning: unknow option %s\n", key);
+	}
+
+	if (has_optEx(arg, "secure_enable", &val)) {
+		if (set_secure_enable(context, val)) {
+			usage_set();
+			return -1;
 		}
 	}
 	printf("Success. You can view context by '%s context'\n", app_name);
@@ -3053,13 +3201,13 @@ static int cmd_search(ShellContext *context, struct args *arg)
 
 	PcsFileInfoList *list = NULL;
 
-	if (is_print_usage(arg)) {
-		usage_search();
-		return 0;
-	}
-	if (test_opts(arg, opts, -1)) {
+	if (test_arg(arg, 0, 0, "r", "h", "help", NULL)) {
 		usage_search();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_search();
+		return 0;
 	}
 
 	is_recursive = has_opt(arg, "r");
@@ -3236,7 +3384,11 @@ static int cmd_synch(ShellContext *context, struct args *arg)
 {
 	compare_arg cmpArg = { 0 };
 
-	if (is_print_usage(arg) || parse_compare_args(arg, &cmpArg)) {
+	if (test_arg(arg, 2, 2, "c", "d", "e", "n", "r", "u", "h", "help", NULL)) {
+		usage_synch();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
 		usage_synch();
 		return 0;
 	}
@@ -3260,18 +3412,13 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 	LocalFileInfo *local;
 	PcsFileInfo *meta;
 
-	if (is_print_usage(arg)) {
+	if (test_arg(arg, 2, 2, "f", "h", "help", NULL)) {
+		usage_upload();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
 		usage_upload();
 		return 0;
-	}
-
-	if (arg->argc != 2) {
-		usage_upload();
-		return -1;
-	}
-	if (test_opts(arg, opts, -1)) {
-		usage_upload();
-		return -1;
 	}
 
 	is_force = has_opt(arg, "f");
@@ -3340,13 +3487,13 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 /*打印版本*/
 static int cmd_version(ShellContext *context, struct args *arg)
 {
-	if (is_print_usage(arg)) {
-		usage_version();
-		return 0;
-	}
-	if (arg->argc != 0 || arg->optc != 0){
+	if (test_arg(arg, 0, 0, "h", "help", NULL)) {
 		usage_version();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_version();
+		return 0;
 	}
 	version();
 	return 0;
@@ -3355,13 +3502,13 @@ static int cmd_version(ShellContext *context, struct args *arg)
 /*打印当前登录用户*/
 static int cmd_who(ShellContext *context, struct args *arg)
 {
-	if (is_print_usage(arg)) {
-		usage_who();
-		return 0;
-	}
-	if (arg->argc != 0 || arg->optc != 0){
+	if (test_arg(arg, 0, 0, "h", "help", NULL)) {
 		usage_who();
 		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_who();
+		return 0;
 	}
 	if (!is_login(context, NULL)) return -1;
 	printf("%s\n", pcs_sysUID(context->pcs));
@@ -3374,100 +3521,104 @@ static int cmd_who(ShellContext *context, struct args *arg)
 static int exec_cmd(ShellContext *context, struct args *arg)
 {
 	int rc;
+	char *cmd;
 
-	if (strcmp(arg->cmd, "cat") == 0) {
+	if (!arg->cmd) {
+		if (has_opt(arg, "v")
+			|| has_opt(arg, "version")
+			|| has_opt(arg, "version")) {
+			rc = cmd_version(context, arg);
+		}
+		else {
+			usage();
+			rc = -1;
+		}
+		return rc;
+	}
+
+	cmd = arg->cmd;
+
+	if (strcmp(cmd, "cat") == 0) {
 		rc = cmd_cat(context, arg);
 	}
-	else if (strcmp(arg->cmd, "cd") == 0) {
+	else if (strcmp(cmd, "cd") == 0) {
 		rc = cmd_cd(context, arg);
 	}
-	else if (strcmp(arg->cmd, "copy") == 0
-		|| strcmp(arg->cmd, "cp") == 0) {
+	else if (strcmp(cmd, "copy") == 0
+		|| strcmp(cmd, "cp") == 0) {
 		rc = cmd_copy(context, arg);
 	}
-	else if (strcmp(arg->cmd, "compare") == 0
-		|| strcmp(arg->cmd, "c") == 0) {
+	else if (strcmp(cmd, "compare") == 0
+		|| strcmp(cmd, "c") == 0) {
 		rc = cmd_compare(context, arg);
 	}
-	else if (strcmp(arg->cmd, "context") == 0
-		|| strcmp(arg->cmd, "config") == 0) {
+	else if (strcmp(cmd, "context") == 0
+		|| strcmp(cmd, "config") == 0) {
 		rc = cmd_context(context, arg);
 	}
-	else if (strcmp(arg->cmd, "download") == 0
-		|| strcmp(arg->cmd, "d") == 0) {
+	else if (strcmp(cmd, "download") == 0
+		|| strcmp(cmd, "d") == 0) {
 		rc = cmd_download(context, arg);
 	}
-	else if (strcmp(arg->cmd, "echo") == 0) {
+	else if (strcmp(cmd, "echo") == 0) {
 		rc = cmd_echo(context, arg);
 	}
-	else if (strcmp(arg->cmd, "list") == 0
-		|| strcmp(arg->cmd, "ls") == 0) {
+	else if (strcmp(cmd, "list") == 0
+		|| strcmp(cmd, "ls") == 0) {
 		rc = cmd_list(context, arg);
 	}
-	else if (strcmp(arg->cmd, "login") == 0) {
+	else if (strcmp(cmd, "login") == 0) {
 		rc = cmd_login(context, arg);
 	}
-	else if (strcmp(arg->cmd, "logout") == 0) {
+	else if (strcmp(cmd, "logout") == 0) {
 		rc = cmd_logout(context, arg);
 	}
-	else if (strcmp(arg->cmd, "meta") == 0) {
+	else if (strcmp(cmd, "meta") == 0) {
 		rc = cmd_meta(context, arg);
 	}
-	else if (strcmp(arg->cmd, "mkdir") == 0) {
+	else if (strcmp(cmd, "mkdir") == 0) {
 		rc = cmd_mkdir(context, arg);
 	}
-	else if (strcmp(arg->cmd, "move") == 0
-		|| strcmp(arg->cmd, "mv") == 0) {
+	else if (strcmp(cmd, "move") == 0
+		|| strcmp(cmd, "mv") == 0) {
 		rc = cmd_move(context, arg);
 	}
-	else if (strcmp(arg->cmd, "pwd") == 0) {
+	else if (strcmp(cmd, "pwd") == 0) {
 		rc = cmd_pwd(context, arg);
 	}
-	else if (strcmp(arg->cmd, "quota") == 0) {
+	else if (strcmp(cmd, "quota") == 0) {
 		rc = cmd_quota(context, arg);
 	}
-	else if (strcmp(arg->cmd, "remove") == 0
-		|| strcmp(arg->cmd, "rm") == 0) {
+	else if (strcmp(cmd, "remove") == 0
+		|| strcmp(cmd, "rm") == 0) {
 		rc = cmd_remove(context, arg);
 	}
-	else if (strcmp(arg->cmd, "rename") == 0
-		|| strcmp(arg->cmd, "ren") == 0) {
+	else if (strcmp(cmd, "rename") == 0
+		|| strcmp(cmd, "ren") == 0) {
 		rc = cmd_rename(context, arg);
 	}
-	else if (strcmp(arg->cmd, "set") == 0) {
+	else if (strcmp(cmd, "set") == 0) {
 		rc = cmd_set(context, arg);
 	}
-	else if (strcmp(arg->cmd, "search") == 0) {
+	else if (strcmp(cmd, "search") == 0) {
 		rc = cmd_search(context, arg);
 	}
-	else if (strcmp(arg->cmd, "synch") == 0
-		|| strcmp(arg->cmd, "s") == 0) {
+	else if (strcmp(cmd, "synch") == 0
+		|| strcmp(cmd, "s") == 0) {
 		rc = cmd_synch(context, arg);
 	}
-	else if (strcmp(arg->cmd, "upload") == 0
-		|| strcmp(arg->cmd, "u") == 0) {
+	else if (strcmp(cmd, "upload") == 0
+		|| strcmp(cmd, "u") == 0) {
 		rc = cmd_upload(context, arg);
 	}
-	else if (strcmp(arg->cmd, "version") == 0
-		|| strcmp(arg->cmd, "ver") == 0
-		|| strcmp(arg->cmd, "-v") == 0 
-		|| strcmp(arg->cmd, "-V") == 0
-		|| strcmp(arg->cmd, "-version") == 0
-		|| strcmp(arg->cmd, "--version") == 0
-		|| strcmp(arg->cmd, "-ver") == 0
-		|| strcmp(arg->cmd, "--ver") == 0) {
+	else if (strcmp(cmd, "version") == 0) {
 		rc = cmd_version(context, arg);
 	}
-	else if (strcmp(arg->cmd, "who") == 0) {
+	else if (strcmp(cmd, "who") == 0) {
 		rc = cmd_who(context, arg);
 	}
-	else if (strcmp(arg->cmd, "help") == 0
-		|| strcmp(arg->cmd, "-h") == 0
-		|| strcmp(arg->cmd, "-H") == 0
-		|| strcmp(arg->cmd, "-?") == 0
-		|| strcmp(arg->cmd, "?") == 0
-		|| strcmp(arg->cmd, "-help") == 0
-		|| strcmp(arg->cmd, "--help") == 0) {
+	else if (strcmp(cmd, "help") == 0
+		|| strcmp(cmd, "?") == 0) {
 		rc = cmd_help(context, arg);
 	}
 	else {
@@ -3477,146 +3628,13 @@ static int exec_cmd(ShellContext *context, struct args *arg)
 	return rc;
 }
 
-#pragma region 解析参数
-
-/*用于释放struct arg中opts哈希表中的值字段*/
-static void free_opt(void *p)
-{
-	if (p) pcs_free(p);
-}
-
-/*解析参数*/
-static int parse_arg(struct args *arg, int argc, char *argv[])
-{
-	int i, j = 0;
-	char *p, *op, *val;
-	for (i = 1; i < argc; ++i) {
-		p = argv[i];
-		if (*p == '-') {
-			arg->optc++;
-		}
-		else {
-			arg->argc++;
-		}
-	}
-	if (arg->argc < 1) return -1; /*至少有一个参数，指明子命令。*/
-	arg->argc--;
-	if (arg->optc > 0) arg->opts = ht_create((int)((float)arg->optc * HASH_EXTEND_MULTIPLIER), 0, &free_opt);
-	if (arg->argc > 0) arg->argv = (char **)pcs_malloc(arg->argc * sizeof(char *));
-	for (i = 1; i < argc; ++i) {
-		p = argv[i];
-		if (*p == '-') {
-			p++;
-			if (*p == '-') {
-				p++;
-				val = findchar(p, '=');
-				if (ht_has(arg->opts, p, val - p)) return -1; /*重复指定参数*/
-				if (ht_add(arg->opts, p, val - p, (*val) == '=' ? pcs_utils_strdup(val + 1) : NULL))
-					return -1; /*添加到哈希表中失败*/
-			}
-			else {
-				op = p;
-				while (*op) {
-					if (ht_has(arg->opts, op, 1)) return -1; /*重复指定参数*/
-					if (ht_add(arg->opts, op, 1, NULL))
-						return -1; /*添加到哈希表中失败*/
-					op++;
-				}
-			}
-		}
-		else if (!arg->cmd) {
-			arg->cmd = p;
-		}
-		else {
-			arg->argv[j++] = p;
-		}
-	}
-	return 0;
-}
-
-static void free_args(struct args *arg)
-{
-	if (arg->opts) ht_destroy(arg->opts);
-	if (arg->argv) pcs_free(arg->argv);
-}
-
-/*判断是否存在opt选项*/
-static int has_opt(struct args *arg, const char *opt)
-{
-	if (arg->opts) {
-		return ht_has(arg->opts, opt, -1);
-	}
-	return 0;
-}
-
-/*判断是否存在opt选项，如果存在的话，把其值填入 （*pValue）中*/
-static int has_optEx(struct args *arg, const char *opt, char **pValue)
-{
-	if (arg->opts) {
-		HashtableNode *node = ht_get_node(arg->opts, opt, -1);
-		if (node) {
-			if (pValue) (*pValue) = node->value;
-			return 1;
-		}
-	}
-	return 0;
-}
-
-/*测试arg中是否仅包含support指定的选项。
-  arg  - 
-  support - 字符串数组
-  count   - 数组元素个数，如果传入-1的话，则遇到一个空字符串，则认为数组结束
-  如果测试通过则返回0，否则返回非零值*/
-static int test_opts(struct args *arg, const char **support, int count)
-{
-	if (!arg->opts) return 0;
-	if (count != -1) {
-		int i, co = 0;
-		const char *p;
-		for (i = 0; i < count; i++) {
-			p = support[i];
-			if (ht_has(arg->opts, p, -1))
-				co++;
-		}
-		return arg->opts->count - co;
-	}
-	else {
-		int co = 0;
-		const char **p = support;
-		while ((*p) && (*(*p))) {
-			if (ht_has(arg->opts, *p, -1))
-				co++;
-			p++;
-		}
-		return arg->opts->count - co;
-	}
-}
-
-/*
-删除一个选项。
-删除成功返回0，否则返回非0值。
-执行成功，且 pValue不为NULL，则把被删除项的值写入 (*pValue)。注意值需要调用pcs_free()
-*/
-static int remove_opt(struct args *arg, const char *opt, char **pValue)
-{
-	char *val = NULL;
-	if (!arg->opts) return -1;
-	int rc = ht_remove(arg->opts, opt, -1, (void *)(pValue ? pValue : &val));
-	if (rc == 0) {
-		if (val) pcs_free(val);
-		arg->optc--;
-	}
-	return rc;
-}
-
-#pragma endregion
-
 int main(int argc, char *argv[])
 {
 	struct args arg = { 0 };
 	ShellContext context = { 0 };
 	int rc = 0;
 	char *errmsg = NULL, *val = NULL;
+	setlocale(LC_ALL, "chs");
 	app_name = filename(argv[0]);
 	if (parse_arg(&arg, argc, argv)) {
 		usage();
