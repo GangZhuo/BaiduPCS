@@ -237,7 +237,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
     pcs set [--captcha_file=<path>] [--cookie_file=<path>] ...
     
     选项：
-    	--captcha_file=<file path>         设置验证码图片保存路径
+	--captcha_file=<file path>         设置验证码图片保存路径
 	--cookie_file=<file path>          设置cookie文件路径
 	--list_page_size=<page size>       设置列出目录时分页大小
 	--list_sort_direction=[asc|desc]   设置列出目录时排序方向
@@ -253,33 +253,69 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
       pcs set --list_page_size=20 --list_sort_name=name --list_sort_direction=desc
       pcs set --secure_enable=true --secure_key=123456 --secure_method=aes-cbc-256
 
+### 搜索文件
+    pcs search [-r] [dir] <key>
     
-    pcs set secure_method=aes-cbc-128 secure_key=123456 secure_enable=true
+    示例：
+       pcs search note.txt          在当前工作目录搜索 note.txt
+       pcs search /music desc.mp3   在/music目录搜索 desc.mp3
+       pcs search -r note.txt       在当前工作目录递归搜索 note.txt
+       pcs search -r /music desc.mp3 在/music目录递归搜索 desc.mp3
+
+### 同步目录
+    pcs synch [-cdenru] <local path> <remote path>
+    
+    同步本地文件和远端文件、本地目录和远端目录。
+    默认选项是'-cdu'，即上传需要上传的文件、下载需要下载的文件和打印无法确定上传下载的文件。
+    
+    比较规则：（同'compare'一样）
+      只通过时间来进行比较。
+      I)  如果本地和远端都是文件：
+            a) 本地最后修改时间大于网盘文件上传时间，则认为需要上传；
+            b) 本地最后修改时间小于网盘文件上传时间，则认为需要下载；
+               （此处注意：当一个文件上传到网盘后，其网盘时间肯定比本地最后修改时间大。
+                 如果此时执行比较的话，则会认为该文件需要从网盘下载。
+                 下载则没有此问题，因为一个文件下载后，程序会使用
+                 网盘时间来更新本地文件的最后修改时间。）
+      II)  本地存在，网盘不存在，则认为需要上传
+      III) 本地不存在，网盘存在，则认为需要下载
+      IV)  如果一端是文件，另一端是目录，则认为无法确认是上传还是下载。
+    
+    选项：
+      -c  只打印出无法确定上传或下载的项。
+          一般是因为本地是文件，远端是目录，或本地是目录远端是文件
+      -d  只下载需要下载的文件或目录
+      -e  只打印相同的文件或目录
+      -n  只是打印，而不真正的执行上传和下载，等价于'compare'
+      -r  递归比较其子目录
+      -u  只上传需要上传的文件或目录
+    
+    示例：
+       pcs synch music music
+       pcs synch -r ~/music music
+       pcs synch -u music music     只上传需要上传的文件，等价于备份
+       pcs synch -d music music     只下载需要下载的文件，等价于还原
+       pcs synch -du music music    上传需要上传的文件，并且下载需要下载的文件，等价于同步
+       
+    注意：推荐每次都带上'-c'选项，可以打印出不知道如何处理的文件或目录，防止漏上传或下载。
+
+### 上传文件
+    pcs [-f] <local file> <remote file>
+    
+    只能上传文件，如果需要上传目录，请使用 'pcs synch' 命令。
+    
+    示例：
+       pcs upload ~/data.tar.gz /backup/data.20140118.tar.gz
+
+### 显示程序版本
+    pcs version
+    
+    示例：
+       pcs version
 
 ### 显示当前登录用户
     pcs who
 
+    示例：
+       pcs who
 
-
-
-
-
-
-
-
-
-### 搜索文件
-    pcs search [dir] <key>
-
-### 上传文件
-    pcs [-f] <local file> <remote path>
-    pcs upload ~/data.tar.gz /backup/data.20140118.tar.gz
-
-### 同步目录
-    pcs synch <local path> <remote path>
-
-### 查看子命令帮助
-    pcs <command> -h
-
-
-    
