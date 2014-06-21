@@ -8,6 +8,9 @@
 #ifdef WIN32
 #  include <conio.h>
 #  include <direct.h>
+# include <WinSock2.h>
+# include <Windows.h>
+# include <Shlwapi.h>
 #else
 #  include <inttypes.h>
 #  include <termios.h>
@@ -22,14 +25,15 @@
 #endif
 
 
-static inline char *i_strdup(const char *str)
+static inline char *i_strdup(const char *str, int len)
 {
 	char *res = 0;
 	if (str) {
-		res = (char *)pcs_malloc(strlen(str) + 1);
-		if (!res)
-			return 0;
-		strcpy(res, str);
+		if (len == -1) len = strlen(str);
+		res = (char *)pcs_malloc(len + 1);
+		if (!res) return 0;
+		memcpy(res, str, len);
+		res[len] = '\0';
 	}
 	return res;
 }
@@ -279,77 +283,32 @@ int str_in_array(const char **arr, const char *str, int len)
 */
 char *combin_path(const char *base, int basesz, const char *filename)
 {
-	char *p, *p2;
-	int filenamesz, sz;
-
-	if (strcmp(filename, ".") == 0) {
-		p = (char *)pcs_malloc(basesz + 1);
-		assert(p);
-memset(p, 0, basesz + 1);
-memcpy(p, base, basesz);
-p[basesz] = '\0';
-	}
-	else if (strcmp(filename, "..") == 0) {
-		p = (char *)pcs_malloc(basesz + 1);
-		assert(p);
-		memset(p, 0, basesz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-		basesz--;
-		if (p[basesz] == '/' || p[basesz] == '\\') p[basesz] = '\0';
-		basesz--;
-		while (basesz >= 0 && p[basesz] != '/' && p[basesz] != '\\') {
-			basesz--;
+	char *result = NULL;
+#ifdef WIN32
+	char buf[MAX_PATH] = "";
+	if (basesz == -1) {
+		if (PathCombine(buf, base, filename)) {
+			result = i_strdup(buf, -1);
 		}
-		if (basesz < 0) {
-			p[0] = '\0';
-		}
-		else if (basesz == 0) {
-			p[1] = '\0';
-		}
-		else {
-			p[basesz] = '\0';
-		}
-	}
-	else if (is_absolute_path(filename) || !base || basesz == 0 || !base[0]) {
-		p = i_strdup(filename);
 	}
 	else {
-		if (basesz == -1) basesz = strlen(base);
-		filenamesz = strlen(filename);
-		sz = basesz + filenamesz + 1;
-		p = (char *)pcs_malloc(sz + 1);
-		assert(p);
-		memset(p, 0, sz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-		if (filename[0] == '/' || filename[0] == '\\') {
-			if (p[basesz - 1] == '/' || p[basesz - 1] == '\\') {
-				p[basesz - 1] = '\0';
-			}
+		char *p = i_strdup(base, basesz);
+		if (PathCombine(buf, p, filename)) {
+			result = i_strdup(buf, -1);
 		}
-		else {
-			if (p[basesz - 1] != '/' && p[basesz - 1] != '\\') {
-#ifdef WIN32
-				p[basesz] = '\\';
-#else
-				p[basesz] = '/';
-#endif
-				p[basesz + 1] = '\0';
-			}
-		}
-		strcat(p, filename);
+		pcs_free(p);
 	}
-	p2 = p;
-	while (*p2) {
-#ifdef WIN32
-		if (*p2 == '/') *p2 = '\\';
 #else
-		if (*p2 == '\\') *p2 = '/';
-#endif
-		p2++;
+	if (basesz == -1) {
+		result = combin_net_disk_path(base, filename);
 	}
-	return p;
+	else {
+		char *p = i_strdup(base, basesz);
+		result = combin_net_disk_path(p, filename);
+		pcs_free(p);
+	}
+#endif
+	return result;
 }
 
 /*
@@ -456,7 +415,7 @@ char *combin_net_disk_path(const char *base, const char *filename)
 
 	if (base) basesz = strlen(base);
 	if (filename) filenamesz = strlen(filename);
-	sz = basesz + filenamesz + 1;
+	sz = basesz + filenamesz + 2;
 	result = (char *)pcs_malloc(sz + 1);
 	result[0] = '\0';
 	fill_unix_true_path_to_buf(result, base);

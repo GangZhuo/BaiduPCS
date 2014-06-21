@@ -805,7 +805,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	
 	context->secure_method = pcs_utils_strdup("plaintext");
 	context->secure_key = pcs_utils_strdup("");
-	context->secure_enable = 0;
+	context->secure_enable = 1;
 }
 
 /*释放上下文*/
@@ -1918,7 +1918,7 @@ static inline int do_download(ShellContext *context,
 		if (CreateDirectoryRecursive(dir) != MKDIR_OK) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
-				(*pErrMsg) = pcs_utils_strdup("Error: Can't create the directory.");
+				(*pErrMsg) = pcs_utils_sprintf("Error: Can't create the directory: %s", dir);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			pcs_free(dir);

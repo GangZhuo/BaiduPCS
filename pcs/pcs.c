@@ -2092,7 +2092,7 @@ static struct PcsAesState *createPcsAesState(Pcs handle, int bits, int mod, int 
 	struct PcsAesState *state = NULL;
 	const char *key;
 	int rc;
-	if (!pcs->secure_key) {
+	if (!pcs->secure_key || !pcs->secure_key[0]) {
 		pcs_set_errmsg(handle, "The key is not specify.");
 		return NULL;
 	}
