@@ -1,4 +1,7 @@
-﻿#ifndef _PCS_SHELL_DIR_H_
+﻿
+/*操作系统相关，用于操作文件或目录*/
+
+#ifndef _PCS_SHELL_DIR_H_
 #define _PCS_SHELL_DIR_H_
 
 #define DEFAULT_MKDIR_ACCESS	0750	/*创建目录时默认权限，只有非Windows系统使用*/

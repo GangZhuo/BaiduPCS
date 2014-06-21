@@ -84,6 +84,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\arg.c" />
     <ClCompile Include="..\dir.c" />
     <ClCompile Include="..\hashtable.c" />
     <ClCompile Include="..\rb_tree\misc.c" />
@@ -91,6 +92,7 @@
     <ClCompile Include="..\rb_tree\stack.c" />
     <ClCompile Include="..\shell.c" />
     <ClCompile Include="..\sqlite\sqlite3.c" />
+    <ClCompile Include="..\utf8.c" />
     <ClCompile Include="..\utils.c" />
     <ClCompile Include="cJSON.c" />
     <ClCompile Include="pcs.c" />
@@ -102,6 +104,7 @@
     <ClCompile Include="pcs_utils.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\arg.h" />
     <ClInclude Include="..\dir.h" />
     <ClInclude Include="..\hashtable.h" />
     <ClInclude Include="..\rb_tree\misc.h" />
@@ -110,6 +113,7 @@
     <ClInclude Include="..\shell.h" />
     <ClInclude Include="..\sqlite\sqlite3.h" />
     <ClInclude Include="..\sqlite\sqlite3ext.h" />
+    <ClInclude Include="..\utf8.h" />
     <ClInclude Include="..\utils.h" />
     <ClInclude Include="cJSON.h" />
     <ClInclude Include="openssl_aes.h" />
