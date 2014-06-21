@@ -95,6 +95,7 @@ struct RBEnumerateState
 						 * 将只打印 op 为 OP_EQ, OP_LEFT 和 OP_RIGHT 三项的节点
 						 */
 	int		print_flag;
+	int		print_fail;
 
 	int		no_print_op;
 	int		no_print_flag;
@@ -111,6 +112,8 @@ struct RBEnumerateState
 	int		cnt_eq;
 	int		cnt_confuse;
 	int		cnt_none;
+
+	int		cnt_fail;
 
 	int		printed_count;
 	int		page_index;
@@ -1713,7 +1716,7 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 /*
 * 打印统计
 */
-static void print_meta_list_statistic(struct RBEnumerateState *s)
+static void print_meta_list_statistic(struct RBEnumerateState *s, int print_fail)
 {
 	int i, total = 0;
 
@@ -1726,8 +1729,14 @@ static void print_meta_list_statistic(struct RBEnumerateState *s)
 	putchar('\n');
 	printf("Download: %d, Upload: %d\n"
 		   "Confuse: %d, Equal: %d, Other: %d\n"
-		   "Total: %d\n",
+		   "Total: %d",
 		s->cnt_left, s->cnt_right, s->cnt_confuse, s->cnt_eq, s->cnt_none, s->cnt_total);
+	if (print_fail) {
+		printf(", Fail: %d\n", s->cnt_fail);
+	}
+	else {
+		putchar('\n');
+	}
 }
 
 /*
@@ -1808,6 +1817,9 @@ static int rb_print_meta(void *a, void *state)
 		back_prev_print_line();
 		print_meta_list_row(s->first, s->second, s->other, meta);
 	}
+
+	if (meta->op_st == OP_ST_FAIL)
+		s->cnt_fail++;
 
 	s->printed_count++;
 
@@ -2380,7 +2392,7 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 	}
 	if (print_notes) {
 		putchar('\n');
-		print_meta_list_statistic(&state);
+		print_meta_list_statistic(&state, state.print_fail);
 		putchar('\n');
 		print_meta_list_notes(state.first, state.second, state.other);
 	}
@@ -3421,6 +3433,7 @@ static void synchOnRBEnumStatePrepared(ShellContext *context, compare_arg *arg, 
 	state->process = &synchOnPrepare;
 	state->processState = NULL;
 	state->no_print_flag = 0;
+	state->print_fail = 1;
 }
 
 static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void *state)
