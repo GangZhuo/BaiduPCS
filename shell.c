@@ -2345,7 +2345,7 @@ static int on_compared_file(ShellContext *context, compare_arg *arg, MyMeta *mm,
 static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_tree *rb, void *st)
 {
 	struct RBEnumerateState state = { 0 };
-	int print_notes = 0;
+	int printed_count = 0;
 	if (!arg->print_eq && !arg->print_left && !arg->print_right && !arg->print_confuse) {
 		arg->print_left = arg->print_right = arg->print_confuse = 1;
 	}
@@ -2369,14 +2369,24 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 	state.first = 0;
 	if (state.second < 10) state.second = 10;
 	state.other = 13;
-	if (arg->onRBEnumerateStatePrepared)
+	if (arg->onRBEnumerateStatePrepared) {
 		(*arg->onRBEnumerateStatePrepared)(context, arg, rb, &state, st);
+	}
+	else {
+		printf("\nPrint Download: %s, Print Upload: %s, Print Confuse: %s, Print Equal: %s\n",
+			arg->print_left ? "on" : "off",
+			arg->print_right ? "on" : "off",
+			arg->print_confuse ? "on" : "off",
+			arg->print_eq ? "on" : "off");
+	}
 	rb->EnumerateInfo = &rb_print_meta;
 	if (state.print_op && state.print_flag) {
 		RBTreeEnumerateInfo(rb);
-		if (state.printed_count == 0)
+		printed_count += state.printed_count;
+		/*if (state.printed_count == 0)
 			print_meta_list_head(state.first, state.second, state.other);
 		print_notes = 1;
+		print_head = 0;*/
 	}
 	if (state.cnt_confuse > 0 && arg->print_confuse && !(state.print_op & OP_CONFUSE)) {
 		//printf("\nwarning: There are number of confuse items. The confuse means that don't know how to process.\n");
@@ -2386,16 +2396,15 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 		state.prefixion = "[Confuse] ";
 		putchar('\n');
 		RBTreeEnumerateInfo(rb);
-		if (state.printed_count > 0) {
-			print_notes = 1;
-		}
+		printed_count += state.printed_count;
 	}
-	if (print_notes) {
-		putchar('\n');
-		print_meta_list_statistic(&state, state.print_fail);
-		putchar('\n');
-		print_meta_list_notes(state.first, state.second, state.other);
+	if (printed_count == 0) {
+		print_meta_list_head(state.first, state.second, state.other);
 	}
+	putchar('\n');
+	print_meta_list_statistic(&state, state.print_fail);
+	putchar('\n');
+	print_meta_list_notes(state.first, state.second, state.other);
 	return 0;
 }
 
@@ -3434,6 +3443,12 @@ static void synchOnRBEnumStatePrepared(ShellContext *context, compare_arg *arg, 
 	state->processState = NULL;
 	state->no_print_flag = 0;
 	state->print_fail = 1;
+
+	printf("\nDownload: %s, Upload: %s, Confuse: %s, Equal: %s\n",
+		arg->print_left ? "on" : "off",
+		arg->print_right ? "on" : "off",
+		arg->print_confuse ? "on" : "off",
+		arg->print_eq ? "on" : "off");
 }
 
 static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void *state)
