@@ -884,10 +884,13 @@ static void version()
 static void usage_cat()
 {
 	version();
-	printf("\nUsage: %s cat <path>\n", app_name);
+	printf("\nUsage: %s cat [-h] <path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the file content\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s cat -h\n", app_name);
 	printf("  %s cat /music/list.txt\n", app_name);
 	printf("  %s cat list.txt\n", app_name);
 	printf("  %s cat \"/music/Europe and America/list.txt\"\n", app_name);
@@ -897,10 +900,13 @@ static void usage_cat()
 static void usage_cd()
 {
 	version();
-	printf("\nUsage: %s cd <path>\n", app_name);
+	printf("\nUsage: %s cd [-h] <path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Change the work directory\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s cd -h\n", app_name);
 	printf("  %s cd /music\n", app_name);
 	printf("  %s cd subdir\n", app_name);
 	printf("  %s cd \"/music/Europe and America\"\n", app_name);
@@ -910,10 +916,13 @@ static void usage_cd()
 static void usage_copy()
 {
 	version();
-	printf("\nUsage: %s copy <src> <dst>\n", app_name);
+	printf("\nUsage: %s copy [-h] <src> <dst>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Copy the file|directory\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s copy -h\n", app_name);
 	printf("  %s copy src.txt dst.txt\n", app_name);
 	printf("  %s copy /music/src.mp3 /music/mp3/dst.mp3\n", app_name);
 	printf("  %s copy /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", app_name);
@@ -923,7 +932,7 @@ static void usage_copy()
 static void usage_compare()
 {
 	version();
-	printf("\nUsage: %s compare [-redu] <local path> <net disk path>\n", app_name);
+	printf("\nUsage: %s compare [-cdehru] <local path> <net disk path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the differents between local and net disk. \n"
 		   "  Default options is '-cdu'. \n");
@@ -931,9 +940,11 @@ static void usage_compare()
 	printf("  -c    Print the files that confuse, which is don't know how to do.\n");
 	printf("  -d    Print the files that is old than the net disk.\n");
 	printf("  -e    Print the files that is same between local and net disk.\n");
+	printf("  -h    Print the usage.\n");
 	printf("  -r    Recursive compare the sub directories.\n");
 	printf("  -u    Print the files that is newer than the net disk.\n");
 	printf("\nSamples:\n");
+	printf("  %s compare -h\n", app_name);
 	printf("  %s compare ~/music /music\n", app_name);
 	printf("  %s compare music /music\n", app_name);
 	printf("  %s compare -r music /music\n", app_name);
@@ -943,10 +954,13 @@ static void usage_compare()
 static void usage_context()
 {
 	version();
-	printf("\nUsage: %s context\n", app_name);
+	printf("\nUsage: %s context [-h]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the context\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s context -h\n", app_name);
 	printf("  %s context\n", app_name);
 }
 
@@ -954,12 +968,14 @@ static void usage_context()
 static void usage_download()
 {
 	version();
-	printf("\nUsage: %s download [-f] <file> <local file>\n", app_name);
+	printf("\nUsage: %s download [-fh] <file> <local file>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Download the file\n");
 	printf("\nOptions:\n");
 	printf("  -f    Force override the local file when the file exists on local file system.\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s download -h\n", app_name);
 	printf("  %s download dst.txt ~/dst.txt\n", app_name);
 	printf("  %s download dst.txt dst.txt\n", app_name);
 	printf("  %s download -f dst.txt ~/dst.txt\n", app_name);
@@ -970,12 +986,14 @@ static void usage_download()
 static void usage_echo()
 {
 	version();
-	printf("\nUsage: %s echo [-a] <path> <text>\n", app_name);
+	printf("\nUsage: %s echo [-ah] <path> <text>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Write the text into net disk file\n");
 	printf("\nOptions:\n");
 	printf("  -a    Append the text.\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s echo -h\n", app_name);
 	printf("  %s echo src.txt \"This is from 'echo' command.\" \n", app_name);
 	printf("  %s echo /docs/src.txt \"This is from 'echo' command.\"\n", app_name);
 	printf("  %s echo -a \"for test/src.txt\" \"This is from 'echo' command.\"\n", app_name);
@@ -985,21 +1003,28 @@ static void usage_echo()
 static void usage_help()
 {
 	version();
-	printf("\nUsage: %s help\n", app_name);
+	printf("\nUsage: %s help [-h] [command]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the usage\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s help -h\n", app_name);
 	printf("  %s help\n", app_name);
+	printf("  %s help synch\n", app_name);
 }
 
 /*打印list命令用法*/
 static void usage_list()
 {
 	version();
-	printf("\nUsage: %s list [path]\n", app_name);
+	printf("\nUsage: %s list [-h] [path]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  List the directory\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s list -h\n", app_name);
 	printf("  %s list\n", app_name);
 	printf("  %s list /music\n", app_name);
 	printf("  %s list \"/music/Europe and America\"\n", app_name);
@@ -1009,10 +1034,22 @@ static void usage_list()
 static void usage_login()
 {
 	version();
-	printf("\nUsage: %s login [--username=<user name>] [--password=<password>]\n", app_name);
+	printf("\nUsage: %s login [-h] [--username=<user name>] [--password=<password>]\n", app_name);
 	printf("\nDescription:\n");
-	printf("  \n");
+	printf("  The command maybe save captcha image into your local file system, \n"
+		   "  then you can see the captcha. You can use '%s set --captcha_file=<path>' \n"
+		   "  to change the save path, and use '%s context' command to view the path.\n"
+		   "  The cookie can reusable, so you can login in your pc, and then upload the \n"
+		   "  cookie file to your vps.\n"
+		   "  After login, you can use '%s who' to see the user id, \n"
+		   "  and use '%s pwd' to see your work directory.\n",
+		   app_name, app_name, app_name, app_name);
+	printf("\nOptions:\n");
+	printf("  -h            Print the usage.\n");
+	printf("  --username    Specify user name.\n");
+	printf("  --password    Specify password.\n");
 	printf("\nSamples:\n");
+	printf("  %s login -h\n", app_name);
 	printf("  %s login\n", app_name);
 	printf("  %s login --username=gang\n", app_name);
 	printf("  %s login --username=gang --password=\"password\"\n", app_name);
@@ -1022,10 +1059,13 @@ static void usage_login()
 static void usage_logout()
 {
 	version();
-	printf("\nUsage: %s logout\n", app_name);
+	printf("\nUsage: %s logout [-h]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  \n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s logout -h\n", app_name);
 	printf("  %s logout\n", app_name);
 }
 
@@ -1033,10 +1073,13 @@ static void usage_logout()
 static void usage_meta()
 {
 	version();
-	printf("\nUsage: %s meta [path]\n", app_name);
+	printf("\nUsage: %s meta [-h] [path]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the file|directory meta information\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s meta -h\n", app_name);
 	printf("  %s meta\n", app_name);
 	printf("  %s meta /music\n", app_name);
 	printf("  %s meta \"/music/Europe and America\"\n", app_name);
@@ -1046,10 +1089,13 @@ static void usage_meta()
 static void usage_mkdir()
 {
 	version();
-	printf("\nUsage: %s mkdir <path>\n", app_name);
+	printf("\nUsage: %s mkdir [-h] <path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Make a new directory\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s mkdir -h\n", app_name);
 	printf("  %s mkdir subdir\n", app_name);
 	printf("  %s mkdir /music\n", app_name);
 	printf("  %s mkdir \"/music/Europe and America\"\n", app_name);
@@ -1059,10 +1105,13 @@ static void usage_mkdir()
 static void usage_move()
 {
 	version();
-	printf("\nUsage: %s move <src> <dst>\n", app_name);
+	printf("\nUsage: %s move [-h] <src> <dst>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Move the file|directory into other file|directory\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s move -h\n", app_name);
 	printf("  %s move src.txt dst.txt\n", app_name);
 	printf("  %s move /music/src.mp3 /music/mp3/dst.mp3\n", app_name);
 	printf("  %s move /music/src.mp3 \"/music/Europe and America/dst.mp3\"\n", app_name);
@@ -1072,10 +1121,13 @@ static void usage_move()
 static void usage_pwd()
 {
 	version();
-	printf("\nUsage: %s pwd\n", app_name);
+	printf("\nUsage: %s pwd [-h]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the current work directory\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s pwd -h\n", app_name);
 	printf("  %s pwd\n", app_name);
 }
 
@@ -1083,23 +1135,29 @@ static void usage_pwd()
 static void usage_quota()
 {
 	version();
-	printf("\nUsage: %s quota\n", app_name);
-	printf("\nOptions:\n");
-	printf("  -e    Print the exact size.\n");
+	printf("\nUsage: %s quota [-eh]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the quota\n");
+	printf("\nOptions:\n");
+	printf("  -e    Print the exact size.\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s quota -h\n", app_name);
 	printf("  %s quota\n", app_name);
+	printf("  %s quota -e\n", app_name);
 }
 
 /*打印remove命令用法*/
 static void usage_remove()
 {
 	version();
-	printf("\nUsage: %s remove <path>\n", app_name);
+	printf("\nUsage: %s remove [-h] <path>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Remove the file|directory\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s remove -h\n", app_name);
 	printf("  %s remove src.txt\n", app_name);
 	printf("  %s remove /music/src.mp3\n", app_name);
 	printf("  %s remove \"/music/Europe and America/dst.mp3\"\n", app_name);
@@ -1109,10 +1167,13 @@ static void usage_remove()
 static void usage_rename()
 {
 	version();
-	printf("\nUsage: %s rename <src> <new name>\n", app_name);
+	printf("\nUsage: %s rename [-h] <src> <new name>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Rename the file|directory\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s rename -h\n", app_name);
 	printf("  %s rename src.txt dst.txt\n", app_name);
 	printf("  %s rename /music/src.mp3 dst.mp3\n", app_name);
 	printf("  %s rename \"/music/Europe and America/src.mp3\" \"dst 2.mp3\"\n", app_name);
@@ -1122,36 +1183,41 @@ static void usage_rename()
 static void usage_set()
 {
 	version();
-	printf("\nUsage: %s set <option>=<value> ...\n", app_name);
+	printf("\nUsage: %s set [-h] [--captcha_file=<path>] [--cookie_file=<path>] ...\n", app_name);
 	printf("\nDescription:\n");
-	printf("  Change the context, you can print the context by 'context' command\n");
+	printf("  Change the context, you can see the context by '%s context' command.\n", app_name);
 	printf("\nOptions:\n");
-	printf("  Option Name         Type       Possible Values \n");
+	printf("  -h    Print the usage.\n");
+	printf("\nOptions:\n");
+	printf("  Option Name          Type       Possible Values \n");
 	printf("  -----------------------------------------------\n");
-	printf("  captchafile         String     not null\n");
-	printf("  cookiefile          String     not null\n");
-	printf("  list_page_size      UInt       >0\n");
-	printf("  list_sort_direction Enum       asc|desc\n");
-	printf("  list_sort_name      Enum       name|time|size\n");
-	printf("  secure_enable       Boolean    true|false\n");
-	printf("  secure_key          String     not null when 'secure_method' is not 'plaintext'\n");
-	printf("  secure_method       Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
+	printf("  captcha_file         String     not null\n");
+	printf("  cookie_file          String     not null\n");
+	printf("  list_page_size       UInt       >0\n");
+	printf("  list_sort_direction  Enum       asc|desc\n");
+	printf("  list_sort_name       Enum       name|time|size\n");
+	printf("  secure_enable        Boolean    true|false\n");
+	printf("  secure_key           String     not null when 'secure_method' is not 'plaintext'\n");
+	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("\nSamples:\n");
-	printf("  %s set cookiefile=\"/tmp/pcs.cookie\"\n", app_name);
-	printf("  %s set cookiefile=\"/tmp/pcs.cookie\" captchafile=\"/tmp/vc.git\"\n", app_name);
-	printf("  %s set list_page_size=20 list_sort_name=name list_sort_direction=desc\n", app_name);
+	printf("  %s set -h\n", app_name);
+	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
+	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\" --captcha_file=\"/tmp/vc.git\"\n", app_name);
+	printf("  %s set --list_page_size=20 --list_sort_name=name --list_sort_direction=desc\n", app_name);
 }
 
 /*打印search命令用法*/
 static void usage_search()
 {
 	version();
-	printf("\nUsage: %s search [-r] [target dir] <key word>\n", app_name);
+	printf("\nUsage: %s search [-hr] [target dir] <key word>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Search the files in the specify directory\n");
 	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("  -r    Recursive search the sub directories.\n");
 	printf("\nSamples:\n");
+	printf("  %s search -h\n", app_name);
 	printf("  %s search dst.txt\n", app_name);
 	printf("  %s search -r dst.txt\n", app_name);
 	printf("  %s search /music dst.mp3\n", app_name);
@@ -1163,10 +1229,16 @@ static void usage_search()
 static void usage_synch()
 {
 	version();
-	printf("\nUsage: %s synch [-redu] <local path> <net disk path>\n", app_name);
+	printf("\nUsage: %s synch [-cdehnru] <local path> <net disk path>\n", app_name);
 	printf("\nDescription:\n");
-	printf("  Synch between local and net disk. You can 'compare' first. \n"
-		   "  Default options is '-cdu'. \n");
+	printf("  Synch between local and net disk. \n"
+		   "  Default options is '-cdu', means download newer files, upload newer files \n"
+		   "  and print confuse files. You can use '-u' to upload newer files only, use \n"
+		   "  '-d' to download newer files only, and use '-c' to view confuse files.\n"
+		   "  Notes:\n"
+		   "    The confuse items will do nothing, \n"
+		   "    e.g. A side of the target is file and another is directory.\n",
+		   app_name);
 	printf("\nOptions:\n");
 	printf("  -c    Print the files that confuse, which is don't know how to do.\n");
 	printf("  -d    Synch the new files from the net disk. \n"
@@ -1174,6 +1246,7 @@ static void usage_synch()
 		   "        You can use 'compare -dr <local dir> <disk dir>' to view \n"
 		   "        how many and which files will download.\n");
 	printf("  -e    Print the files that is same between local and net disk.\n");
+	printf("  -h    Print the usage.\n");
 	printf("  -n    Dry run.\n");
 	printf("  -r    Recursive synch the sub directories.\n");
 	printf("  -u    Synch the new files to the net disk.\n \n"
@@ -1181,8 +1254,12 @@ static void usage_synch()
 		   "        You can use 'compare -ur <local dir> <disk dir>' to view \n"
 		   "        how many and which files will upload.\n");
 	printf("\nSamples:\n");
-	printf("  %s synch ~/music /music\n", app_name);
-	printf("  %s synch music /music\n", app_name);
+	printf("  %s synch -h\n", app_name);
+	printf("  %s synch ~/music /music  \n", app_name);
+	printf("  %s synch -d ~/music /music  \n", app_name);
+	printf("  %s synch -u music /music\n", app_name);
+	printf("  %s synch -c music /music\n", app_name);
+	printf("  %s synch -cdu music /music\n", app_name);
 	printf("  %s synch -r music /music\n", app_name);
 }
 
@@ -1190,12 +1267,14 @@ static void usage_synch()
 static void usage_upload()
 {
 	version();
-	printf("\nUsage: %s upload [-f] <local file> <file>\n", app_name);
+	printf("\nUsage: %s upload [-fh] <local file> <file>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Upload the file\n");
 	printf("\nOptions:\n");
 	printf("  -f    Force override the local file when the file exists on local file system.\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s upload -h\n", app_name);
 	printf("  %s upload ~/dst.txt dst.txt\n", app_name);
 	printf("  %s upload dst.txt dst.txt\n", app_name);
 	printf("  %s upload -f ~/dst.txt dst.txt\n", app_name);
@@ -1206,10 +1285,13 @@ static void usage_upload()
 static void usage_version()
 {
 	version();
-	printf("\nUsage: %s version\n", app_name);
+	printf("\nUsage: %s version [-h]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the version\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s version -h\n", app_name);
 	printf("  %s version\n", app_name);
 }
 
@@ -1217,10 +1299,13 @@ static void usage_version()
 static void usage_who()
 {
 	version();
-	printf("\nUsage: %s who\n", app_name);
+	printf("\nUsage: %s who [-h]\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Print the current user\n");
+	printf("\nOptions:\n");
+	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
+	printf("  %s who -h\n", app_name);
 	printf("  %s who\n", app_name);
 }
 
@@ -1265,8 +1350,10 @@ static void usage()
 		);
 	printf("Use '%s <command> -h' to print the details of the command. \n", app_name);
 	printf("Sample: \n");
-	printf("  %s cat -h\n", app_name);
+	printf("  %s help\n", app_name);
+	printf("  %s cat /note.txt\n", app_name);
 	printf("  %s cd /temp\n", app_name);
+	printf("  %s cat /note.txt --context=/home/gang/.pcs_context\n", app_name);
 }
 
 #pragma endregion
