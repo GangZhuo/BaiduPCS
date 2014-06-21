@@ -285,9 +285,9 @@ char *combin_path(const char *base, int basesz, const char *filename)
 	if (strcmp(filename, ".") == 0) {
 		p = (char *)pcs_malloc(basesz + 1);
 		assert(p);
-		memset(p, 0, basesz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
+memset(p, 0, basesz + 1);
+memcpy(p, base, basesz);
+p[basesz] = '\0';
 	}
 	else if (strcmp(filename, "..") == 0) {
 		p = (char *)pcs_malloc(basesz + 1);
@@ -353,68 +353,115 @@ char *combin_path(const char *base, int basesz, const char *filename)
 }
 
 /*
+把path根据斜杠拆分成一个个的目录名，然后把这些目录按顺序组合到buf中。
+该函数能正确处理"."和".."。
+*/
+static inline void fill_unix_true_path_to_buf(char *buf, const char *path)
+{
+	const char *start, *end;
+	char *p;
+	p = buf;
+	while (*p) p++;
+	if (path && path[0]) {
+		start = end = path;
+		if (*end == '/' || *end == '\\') { /*path是绝对路径,则清掉buf原来的值*/
+			/*清掉buf原来值，并设置新值为斜杠*/
+			p = buf;
+			*p = '/';
+			p++;
+			*p = '\0';
+			end++;
+			start = end;
+		}
+		else if (p > buf && p[-1] != '/' && p[-1] != '\\') { /*检查buf的最后一个字符是否是目录分隔符*/
+			/*末尾添加斜杠*/
+			*p = '/';
+			p++;
+			*p = '\0';
+		}
+		while (1) {
+			if (*end == '/' || *end == '\\' || !(*end)) {
+				if (end == start) { /*连续的目录分隔符*/
+					if (!(*end)) break;
+					end++;
+					start = end;
+					continue;
+				}
+				else if (streq(".", start, end - start)) {
+					if (!(*end)) break;
+					end++;
+					start = end;
+					continue;
+				}
+				else if (streq("..", start, end - start)) {
+					if ((buf[0] == '/' || buf[0] == '\\') && buf[1] == '\0') { /*如果buf == "/"，
+																				即buf是根目录，则其没有父目录。直接跳过。
+																				*/
+						if (!(*end)) break;
+						end++;
+						start = end;
+						continue;
+					}
+					p--; *p = '\0'; /*清掉最后一个斜杠*/
+					while (p >= buf) {
+						if (*p == '/' || *p == '\\') {
+							break;
+						}
+						p--;
+					}
+					if (p < buf) { /*未找到斜杠，则清空buf*/
+						p = buf;
+						*p = '\0';
+					}
+					else {
+						p++; /*找到斜杠，则清除斜杠后边的值*/
+						*p = '\0';
+					}
+					if (!(*end)) break;
+					end++;
+					start = end;
+					continue;
+				}
+				else {
+					memcpy(p, start, end - start);
+					p += end - start;
+					*p = '/';
+					p++;
+					*p = '\0';
+					if (!(*end)) break;
+					end++;
+					start = end;
+					continue;
+				}
+			}
+			end++;
+		}
+	}
+	/*如果buf != "/"的话，即如果buf不是根目录的话，清除最后一个斜杠*/
+	if (p > buf && (p[-1] == '/' || p[-1] == '\\')) { /*检查到buf的最后一个字符是目录分隔符*/
+		if (p > buf + 1) {
+			p[-1] = '\0';
+		}
+	}
+}
+
+/*
 * 合并unix格式的路径，如果filename传入的是绝对路径，则直接返回filename的拷贝。
 * 使用完后，需调用pcs_free来释放返回值
 */
-char *combin_unix_path(const char *base, const char *filename)
+char *combin_net_disk_path(const char *base, const char *filename)
 {
-	char *p, *p2;
-	int basesz, filenamesz, sz;
+	char *result;
+	int basesz = 0, filenamesz = 0, sz;
 
-	if (strcmp(filename, ".") == 0) {
-		basesz = strlen(base);
-		p = (char *)pcs_malloc(basesz + 1);
-		assert(p);
-		memset(p, 0, basesz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-	}
-	else if (strcmp(filename, "..") == 0) {
-		basesz = strlen(base);
-		p = (char *)pcs_malloc(basesz + 1);
-		assert(p);
-		memset(p, 0, basesz + 1);
-		memcpy(p, base, basesz);
-		p[basesz] = '\0';
-		basesz--;
-		if (p[basesz] == '/' || p[basesz] == '\\') p[basesz] = '\0';
-		basesz--;
-		while (basesz >= 0 && p[basesz] != '/' && p[basesz] != '\\') {
-			basesz--;
-		}
-		if (basesz < 0) {
-			p[0] = '\0';
-		}
-		else if (basesz == 0) {
-			p[1] = '\0';
-		}
-		else {
-			p[basesz] = '\0';
-		}
-	}
-	else if (filename[0] == '/' || filename[0] == '\\' || filename[0] == '~') { /*如果是绝对路径，直接返回该值*/
-		p = i_strdup(filename);
-	}
-	else {
-		basesz = strlen(base);
-		filenamesz = strlen(filename);
-		sz = basesz + filenamesz + 1;
-		p = (char *)pcs_malloc(sz + 1);
-		assert(p);
-		memset(p, 0, sz + 1);
-		strcpy(p, base);
-		if (p[basesz - 1] != '/') {
-			p[basesz] = '/';
-			p[basesz + 1] = '\0';
-		}
-		strcat(p, filename);
-	}
-	p2 = p;
-	while (*p2) {
-		if (*p2 == '\\') *p2 = '/';
-		p2++;
-	}
-	return p;
+	if (base) basesz = strlen(base);
+	if (filename) filenamesz = strlen(filename);
+	sz = basesz + filenamesz + 1;
+	result = (char *)pcs_malloc(sz + 1);
+	result[0] = '\0';
+	fill_unix_true_path_to_buf(result, base);
+	fill_unix_true_path_to_buf(result, filename);
+	return result;
 }
 
 /*

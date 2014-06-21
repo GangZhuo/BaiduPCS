@@ -63,11 +63,11 @@ int str_in_array(const char **arr, const char *str, int len);
 char *combin_path(const char *base, int basesz, const char *filename);
 
 /*
-* 合并unix格式的路径，如果filename传入的是绝对路径，则直接返回filename的拷贝。
+* 合并网盘路径，如果filename传入的是绝对路径，则直接返回filename的拷贝。
 * 该函数会使用'/'替换所有'\\'。
 * 使用完后，需调用pcs_free来释放返回值
 */
-char *combin_unix_path(const char *base, const char *filename);
+char *combin_net_disk_path(const char *base, const char *filename);
 
 /*
 * 修正路径为*nix格式。
