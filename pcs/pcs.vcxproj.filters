@@ -19,12 +19,6 @@
     <Filter Include="Source Files\pcs">
       <UniqueIdentifier>{b4fc2e4d-4d1e-42bd-93f9-96d9578f2a5a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\sqlite">
-      <UniqueIdentifier>{de331c2d-91f7-4457-8742-604cff7ebb89}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\sqlite">
-      <UniqueIdentifier>{1ff90ba7-78c1-427e-bc0c-82df228883fc}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\rb_tree">
       <UniqueIdentifier>{388e605c-56bc-4776-97b7-f94fec898409}</UniqueIdentifier>
     </Filter>
@@ -56,9 +50,6 @@
     </ClCompile>
     <ClCompile Include="pcs_utils.c">
       <Filter>Source Files\pcs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\sqlite\sqlite3.c">
-      <Filter>Source Files\sqlite</Filter>
     </ClCompile>
     <ClCompile Include="..\shell.c">
       <Filter>Source Files</Filter>
@@ -115,12 +106,6 @@
     </ClInclude>
     <ClInclude Include="pcs_utils.h">
       <Filter>Header Files\pcs</Filter>
-    </ClInclude>
-    <ClInclude Include="..\sqlite\sqlite3.h">
-      <Filter>Header Files\sqlite</Filter>
-    </ClInclude>
-    <ClInclude Include="..\sqlite\sqlite3ext.h">
-      <Filter>Header Files\sqlite</Filter>
     </ClInclude>
     <ClInclude Include="openssl_md5.h">
       <Filter>Header Files\pcs</Filter>

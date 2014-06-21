@@ -91,7 +91,6 @@
     <ClCompile Include="..\rb_tree\red_black_tree.c" />
     <ClCompile Include="..\rb_tree\stack.c" />
     <ClCompile Include="..\shell.c" />
-    <ClCompile Include="..\sqlite\sqlite3.c" />
     <ClCompile Include="..\utf8.c" />
     <ClCompile Include="..\utils.c" />
     <ClCompile Include="cJSON.c" />
@@ -111,8 +110,6 @@
     <ClInclude Include="..\rb_tree\red_black_tree.h" />
     <ClInclude Include="..\rb_tree\stack.h" />
     <ClInclude Include="..\shell.h" />
-    <ClInclude Include="..\sqlite\sqlite3.h" />
-    <ClInclude Include="..\sqlite\sqlite3ext.h" />
     <ClInclude Include="..\utf8.h" />
     <ClInclude Include="..\utils.h" />
     <ClInclude Include="cJSON.h" />
