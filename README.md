@@ -42,14 +42,14 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
       pcs cat /my/todo.txt
 
 ### 切换工作目录
-    pcs cd <path>
+    pcs cd <dir>
     
     示例：
       pcs cd pcs
       pcs cd /backup/20140618
 
 ### 复制网盘文件或目录
-    pcs copy <old> <new>
+    pcs copy <old path> <new path>
     
     示例：
       pcs copy data.txt data_20140118.txt
@@ -150,7 +150,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
        pcs help -h
 
 ### 列出网盘根目录下的文件或目录
-    pcs list [path]
+    pcs list [dir]
 
     输出格式为：
         * 第一列指示是否是目录，如果是目录则输出 _d _，否则输出 -
@@ -179,40 +179,94 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
       pcs login --username=gang 指定用户名登录
       pcs login --username=gang --password=123456 指定用户名和密码登录
       
+### 退出网盘
+    pcs logout
+
+### 显示网盘文件或目录的元数据
+    pcs meta <file>
+    
+    示例：
+       pcs meta
+       pcs meta note.txt
+
+### 创建目录
+    pcs mkdir <dir>
+    
+    示例：
+      pcs mkdir subdir
+      pcs mkdir /music/china
+
+### 移动网盘文件或目录
+    pcs move <src> <dst>
+    
+    示例：
+      pcs move /data_20140118.txt /subdir/data.txt
+      pcs move music /my/music
+
+### 显示当前网盘的工作目录
+    pcs pwd
+
+    示例：
+      pcs pwd
+
+### 显示网盘配额
+    pcs quota [-e]
+    
+    选项：
+      -e   打印精确的网盘配额
+      
+    示例：
+       pcs quota
+       pcs quota -e
+
+### 删除文件或目录
+    pcs remove <path>
+    
+    示例：
+      pcs remove /subdir/data_20140118.txt
+
+### 重命名网盘文件或目录
+    pcs rename <src> <new name>
+    
+    注意：<new name>是新的文件名字，而不是文件路径。如果需要移动文件到另一个目录，请使用 'pcs move'。
+    
+    示例：
+      pcs rename /data.txt data_20140118.txt
+
+### 设置上下文
+    pcs set [--captcha_file=<path>] [--cookie_file=<path>] ...
+    
+    选项：
+    	--captcha_file=<file path>         设置验证码图片保存路径
+	--cookie_file=<file path>          设置cookie文件路径
+	--list_page_size=<page size>       设置列出目录时分页大小
+	--list_sort_direction=[asc|desc]   设置列出目录时排序方向
+	--list_sort_name=[name|time|size]  设置列出目录时排序字段
+	--secure_enable=[true|false]       设置上传下载时是否启用加密
+	--secure_key=<key string>          设置加密解密密钥
+	--secure_method=[plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256] 设置加密方式
+
+    示例：
+      pcs set -h
+      pcs set --cookie_file="/tmp/pcs.cookie"
+      pcs set --captcha_file="/tmp/vc.git"
+      pcs set --list_page_size=20 --list_sort_name=name --list_sort_direction=desc
+      pcs set --secure_enable=true --secure_key=123456 --secure_method=aes-cbc-256
+
+    
+    pcs set secure_method=aes-cbc-128 secure_key=123456 secure_enable=true
 
 ### 显示当前登录用户
     pcs who
 
-### 显示当前网盘的工作目录
-    pcs pwd
-    
-    在执行命令时，如果指定的网盘文件路径是一个相对路径的话，则程序会基于该工作目录合并出绝对路径
-
-### 显示网盘配额
-    pcs quota
 
 
 
-### 显示网盘文件或目录的元数据
-    pcs meta <path>
-    pcs meta /data.txt
 
 
-### 重命名网盘文件或目录
-    pcs rename <path> <new name>
-    pcs rename /data.txt data_20140118.txt
 
-### 创建目录
-    pcs mkdir <path>
-    pcs mkdir /subdir
 
-### 移动网盘文件或目录
-    pcs move <path> <new path>
-    pcs move /data_20140118.txt /subdir/data.txt
 
-### 删除文件或目录
-    pcs remove <path>
-    pcs remove /subdir/data_20140118.txt
 
 ### 搜索文件
     pcs search [dir] <key>
@@ -227,8 +281,5 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
 ### 查看子命令帮助
     pcs <command> -h
 
-### 设置上下文
-    pcs set ...
-    pcs set secure_method=aes-cbc-128 secure_key=123456 secure_enable=true
 
     
