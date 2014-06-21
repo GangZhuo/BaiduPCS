@@ -3312,7 +3312,7 @@ static int cmd_search(ShellContext *context, struct args *arg)
 
 	PcsFileInfoList *list = NULL;
 
-	if (test_arg(arg, 0, 0, "r", "h", "help", NULL)) {
+	if (test_arg(arg, 1, 2, "r", "h", "help", NULL)) {
 		usage_search();
 		return -1;
 	}
