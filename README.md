@@ -101,7 +101,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
        2) 如果未通过'--context'指定，但是指定了环境变量'PCS_CONTEXT'则使用它；
        3) 如果也未指定环境变量'PCS_CONTEXT'则使用'~/.pcs/pcs.context'
 
-    上下文文件格式：
+    上下文为JSON格式的文件：
     
     {
 	    "cookiefile":	        "/home/gang/.pcs/default.cookie", /*指定Cookie文件*/
@@ -118,6 +118,52 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
 	                                                              /*下载时即使检查到文件加密，也不会解密*/
     }
     
+
+### 下载文件
+    pcs [-f] <remote file> <local file>
+    
+    只能下载文件，如果需要下载目录，请使用 'pcs synch -d <remote dir> <local dir>'。
+    
+    选项：
+      -f   如果本地文件存在的话，强制替换
+    
+    示例：
+      pcs download /backup/data.20140118.tar.gz ~/download/data.20140118.tar.gz
+
+### 直接保存文本到网盘中
+    pcs echo [-a] <remote file> <text>
+    
+    选项：
+      -a  指定把文本添加到文件末尾，而不是完全替换
+      
+    示例：
+      pcs echo data.txt "The text that saved by pcs."
+
+### 查看帮助
+    pcs help [command name]
+    
+    查看帮助。
+    
+    示例：
+       pcs help
+       pcs help compare
+       pcs help -h
+
+### 列出网盘根目录下的文件或目录
+    pcs list [path]
+
+    输出格式为：
+        * 第一列指示是否是目录，如果是目录则输出 _d _，否则输出 -
+        * 第二列是文件或目录的最后修改时间
+        * 第三列是文件路径
+
+    示例：
+       pcs list
+       pcs list /music
+       pcs list -h
+       
+    列出目录时会自动分页显示，如果需要修改分页大小的话，
+    使用'pcs set --list_page_size=20'来修改，把list_page_size设置为0，则关闭分页。
 
 ### 登录网盘
     pcs login [--username=<username>] [--password=<password>]
@@ -146,27 +192,11 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
     pcs quota
 
 
-### 直接保存文本到网盘中
-    pcs echo <path> <text>
-    pcs echo data.txt "The text that saved by pcs."
-
-    注意：
-      * 将使用当前的系统编码来保存内容到/data.txt文件。如果当前系统编码为UTF-8，
-        则在非UTF-8编码的机器上使用cat显示时会出现中文乱码。
-      * 安全起见，请在本地编辑好文件，使用upload上传。
-
 
 ### 显示网盘文件或目录的元数据
     pcs meta <path>
     pcs meta /data.txt
 
-### 列出网盘根目录下的文件或目录
-    pcs list [path]
-
-    输出格式为：
-        * 第一列指示是否是目录，如果是目录则输出 _d _，否则输出 -
-        * 第二列是文件或目录的最后修改时间
-        * 第三列是文件路径
 
 ### 重命名网盘文件或目录
     pcs rename <path> <new name>
@@ -191,15 +221,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
     pcs [-f] <local file> <remote path>
     pcs upload ~/data.tar.gz /backup/data.20140118.tar.gz
 
-### 下载文件
-    pcs [-f] <remote path> <local path>
-    pcs download /backup/data.20140118.tar.gz ~/download/data.20140118.tar.gz
-
 ### 同步目录
     pcs synch <local path> <remote path>
-
-### 查看帮助
-    pcs --help
 
 ### 查看子命令帮助
     pcs <command> -h
