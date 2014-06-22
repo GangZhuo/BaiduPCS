@@ -2146,19 +2146,21 @@ static int cmd_cd(ShellContext *context, struct args *arg)
 	}
 	if (!is_login(context, NULL)) return -1;
 	p = combin_net_disk_path(context->workdir, arg->argv[0]);
-	meta = pcs_meta(context->pcs, p);
-	if (!meta) {
-		printf("The target directory not exist, or have error: %s\n", pcs_strerror(context->pcs));
-		pcs_free(p);
-		return -1;
-	}
-	if (!meta->isdir) {
-		printf("The target is not directory\n");
-		pcs_free(p);
+	if (strcmp(p, "/")) {
+		meta = pcs_meta(context->pcs, p);
+		if (!meta) {
+			printf("The target directory not exist, or have error: %s\n", pcs_strerror(context->pcs));
+			pcs_free(p);
+			return -1;
+		}
+		if (!meta->isdir) {
+			printf("The target is not directory\n");
+			pcs_free(p);
+			pcs_fileinfo_destroy(meta);
+			return -1;
+		}
 		pcs_fileinfo_destroy(meta);
-		return -1;
 	}
-	pcs_fileinfo_destroy(meta);
 	if (context->workdir) pcs_free(context->workdir);
 	context->workdir = pcs_utils_strdup(p);
 	pcs_free(p);
