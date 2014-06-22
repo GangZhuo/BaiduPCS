@@ -38,8 +38,8 @@
 #define PCS_CONTEXT_ENV				"PCS_CONTEXT"
 #define PCS_COOKIE_ENV				"PCS_COOKIE"
 #define PCS_CAPTCHA_ENV				"PCS_CAPTCHA"
-#define DOWNLOAD_TEMP_FILE_SUFFIX	".pcs_download"
-#define PCS_DEFAULT_CONTEXT_FILE	"/tmp/pcs_context.json"
+#define TEMP_FILE_SUFFIX			".pcs_temp"
+//#define PCS_DEFAULT_CONTEXT_FILE	"/tmp/pcs_context.json"
 
 #ifndef PCS_BUFFER_SIZE
 #  define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
@@ -144,23 +144,7 @@ struct PcsAesHead
 	int					magic; /*Should be AES*/
 	int					bits;
 	int					polish;
-};
-
-struct PcsAesState
-{
-	struct PcsAesHead	head;
-	int					mod;
-
-	AES_KEY				aes;
-	unsigned char		key[AES_BLOCK_SIZE];
-	unsigned char		iv[AES_BLOCK_SIZE];
-	unsigned char		buffer[PCS_BUFFER_SIZE];
-	int					buffer_size;
-	unsigned char		last_block[AES_BLOCK_SIZE]; /*128bits block*/
-	int					last_block_size;
-
-
-	MD5_CTX				md5; /*用于文件校验*/
+	int					reserve;
 };
 
 static char *app_name = NULL;
@@ -717,8 +701,13 @@ static int restore_context(ShellContext *context, const char *filename)
 	int filesize = 0;
 	cJSON *root, *item;
 
-	if (!filename)
-		filename = contextfile();
+	if (!filename) {
+		filename = context->contextfile;
+	}
+	else {
+		if (context->contextfile) pcs_free(context->contextfile);
+		context->contextfile = pcs_utils_strdup(filename);
+	}
 	filesize = read_file(filename, &filecontent);
 	if (filesize <= 0) {
 		printf("Error: Can't read the context file (%s).\n", filename, app_name);
@@ -830,7 +819,7 @@ static int restore_context(ShellContext *context, const char *filename)
 static void init_context(ShellContext *context, struct args *arg)
 {
 	memset(context, 0, sizeof(ShellContext));
-	context->contextfile = pcs_utils_strdup(PCS_DEFAULT_CONTEXT_FILE);
+	context->contextfile = pcs_utils_strdup(contextfile());
 	context->cookiefile = pcs_utils_strdup(cookiefile());
 	context->captchafile = pcs_utils_strdup(captchafile());
 	context->workdir = pcs_utils_strdup("/");
@@ -1044,6 +1033,7 @@ static void usage_encode()
 	printf("\nOptions:\n");
 	printf("  -d    Decrypt the file.\n");
 	printf("  -e    Encrypt the file.\n");
+	printf("  -f    Force override the dest file, if it's exist.\n");
 	printf("  -h    Print the usage.\n");
 	printf("\nSamples:\n");
 	printf("  %s encode -h\n", app_name);
@@ -1621,7 +1611,7 @@ static void onGotLocalFile(LocalFileInfo *info, LocalFileInfo *parent, void *sta
 {
 	rb_red_blk_tree *rb = (rb_red_blk_tree *)state;
 	MyMeta *meta;
-	if (!info->isdir && endsWith(info->path, DOWNLOAD_TEMP_FILE_SUFFIX)) {
+	if (!info->isdir && endsWith(info->path, TEMP_FILE_SUFFIX)) {
 		return;
 	}
 	fix_unix_path(info->path);
@@ -1990,9 +1980,9 @@ static inline int do_download(ShellContext *context,
 		pcs_free(dir);
 	}
 
-	tmp_local_path = (char *)pcs_malloc(strlen(local_path) + strlen(DOWNLOAD_TEMP_FILE_SUFFIX) + 1);
+	tmp_local_path = (char *)pcs_malloc(strlen(local_path) + strlen(TEMP_FILE_SUFFIX) + 1);
 	strcpy(tmp_local_path, local_path);
-	strcat(tmp_local_path, DOWNLOAD_TEMP_FILE_SUFFIX);
+	strcat(tmp_local_path, TEMP_FILE_SUFFIX);
 
 	/*打开文件*/
 	ds.pf = fopen(tmp_local_path, "wb");
@@ -2058,10 +2048,10 @@ static inline int do_download(ShellContext *context,
 	if (rename(tmp_local_path, local_path)) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: rename error. old=%s, new=%s\n", tmp_local_path, local_path);
+			(*pErrMsg) = pcs_utils_sprintf("Error: The file have been download at %s, but can't rename to %s.\n You should be rename manual.", tmp_local_path, local_path);
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
-		DeleteFileRecursive(tmp_local_path);
+		//DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		pcs_free(local_path);
 		pcs_free(remote_path);
@@ -2771,6 +2761,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	MD5_CTX md5;
 	unsigned char md5_value[16], buf[PCS_BUFFER_SIZE], out_buf[PCS_BUFFER_SIZE];
 	FILE *srcFile, *dstFile;
+	char *tmp_local_path;
 	long file_sz, sz, buf_sz;
 	AES_KEY				aes = { 0 };
 	unsigned char		key[AES_BLOCK_SIZE] = { 0 };
@@ -2778,7 +2769,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	int rc;
 	rc = AES_set_encrypt_key(md5_string_raw(secure_key), secure_method, &aes);
 	if (rc < 0) {
-		printf("Error: Can't set encryption key.\n");
+		printf("Error: Can't set encrypt key.\n");
 		return -1;
 	}
 	MD5_Init(&md5);
@@ -2787,10 +2778,14 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 		printf("Error: Can't open the source file: %s\n", src);
 		return -1;
 	}
-	dstFile = fopen(dst, "wb");
+	tmp_local_path = (char *)pcs_malloc(strlen(dst) + strlen(TEMP_FILE_SUFFIX) + 1);
+	strcpy(tmp_local_path, dst);
+	strcat(tmp_local_path, TEMP_FILE_SUFFIX);
+	dstFile = fopen(tmp_local_path, "wb");
 	if (!dstFile) {
-		printf("Error: Can't open the dest file: %s\n", dst);
+		printf("Error: Can't create the temp file: %s\n", tmp_local_path);
 		fclose(srcFile);
+		pcs_free(tmp_local_path);
 		return -1;
 	}
 
@@ -2814,6 +2809,8 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 		printf("Error: Write data to %s error. \n", dst);
 		fclose(srcFile);
 		fclose(dstFile);
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
 		return -1;
 	}
 
@@ -2833,6 +2830,8 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 			printf("Error: Write data to %s error. \n", dst);
 			fclose(srcFile);
 			fclose(dstFile);
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
 			return -1;
 		}
 	}
@@ -2842,15 +2841,174 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 		printf("Error: Write data to %s error. \n", dst);
 		fclose(srcFile);
 		fclose(dstFile);
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
 		return -1;
 	}
 	fclose(srcFile);
 	fclose(dstFile);
+	DeleteFileRecursive(dst);
+	if (rename(tmp_local_path, dst)) {
+		printf("Error: The file have been encrypted at %s, but can't rename to %s.\n You should be rename manual.\n", tmp_local_path, dst);
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		return -1;
+	}
+	pcs_free(tmp_local_path);
+	printf("Success\n");
 	return 0;
 }
 
-int decrypt_file(ShellContext *context, const char *src, const char *dst)
+static inline void readToAesHead(char *buf, struct PcsAesHead *head)
 {
+	head->magic = readInt(buf);
+	head->bits = readInt(&buf[4]);
+	head->polish = readInt(&buf[8]);
+	head->reserve = readInt(&buf[12]);
+}
+
+int decrypt_file(ShellContext *context, const char *src, const char *dst, const char *secure_key)
+{
+	struct PcsAesHead head = { 0 };
+	MD5_CTX md5;
+	unsigned char md5_value[16], buf[PCS_BUFFER_SIZE], out_buf[PCS_BUFFER_SIZE];
+	char *tmp_local_path;
+	FILE *srcFile, *dstFile;
+	long file_sz, sz, buf_sz;
+	AES_KEY				aes = { 0 };
+	unsigned char		key[AES_BLOCK_SIZE] = { 0 };
+	unsigned char		iv[AES_BLOCK_SIZE] = { 0 };
+	int rc, i;
+	MD5_Init(&md5);
+	srcFile = fopen(src, "rb");
+	if (!srcFile) {
+		printf("Error: Can't open the source file: %s\n", src);
+		return -1;
+	}
+	tmp_local_path = (char *)pcs_malloc(strlen(dst) + strlen(TEMP_FILE_SUFFIX) + 1);
+	strcpy(tmp_local_path, dst);
+	strcat(tmp_local_path, TEMP_FILE_SUFFIX);
+	dstFile = fopen(tmp_local_path, "wb");
+	if (!dstFile) {
+		printf("Error: Can't create the temp file: %s\n", tmp_local_path);
+		fclose(srcFile);
+		pcs_free(tmp_local_path);
+		return -1;
+	}
+
+	fseek(srcFile, 0L, SEEK_END);
+	file_sz = ftell(srcFile);
+	fseek(srcFile, 0L, SEEK_SET);
+
+	if (file_sz < 32 || ((file_sz - 32) % AES_BLOCK_SIZE) != 0) {
+		printf("Error: The file is not a encrypt file or is broken.\n");
+		fclose(srcFile);
+		fclose(dstFile);
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		return -1;
+	}
+
+	sz = fread(buf, 1, 16, srcFile);
+	if (sz != 16) {
+		printf("Error: Can't read the source file: %s\n", src);
+		fclose(srcFile);
+		fclose(dstFile);
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		return -1;
+	}
+
+	readToAesHead(buf, &head);
+	if (head.magic != PCS_AES_MAGIC || (head.bits != 128 && head.bits != 192 && head.bits != 256)) {
+		printf("Error: The file is not a encrypt file or is broken.\n");
+		fclose(srcFile);
+		fclose(dstFile);
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		return -1;
+	}
+
+	rc = AES_set_decrypt_key(md5_string_raw(secure_key), head.bits, &aes);
+	if (rc < 0) {
+		printf("Error: Can't set decrypt key.\n");
+		fclose(srcFile);
+		fclose(dstFile);
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		return -1;
+	}
+	file_sz -= 32;
+	if (file_sz < PCS_BUFFER_SIZE) {
+		buf_sz = file_sz;
+	}
+	else {
+		buf_sz = PCS_BUFFER_SIZE;
+	}
+	while ((sz = fread(buf, 1, buf_sz, srcFile)) > 0) {
+		if (sz != buf_sz) {
+			printf("Error: Can't read the source file: %s\n", src);
+			fclose(srcFile);
+			fclose(dstFile);
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			return -1;
+		}
+		AES_cbc_encrypt(buf, out_buf, buf_sz, &aes, iv, AES_DECRYPT);
+		if (file_sz == buf_sz) {
+			buf_sz -= head.polish;
+			file_sz = buf_sz;
+		}
+		MD5_Update(&md5, out_buf, buf_sz);
+		sz = fwrite(out_buf, 1, buf_sz, dstFile);
+		if (sz != buf_sz) {
+			printf("Error: Write data to %s error. \n", dst);
+			fclose(srcFile);
+			fclose(dstFile);
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			return -1;
+		}
+		file_sz -= buf_sz;
+		if (file_sz == 0) break;
+		if (file_sz < PCS_BUFFER_SIZE) {
+			buf_sz = file_sz;
+		}
+		else {
+			buf_sz = PCS_BUFFER_SIZE;
+		}
+	}
+	MD5_Final(md5_value, &md5);
+	sz = fread(buf, 1, 16, srcFile);
+	if (sz != 16) {
+		printf("Error: Can't read the source file: %s\n", src);
+		fclose(srcFile);
+		fclose(dstFile);
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		return -1;
+	}
+	for (i = 0; i < 16; i++) {
+		if (md5_value[i] != buf[i]) {
+			printf("Error: Wrong key or broken file\n");
+			fclose(srcFile);
+			fclose(dstFile);
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			return -1;
+		}
+	}
+	fclose(srcFile);
+	fclose(dstFile);
+	DeleteFileRecursive(dst);
+	if (rename(tmp_local_path, dst)) {
+		printf("Error: The file have been decrypted at %s, but can't rename to %s.\n You should be rename manual.\n", tmp_local_path, dst);
+		//DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		return -1;
+	}
+	pcs_free(tmp_local_path);
+	printf("Success\n");
 	return 0;
 }
 
@@ -2865,8 +3023,9 @@ static inline int get_secure_method(ShellContext *context)
 
 static int cmd_encode(ShellContext *context, struct args *arg)
 {
-	int encrypt = 0, decrypt = 0, secure_method;
-	if (test_arg(arg, 2, 2, "d", "e", "h", "help", NULL)) {
+	int encrypt = 0, decrypt = 0, force = 0, secure_method;
+	LocalFileInfo *dstInfo;
+	if (test_arg(arg, 2, 2, "d", "e", "f", "h", "help", NULL)) {
 		usage_encode();
 		return -1;
 	}
@@ -2879,6 +3038,8 @@ static int cmd_encode(ShellContext *context, struct args *arg)
 		decrypt = 1;
 	if (has_opt(arg, "e"))
 		encrypt = 1;
+	if (has_opt(arg, "f"))
+		force = 1;
 
 	if (encrypt && decrypt) {
 		usage_encode();
@@ -2887,6 +3048,21 @@ static int cmd_encode(ShellContext *context, struct args *arg)
 
 	if (!encrypt && !decrypt)
 		decrypt = 1;
+
+	dstInfo = GetLocalFileInfo(arg->argv[1]);
+	if (dstInfo) {
+		if (dstInfo->isdir) {
+			printf("The dest is directory. %s", arg->argv[1]);
+			DestroyLocalFileInfo(dstInfo);
+			return -1;
+		}
+		else if (!force) {
+			printf("The dest is exist. You can use '-f' to force override. %s", arg->argv[1]);
+			DestroyLocalFileInfo(dstInfo);
+			return -1;
+		}
+		DestroyLocalFileInfo(dstInfo);
+	}
 
 	if (encrypt) {
 		secure_method = get_secure_method(context);
@@ -2905,7 +3081,7 @@ static int cmd_encode(ShellContext *context, struct args *arg)
 			printf("Error: You have not set the encrypt key. You can set it by '%s set'.", app_name);
 			return -1;
 		}
-		return decrypt_file(context, arg->argv[0], arg->argv[1]);
+		return decrypt_file(context, arg->argv[0], arg->argv[1], context->secure_key);
 	}
 	else {
 		usage_encode();
