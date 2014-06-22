@@ -447,8 +447,7 @@ char *fix_unix_path(char *path)
 int read_file(const char *file, char **pBuffer)
 {
 	FILE *fp;
-	long int save_pos;
-	long size_of_file;
+	long size_of_file, sz;
 	char *content;
 
 	fp = fopen(file, "rb");
@@ -456,7 +455,6 @@ int read_file(const char *file, char **pBuffer)
 		//printf("Open file fail: %s\n", file);
 		return -1;
 	}
-	save_pos = ftell(fp);
 	fseek(fp, 0L, SEEK_END);
 	size_of_file = ftell(fp);
 	if (size_of_file < 3) {
@@ -464,10 +462,15 @@ int read_file(const char *file, char **pBuffer)
 		fclose(fp);
 		return -1;
 	}
-	fseek(fp, save_pos, SEEK_SET);
+	fseek(fp, 0L, SEEK_SET);
 	content = (char *)pcs_malloc(size_of_file + 1);
-	save_pos = fread(content, 1, size_of_file, fp);
+	sz = fread(content, 1, size_of_file, fp);
 	fclose(fp);
+	if (sz != size_of_file) {
+		printf("Read file error: %s\n", file);
+		pcs_free(content);
+		return -1;
+	}
 	content[size_of_file] = '\0';
 	if ((((int)content[0]) & 0xEF) == 0xEF) {
 		if ((((int)content[1]) & 0xBB) == 0xBB) {
