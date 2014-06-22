@@ -9,7 +9,7 @@
 #include "pcs_slist.h"
 #include "pcs_utils.h"
 
-#define PCS_API_VERSION "v1.0.6"
+#define PCS_API_VERSION "v1.0.7"
 
 #define PCS_SECURE_NONE				((int)0)
 #define PCS_SECURE_PLAINTEXT		((int)1)
