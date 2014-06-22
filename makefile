@@ -76,7 +76,7 @@ install:
 
 .PHONY : clean
 clean :
-	-rm ./bin/*.o ./bin/libpcs.a ./bin/pcs ./test/version.h
+	-rm ./bin/*.o ./bin/libpcs.a ./bin/pcs ./version.h
 
 .PHONY : pre
 pre :
