@@ -10,9 +10,13 @@
 # include <direct.h>
 # include <WinSock2.h>
 # include <Windows.h>
+# include "pcs/openssl_aes.h"
+# include "pcs/openssl_md5.h"
 #else
 # include <inttypes.h>
 # include <termios.h>
+# include <openssl/aes.h>
+# include <openssl/md5.h>
 #endif
 
 #include "pcs/pcs_mem.h"
@@ -36,6 +40,10 @@
 #define PCS_CAPTCHA_ENV				"PCS_CAPTCHA"
 #define DOWNLOAD_TEMP_FILE_SUFFIX	".pcs_download"
 #define PCS_DEFAULT_CONTEXT_FILE	"/tmp/pcs_context.json"
+
+#ifndef PCS_BUFFER_SIZE
+#  define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
+#endif
 
 #define PRINT_PAGE_SIZE			20		/*列出目录或列出比较结果时，分页大小*/
 
@@ -129,6 +137,30 @@ struct RBEnumerateState
 	int dry_run;
 
 	const char *prefixion;
+};
+
+struct PcsAesHead
+{
+	int					magic; /*Should be AES*/
+	int					bits;
+	int					polish;
+};
+
+struct PcsAesState
+{
+	struct PcsAesHead	head;
+	int					mod;
+
+	AES_KEY				aes;
+	unsigned char		key[AES_BLOCK_SIZE];
+	unsigned char		iv[AES_BLOCK_SIZE];
+	unsigned char		buffer[PCS_BUFFER_SIZE];
+	int					buffer_size;
+	unsigned char		last_block[AES_BLOCK_SIZE]; /*128bits block*/
+	int					last_block_size;
+
+
+	MD5_CTX				md5; /*用于文件校验*/
 };
 
 static char *app_name = NULL;
@@ -1002,6 +1034,23 @@ static void usage_echo()
 	printf("  %s echo -a \"for test/src.txt\" \"This is from 'echo' command.\"\n", app_name);
 }
 
+/*打印encode命令用法*/
+static void usage_encode()
+{
+	version();
+	printf("\nUsage: %s encode [-deh] <src> <dst>\n", app_name);
+	printf("\nDescription:\n");
+	printf("  Encrypt/decrypt the file. Default option is '-d'\n");
+	printf("\nOptions:\n");
+	printf("  -d    Decrypt the file.\n");
+	printf("  -e    Encrypt the file.\n");
+	printf("  -h    Print the usage.\n");
+	printf("\nSamples:\n");
+	printf("  %s encode -h\n", app_name);
+	printf("  %s encode plain.txt cipher.txt \n", app_name);
+	printf("  %s encode -d cipher.txt plain.txt\n", app_name);
+}
+
 /*打印help命令用法*/
 static void usage_help()
 {
@@ -1333,6 +1382,7 @@ static void usage()
 		"  context  Print the context\n"
 		"  download Download the file\n"
 		"  echo     Write the text into net disk file\n"
+		"  encode   Encrypt/decrypt the file\n"
 		"  help     Print the usage\n"
 		"  list     List the directory\n"
 		"  login    Login\n"
@@ -2716,6 +2766,155 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 	return 0;
 }
 
+static int encrypt_file(const char *src, const char *dst, int secure_method, const char *secure_key)
+{
+	MD5_CTX md5;
+	unsigned char md5_value[16], buf[PCS_BUFFER_SIZE], out_buf[PCS_BUFFER_SIZE];
+	FILE *srcFile, *dstFile;
+	long file_sz, sz, buf_sz;
+	AES_KEY				aes = { 0 };
+	unsigned char		key[AES_BLOCK_SIZE] = { 0 };
+	unsigned char		iv[AES_BLOCK_SIZE] = { 0 };
+	int rc;
+	rc = AES_set_encrypt_key(md5_string_raw(secure_key), secure_method, &aes);
+	if (rc < 0) {
+		printf("Error: Can't set encryption key.\n");
+		return -1;
+	}
+	MD5_Init(&md5);
+	srcFile = fopen(src, "rb");
+	if (!srcFile) {
+		printf("Error: Can't open the source file: %s\n", src);
+		return -1;
+	}
+	dstFile = fopen(dst, "wb");
+	if (!dstFile) {
+		printf("Error: Can't open the dest file: %s\n", dst);
+		fclose(srcFile);
+		return -1;
+	}
+
+	fseek(srcFile, 0L, SEEK_END);
+	file_sz = ftell(srcFile);
+	fseek(srcFile, 0L, SEEK_SET);
+
+	sz = 0;
+	if (file_sz % AES_BLOCK_SIZE == 0) {
+		sz = file_sz;
+	}
+	else {
+		sz = (file_sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+	}
+	int2Buffer(PCS_AES_MAGIC, buf);
+	int2Buffer(secure_method, &buf[4]);
+	int2Buffer((int)(sz - file_sz), &buf[8]);
+	int2Buffer(0, &buf[12]);
+	sz = fwrite(buf, 1, 16, dstFile);
+	if (sz != 16) {
+		printf("Error: Write data to %s error. \n", dst);
+		fclose(srcFile);
+		fclose(dstFile);
+		return -1;
+	}
+
+	while ((sz = fread(buf, 1, PCS_BUFFER_SIZE, srcFile)) > 0) {
+		MD5_Update(&md5, buf, sz);
+		if ((sz % AES_BLOCK_SIZE) != 0) {
+			buf_sz = (sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+			memset(&buf[sz], 0, buf_sz - sz);
+		}
+		else {
+			buf_sz = sz;
+		}
+		// encrypt (iv will change)
+		AES_cbc_encrypt(buf, out_buf, buf_sz, &aes, iv, AES_ENCRYPT);
+		sz = fwrite(out_buf, 1, buf_sz, dstFile);
+		if (sz != buf_sz) {
+			printf("Error: Write data to %s error. \n", dst);
+			fclose(srcFile);
+			fclose(dstFile);
+			return -1;
+		}
+	}
+	MD5_Final(md5_value, &md5);
+	sz = fwrite(md5_value, 1, 16, dstFile);
+	if (sz != 16) {
+		printf("Error: Write data to %s error. \n", dst);
+		fclose(srcFile);
+		fclose(dstFile);
+		return -1;
+	}
+	fclose(srcFile);
+	fclose(dstFile);
+	return 0;
+}
+
+int decrypt_file(ShellContext *context, const char *src, const char *dst)
+{
+	return 0;
+}
+
+static inline int get_secure_method(ShellContext *context)
+{
+	if (!context->secure_method) return -1;
+	if (strcmp(context->secure_method, "aes-cbc-128")) return PCS_SECURE_AES_CBC_128;
+	if (strcmp(context->secure_method, "aes-cbc-192")) return PCS_SECURE_AES_CBC_192;
+	if (strcmp(context->secure_method, "aes-cbc-256")) return PCS_SECURE_AES_CBC_256;
+	return -1;
+}
+
+static int cmd_encode(ShellContext *context, struct args *arg)
+{
+	int encrypt = 0, decrypt = 0, secure_method;
+	if (test_arg(arg, 2, 2, "d", "e", "h", "help", NULL)) {
+		usage_encode();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_encode();
+		return 0;
+	}
+
+	if (has_opt(arg, "d"))
+		decrypt = 1;
+	if (has_opt(arg, "e"))
+		encrypt = 1;
+
+	if (encrypt && decrypt) {
+		usage_encode();
+		return -1;
+	}
+
+	if (!encrypt && !decrypt)
+		decrypt = 1;
+
+	if (encrypt) {
+		secure_method = get_secure_method(context);
+		if (secure_method != PCS_SECURE_AES_CBC_128 && secure_method != PCS_SECURE_AES_CBC_192 && secure_method != PCS_SECURE_AES_CBC_256) {
+			printf("Error: You have not set the encrypt method, the method should be one of [aes-cbc-128|aes-cbc-192|aes-cbc-256]. You can set it by '%s set'.\n", app_name);
+			return -1;
+		}
+		if (!context->secure_key || strlen(context->secure_key) == 0) {
+			printf("Error: You have not set the encrypt key. You can set it by '%s set'.", app_name);
+			return -1;
+		}
+		return encrypt_file(arg->argv[0], arg->argv[1], secure_method, context->secure_key);
+	}
+	else if (decrypt) {
+		if (!context->secure_key || strlen(context->secure_key) == 0) {
+			printf("Error: You have not set the encrypt key. You can set it by '%s set'.", app_name);
+			return -1;
+		}
+		return decrypt_file(context, arg->argv[0], arg->argv[1]);
+	}
+	else {
+		usage_encode();
+		return -1;
+	}
+
+	return 0;
+}
+
 /*打印帮助信息*/
 static int cmd_help(ShellContext *context, struct args *arg)
 {
@@ -2764,6 +2963,10 @@ static int cmd_help(ShellContext *context, struct args *arg)
 	}
 	else if (strcmp(cmd, "echo") == 0) {
 		usage_echo();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "encode") == 0) {
+		usage_encode();
 		rc = 0;
 	}
 	else if (strcmp(cmd, "list") == 0
@@ -3683,6 +3886,9 @@ static int exec_cmd(ShellContext *context, struct args *arg)
 	}
 	else if (strcmp(cmd, "echo") == 0) {
 		rc = cmd_echo(context, arg);
+	}
+	else if (strcmp(cmd, "encode") == 0) {
+		rc = cmd_encode(context, arg);
 	}
 	else if (strcmp(cmd, "list") == 0
 		|| strcmp(cmd, "ls") == 0) {
