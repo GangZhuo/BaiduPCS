@@ -1767,7 +1767,7 @@ static void print_meta_list_statistic(struct RBEnumerateState *s, int print_fail
 	total += s->other;
 	for (i = 0; i < total; i++) putchar('-');
 	putchar('\n');
-	printf("Download: %d, Upload: %d\n"
+	printf("Need Download: %d, Need Upload: %d\n"
 		   "Confuse: %d, Equal: %d, Other: %d\n"
 		   "Total: %d",
 		s->cnt_left, s->cnt_right, s->cnt_confuse, s->cnt_eq, s->cnt_none, s->cnt_total);
@@ -2120,6 +2120,11 @@ static int cmd_cat(ShellContext *context, struct args *arg)
 	if (!is_login(context, NULL)) return -1;
 	path = combin_net_disk_path(context->workdir, arg->argv[0]);
 	assert(path);
+	if (strcmp(path, "/") == 0) {
+		printf("Error: Can't cat root directory.");
+		pcs_free(path);
+		return -1;
+	}
 	res = pcs_cat(context->pcs, path, &sz);
 	if (res == NULL) {
 		printf("Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
@@ -2187,6 +2192,18 @@ static int cmd_copy(ShellContext *context, struct args *arg)
 	slist.string1 = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
 	slist.string2 = combin_net_disk_path(context->workdir, arg->argv[1]); /* new_name */
 	slist.next = NULL;
+	if (strcmp(slist.string1, "/") == 0) {
+		printf("Error: Can't copy root directory.");
+		pcs_free(slist.string1);
+		pcs_free(slist.string2);
+		return -1;
+	}
+	if (strcmp(slist.string2, "/") == 0) {
+		printf("Error: The new name can't be root directory.");
+		pcs_free(slist.string1);
+		pcs_free(slist.string2);
+		return -1;
+	}
 
 	res = pcs_copy(context->pcs, &slist);
 	if (!res) {
@@ -2481,14 +2498,20 @@ static int compare(ShellContext *context, compare_arg *arg,
 		DestroyLocalFileInfo(local);
 		return -1;
 	}
-
-	/*获取网盘文件元数据*/
-	remote = pcs_meta(context->pcs, path);
-	if (!remote) {
-		printf("Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
-		DestroyLocalFileInfo(local);
-		pcs_free(path);
-		return -1;
+	if (strcmp(path, "/") == 0) {
+		remote = pcs_fileinfo_create();
+		remote->path = pcs_utils_strdup("/");
+		remote->isdir = PcsTrue;
+	}
+	else {
+		/*获取网盘文件元数据*/
+		remote = pcs_meta(context->pcs, path);
+		if (!remote) {
+			printf("Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
+			DestroyLocalFileInfo(local);
+			pcs_free(path);
+			return -1;
+		}
 	}
 
 	/*本地是文件，远端是目录*/
@@ -2649,6 +2672,11 @@ static int cmd_download(ShellContext *context, struct args *arg)
 	}
 
 	path = combin_net_disk_path(context->workdir, relPath);
+	if (strcmp(path, "/") == 0) {
+		printf("Error: Can't download root directory. \nYou can use 'synch -cd' command to download the directory.\n");
+		pcs_free(path);
+		return -1;
+	}
 
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
@@ -2709,6 +2737,12 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 	path = combin_net_disk_path(context->workdir, relPath);
 	assert(path);
 	sz = strlen(text);
+
+	if (strcmp(path, "/") == 0) {
+		printf("Error: Can't specify root directory, you should specify the file name.\n");
+		pcs_free(path);
+		return -1;
+	}
 
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
@@ -3388,6 +3422,11 @@ static int cmd_meta(ShellContext *context, struct args *arg)
 	else
 		path = context->workdir;
 	assert(path);
+	if (strcmp(path, "/") == 0) {
+		printf("Error: Can't get meta for root directory.\n");
+		if (path != context->workdir) pcs_free(path);
+		return -1;
+	}
 	fi = pcs_meta(context->pcs, path);
 	if (!fi) {
 		printf("Error: The target not exist, or have error: %s\n", pcs_strerror(context->pcs));
@@ -3416,6 +3455,11 @@ static int cmd_mkdir(ShellContext *context, struct args *arg)
 	if (!is_login(context, NULL)) return -1;
 	path = combin_net_disk_path(context->workdir, arg->argv[0]);
 	assert(path);
+	if (strcmp(path, "/") == 0) {
+		printf("Error: The root directory have been exist.\n");
+		pcs_free(path);
+		return -1;
+	}
 	res = pcs_mkdir(context->pcs, path);
 	if (res != PCS_OK) {
 		printf("Error: %s\n", pcs_strerror(context->pcs));
@@ -3445,6 +3489,18 @@ static int cmd_move(ShellContext *context, struct args *arg)
 	slist.string1 = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
 	slist.string2 = combin_net_disk_path(context->workdir, arg->argv[1]); /* new_name */
 	slist.next = NULL;
+	if (strcmp(slist.string1, "/") == 0) {
+		printf("Error: Can't move root directory.\n");
+		pcs_free(slist.string1);
+		pcs_free(slist.string2);
+		return -1;
+	}
+	if (strcmp(slist.string2, "/") == 0) {
+		printf("Error: Can't move to root directory.\n");
+		pcs_free(slist.string1);
+		pcs_free(slist.string2);
+		return -1;
+	}
 
 	res = pcs_move(context->pcs, &slist);
 	if (!res) {
@@ -3540,6 +3596,11 @@ static int cmd_remove(ShellContext *context, struct args *arg)
 	if (!is_login(context, NULL)) return -1;
 	slist.string = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
 	slist.next = NULL;
+	if (strcmp(slist.string, "/") == 0) {
+		printf("Error: Can't remove root directory.\n");
+		pcs_free(slist.string);
+		return -1;
+	}
 
 	res = pcs_delete(context->pcs, &slist);
 	if (!res) {
@@ -3587,6 +3648,16 @@ static int cmd_rename(ShellContext *context, struct args *arg)
 	slist.string1 = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
 	slist.string2 = arg->argv[1]; /* new_name */
 	slist.next = NULL;
+	if (strcmp(slist.string1, "/") == 0) {
+		printf("Error: Can't rename root directory.\n");
+		pcs_free(slist.string1);
+		return -1;
+	}
+	if (strcmp(slist.string2, "/") == 0) {
+		printf("Error: Can't rename to root directory.\n");
+		pcs_free(slist.string1);
+		return -1;
+	}
 
 	res = pcs_rename(context->pcs, &slist);
 	if (!res) {
@@ -3949,6 +4020,13 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 	path = combin_net_disk_path(context->workdir, relPath);
 	if (!path) {
 		assert(path);
+		return -1;
+	}
+
+	if (strcmp(path, "/") == 0) {
+		printf("Error: Can't specify root directory, you should specify the file name.\n");
+		pcs_fileinfo_destroy(meta);
+		pcs_free(path);
 		return -1;
 	}
 
