@@ -120,7 +120,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
     
 
 ### 下载文件
-    pcs [-f] <remote file> <local file>
+    pcs download [-f] <remote file> <local file>
     
     只能下载文件，如果需要下载目录，请使用 'pcs synch -d <remote dir> <local dir>'。
     
@@ -300,7 +300,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
     注意：推荐每次都带上'-c'选项，可以打印出不知道如何处理的文件或目录，防止漏上传或下载。
 
 ### 上传文件
-    pcs [-f] <local file> <remote file>
+    pcs upload [-f] <local file> <remote file>
     
     只能上传文件，如果需要上传目录，请使用 'pcs synch' 命令。
     
