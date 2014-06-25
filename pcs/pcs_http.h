@@ -64,6 +64,10 @@ typedef enum PcsHttpOption {
 	PCS_HTTP_OPTION_PROGRESS,
 	/* 设置USAGE，值为char类型指针 */
 	PCS_HTTP_OPTION_USAGE,
+	/*设置整个请求的超时时间，值为long类型*/
+	PCS_HTTP_OPTION_TIMEOUT,
+	/*设置连接前的等待时间，值为long类型*/
+	PCS_HTTP_OPTION_CONNECTTIMEOUT,
 
 
 } PcsHttpOption;

@@ -47,6 +47,9 @@ struct pcs_http {
 	unsigned char			progress;
 	PcsHttpProgressCallback progress_func;
 	void					*progress_data;
+
+	int						timeout;
+	int						connect_timeout;
 };
 
 struct http_post {
@@ -100,6 +103,8 @@ static inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod metho
 		break;
 	}
 	curl_easy_setopt(http->curl, CURLOPT_HEADER, 1L);
+	curl_easy_setopt(http->curl, CURLOPT_CONNECTTIMEOUT, (long)http->connect_timeout);
+	curl_easy_setopt(http->curl, CURLOPT_TIMEOUT, (long)http->timeout);
 	curl_easy_setopt(http->curl, CURLOPT_WRITEFUNCTION, write_func);
 	curl_easy_setopt(http->curl, CURLOPT_WRITEDATA, state);
 
@@ -420,12 +425,17 @@ PCS_API PcsHttp pcs_http_create(const char *cookie_file)
 	if (!http)
 		return NULL;
 	memset(http, 0, sizeof(struct pcs_http));
+	http->timeout = 0;
+	http->connect_timeout = 10;
 	http->curl = curl_easy_init();
 	if (!http->curl) {
 		pcs_free(http);
 		return NULL;
 	}
 	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYPEER, 0L);
+	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYHOST, 0L);
+	curl_easy_setopt(http->curl, CURLOPT_LOW_SPEED_LIMIT, 1024L);
+	curl_easy_setopt(http->curl, CURLOPT_LOW_SPEED_TIME, 10L);
 	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYHOST, 0L);
 	curl_easy_setopt(http->curl, CURLOPT_USERAGENT, USAGE);
 	curl_easy_setopt(http->curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -502,6 +512,12 @@ PCS_API void pcs_http_setopt(PcsHttp handle, PcsHttpOption opt, void *value)
 	case PCS_HTTP_OPTION_USAGE:
 		if (http->usage) pcs_free(http->usage);
 		http->usage = value ? pcs_utils_strdup((char *)value) : NULL;
+		break;
+	case PCS_HTTP_OPTION_TIMEOUT:
+		http->timeout = (int)((long)value);
+		break;
+	case PCS_HTTP_OPTION_CONNECTTIMEOUT:
+		http->connect_timeout = (int)((long)value);
 		break;
 	default:
 		break;
