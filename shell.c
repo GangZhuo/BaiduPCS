@@ -48,6 +48,23 @@
 #  define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
 #endif
 
+#define NONE         "\033[m"
+#define RED          "\033[0;32;31m"
+#define LIGHT_RED    "\033[1;31m"
+#define GREEN        "\033[0;32;32m"
+#define LIGHT_GREEN  "\033[1;32m"
+#define BLUE         "\033[0;32;34m"
+#define LIGHT_BLUE   "\033[1;34m"
+#define DARY_GRAY    "\033[1;30m"
+#define CYAN         "\033[0;36m"
+#define LIGHT_CYAN   "\033[1;36m"
+#define PURPLE       "\033[0;35m"
+#define LIGHT_PURPLE "\033[1;35m"
+#define BROWN        "\033[0;33m"
+#define YELLOW       "\033[1;33m"
+#define LIGHT_GRAY   "\033[0;37m"
+#define WHITE        "\033[1;37m"
+
 #define PRINT_PAGE_SIZE			20		/*列出目录或列出比较结果时，分页大小*/
 
 #define OP_NONE					0
@@ -700,7 +717,7 @@ static void save_context(ShellContext *context)
 	filename = contextfile();
 	pf = fopen(filename, "wb");
 	if (!pf) {
-		printf("Can't open the file: %s\n", filename);
+		fprintf(stderr, "Error: Can't open the file: %s\n", filename);
 		pcs_free(json);
 		return;
 	}
@@ -726,13 +743,13 @@ static int restore_context(ShellContext *context, const char *filename)
 	}
 	filesize = read_file(filename, &filecontent);
 	if (filesize <= 0) {
-		printf("Error: Can't read the context file (%s).\n", filename, app_name);
+		fprintf(stderr, "Error: Can't read the context file (%s).\n", filename, app_name);
 		if (filecontent) pcs_free(filecontent);
 		return -1;
 	}
 	root = cJSON_Parse(filecontent);
 	if (!root) {
-		printf("Error: Broken context file (%s).\n", filename, app_name);
+		fprintf(stderr, "Error: Broken context file (%s).\n", filename, app_name);
 		pcs_free(filecontent);
 		return -1;
 	}
@@ -1753,12 +1770,26 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 {
 	int i;
 	if (first > 0) {
-		printf("%s", meta->op_st == OP_ST_SUCC ? "[ ok ] "
-			: (meta->op_st == OP_ST_FAIL ? "[fail] "
-			: (meta->op_st == OP_ST_SKIP ? "[skip] "
-			: (meta->op_st == OP_ST_CONFUSE ? "[confus]"
-			: (meta->op_st == OP_ST_PROCESSING ? "[ing...]"
-			: "[    ] ")))));
+		switch (meta->op_st) {
+		case OP_ST_SUCC:
+			printf("[" GREEN " ok " NONE "] ");
+			break;
+		case OP_ST_FAIL:
+			printf("[" RED "fail" NONE "] ");
+			break;
+		case OP_ST_SKIP:
+			printf("[" WHITE "skip" NONE "] ");
+			break;
+		case OP_ST_CONFUSE:
+			printf("[" YELLOW "confus" NONE "] ");
+			break;
+		case OP_ST_PROCESSING:
+			printf("[ing...] ");
+			break;
+		default:
+			printf("[    ] ");
+			break;
+		}
 	}
 	if (meta->flag & FLAG_ON_LOCAL) {
 		printf("%s", meta->path);
@@ -1773,11 +1804,24 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 	}
 	for (; i < second; i++) putchar(' ');
 	putchar(' ');
-	printf("%s ", meta->op == OP_LEFT ? "<-"
-		: (meta->op == OP_RIGHT ? "->"
-		: (meta->op == OP_EQ ? "=="
-		: (meta->op == OP_CONFUSE ? "><"
-		: "  "))));
+	switch (meta->op) {
+	case OP_LEFT:
+		printf(BLUE"<-"NONE);
+		break;
+	case OP_RIGHT:
+		printf(LIGHT_BLUE"->"NONE);
+		break;
+	case OP_EQ:
+		printf(GREEN"=="NONE);
+		break;
+	case OP_CONFUSE:
+		printf(RED"><"NONE);
+		break;
+	default:
+		printf("  ");
+		break;
+	}
+	putchar(' ');
 	if (meta->flag & FLAG_ON_REMOTE) {
 		printf("%s", meta->remote_path);
 		i = strlen(meta->remote_path);
@@ -1785,7 +1829,80 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 			putchar('/');
 		}
 	}
-	printf("%s%s\n", meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
+	putchar('\n');
+	//if (meta->msg) {
+	//	fprintf(stderr, RED "Error: %s" NONE "\n", meta->msg);
+	//}
+}
+
+static void print_meta_list_row_err(int first, int second, int other, MyMeta *meta)
+{
+	int i;
+	if (first > 0) {
+		switch (meta->op_st) {
+		case OP_ST_SUCC:
+			fprintf(stderr, "[" GREEN " ok " NONE "] ");
+			break;
+		case OP_ST_FAIL:
+			fprintf(stderr, "[" RED "fail" NONE "] ");
+			break;
+		case OP_ST_SKIP:
+			fprintf(stderr, "[" WHITE "skip" NONE "] ");
+			break;
+		case OP_ST_CONFUSE:
+			fprintf(stderr, "[" YELLOW "confus" NONE "] ");
+			break;
+		case OP_ST_PROCESSING:
+			fprintf(stderr, "[ing...] ");
+			break;
+		default:
+			fprintf(stderr, "[    ] ");
+			break;
+		}
+	}
+	if (meta->flag & FLAG_ON_LOCAL) {
+		fprintf(stderr, "%s", meta->path);
+		i = strlen(meta->path);
+		if (meta->local_isdir && i > 0 && meta->path[i - 1] != '/' && meta->path[i - 1] != '\\') {
+			fprintf(stderr, "/");
+			i++;
+		}
+	}
+	else {
+		i = 0;
+	}
+	for (; i < second; i++) fprintf(stderr, " ");
+	fprintf(stderr, " ");
+	switch (meta->op) {
+	case OP_LEFT:
+		fprintf(stderr, BLUE"<-"NONE);
+		break;
+	case OP_RIGHT:
+		fprintf(stderr, LIGHT_BLUE"->"NONE);
+		break;
+	case OP_EQ:
+		fprintf(stderr, GREEN"=="NONE);
+		break;
+	case OP_CONFUSE:
+		fprintf(stderr, RED"><"NONE);
+		break;
+	default:
+		fprintf(stderr, "  ");
+		break;
+	}
+	fprintf(stderr, " ");
+	if (meta->flag & FLAG_ON_REMOTE) {
+		fprintf(stderr, "%s", meta->remote_path);
+		i = strlen(meta->remote_path);
+		if (meta->remote_isdir && i > 0 && meta->remote_path[i - 1] != '/' && meta->remote_path[i - 1] != '\\') {
+			fprintf(stderr, "/");
+		}
+	}
+	if (meta->msg) {
+		fprintf(stderr, "\n");
+		fprintf(stderr, RED "      %s" NONE, meta->msg);
+	}
+	fprintf(stderr, "\n");
 }
 
 /*
@@ -1880,17 +1997,20 @@ static int rb_print_meta(void *a, void *state)
 	print_meta_list_row(s->first, s->second, s->other, meta);
 	
 	if (s->process) {
-		int rc;
-		if ((rc = (*s->process)(meta, s, s->processState))) {
-			clear_current_print_line();
-			back_prev_print_line();
-			if (meta->op_st == OP_ST_PROCESSING) meta->op_st = OP_ST_FAIL;
-			print_meta_list_row(s->first, s->second, s->other, meta);
-			return rc;
-		}
+		int rc = (*s->process)(meta, s, s->processState);
 		clear_current_print_line();
 		back_prev_print_line();
-		print_meta_list_row(s->first, s->second, s->other, meta);
+		if (meta->op_st == OP_ST_PROCESSING) meta->op_st = OP_ST_FAIL;
+		if (meta->op_st == OP_ST_FAIL) {
+			fprintf(stderr, "\033[K");  //清除该行
+			fprintf(stderr, "\033[1A"); //先回到上一行
+			fprintf(stderr, "\033[K");  //清除该行
+			print_meta_list_row_err(s->first, s->second, s->other, meta);
+		}
+		else {
+			print_meta_list_row(s->first, s->second, s->other, meta);
+		}
+		if (rc) return rc;
 	}
 
 	if (meta->op_st == OP_ST_FAIL)
@@ -2169,13 +2289,13 @@ static int cmd_cat(ShellContext *context, struct args *arg)
 	path = combin_net_disk_path(context->workdir, arg->argv[0]);
 	assert(path);
 	if (strcmp(path, "/") == 0) {
-		printf("Error: Can't cat root directory.");
+		fprintf(stderr, "Error: Can't cat root directory.");
 		pcs_free(path);
 		return -1;
 	}
 	res = pcs_cat(context->pcs, path, &sz);
 	if (res == NULL) {
-		printf("Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
+		fprintf(stderr, "Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
 		pcs_free(path);
 		return -1;
 	}
@@ -2202,12 +2322,12 @@ static int cmd_cd(ShellContext *context, struct args *arg)
 	if (strcmp(p, "/")) {
 		meta = pcs_meta(context->pcs, p);
 		if (!meta) {
-			printf("The target directory not exist, or have error: %s\n", pcs_strerror(context->pcs));
+			fprintf(stderr, "Error: The target directory not exist, or have error: %s\n", pcs_strerror(context->pcs));
 			pcs_free(p);
 			return -1;
 		}
 		if (!meta->isdir) {
-			printf("The target is not directory\n");
+			fprintf(stderr, "Error: The target is not directory\n");
 			pcs_free(p);
 			pcs_fileinfo_destroy(meta);
 			return -1;
@@ -2241,13 +2361,13 @@ static int cmd_copy(ShellContext *context, struct args *arg)
 	slist.string2 = combin_net_disk_path(context->workdir, arg->argv[1]); /* new_name */
 	slist.next = NULL;
 	if (strcmp(slist.string1, "/") == 0) {
-		printf("Error: Can't copy root directory.");
+		fprintf(stderr, "Error: Can't copy root directory.");
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
 		return -1;
 	}
 	if (strcmp(slist.string2, "/") == 0) {
-		printf("Error: The new name can't be root directory.");
+		fprintf(stderr, "Error: The new name can't be root directory.");
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
 		return -1;
@@ -2255,14 +2375,14 @@ static int cmd_copy(ShellContext *context, struct args *arg)
 
 	res = pcs_copy(context->pcs, &slist);
 	if (!res) {
-		printf("Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
+		fprintf(stderr, "Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
 		return -1;
 	}
 	info = res->info_list;
 	if (info->info.error) {
-		printf("Error: unknow. src=%s, dst=%s. \n", slist.string1, slist.string2);
+		fprintf(stderr, "Error: unknow. src=%s, dst=%s. \n", slist.string1, slist.string2);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
@@ -2372,7 +2492,7 @@ static int combin_with_remote_dir_files(ShellContext *context, rb_red_blk_tree *
 			"name", PcsFalse);
 		if (!list) {
 			if (pcs_strerror(context->pcs)) {
-				printf("Error: %s \n", pcs_strerror(context->pcs));
+				fprintf(stderr, "Error: %s \n", pcs_strerror(context->pcs));
 				if (context->timeout_retry && strstr(pcs_strerror(context->pcs), "Can't get response from the remote server") >= 0) {
 					second = 10;
 					while (second > 0) {
@@ -2546,7 +2666,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 	/*检查本地文件 - 开始*/
 	local = GetLocalFileInfo(arg->local_file);
 	if (!local) {
-		printf("Error: The local file not exist.\n");
+		fprintf(stderr, "Error: The local file not exist.\n");
 		return -1;
 	}
 	/*检查本地文件 - 结束*/
@@ -2572,7 +2692,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 		/*获取网盘文件元数据*/
 		remote = pcs_meta(context->pcs, path);
 		if (!remote) {
-			printf("Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
+			fprintf(stderr, "Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
 			DestroyLocalFileInfo(local);
 			pcs_free(path);
 			return -1;
@@ -2581,7 +2701,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 
 	/*本地是文件，远端是目录*/
 	if (!local->isdir && remote->isdir) {
-		printf("Error: Can't compare the file with directory.\n");
+		fprintf(stderr, "Error: Can't compare the file with directory.\n");
 		DestroyLocalFileInfo(local);
 		pcs_fileinfo_destroy(remote);
 		pcs_free(path);
@@ -2590,7 +2710,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 
 	/*本地是目录，远端是文件*/
 	if (local->isdir && !remote->isdir) {
-		printf("Error: Can't compare the directory with file.\n");
+		fprintf(stderr, "Error: Can't compare the directory with file.\n");
 		DestroyLocalFileInfo(local);
 		pcs_fileinfo_destroy(remote);
 		pcs_free(path);
@@ -2619,7 +2739,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 		printf("Scanning local file system...\n");
 		rb = meta_load(arg->local_file, arg->recursive);
 		if (!rb) {
-			printf("Error: Can't list the local directory.\n");
+			fprintf(stderr, "Error: Can't list the local directory.\n");
 			DestroyLocalFileInfo(local);
 			pcs_fileinfo_destroy(remote);
 			pcs_free(path);
@@ -2630,7 +2750,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 		if (remote->path[skip - 1] != '/' && remote->path[skip - 1] != '\\') skip++;
 		printf("Fetching net disk file list...\n");
 		if (combin_with_remote_dir_files(context, rb, remote->path, arg->recursive, skip, &total_cnt, arg->check_local_dir_exist)) {
-			printf("Error: Can't list the remote directory.\n");
+			fprintf(stderr, "Error: Can't list the remote directory.\n");
 			RBTreeDestroy(rb);
 			DestroyLocalFileInfo(local);
 			pcs_fileinfo_destroy(remote);
@@ -2722,13 +2842,13 @@ static int cmd_download(ShellContext *context, struct args *arg)
 	/*检查本地文件 - 开始*/
 	local = GetLocalFileInfo(locPath);
 	if (local && local->isdir) {
-		printf("Error: The local file exist, but it's a directory.\n");
+		fprintf(stderr, "Error: The local file exist, but it's a directory.\n");
 		DestroyLocalFileInfo(local);
 		return -1;
 	}
 	else if (local && !local->isdir) {
 		if (!is_force) {
-			printf("Error: The local file exist. You can specify '-f' to force override.\n", locPath);
+			fprintf(stderr, "Error: The local file exist. You can specify '-f' to force override.\n", locPath);
 			DestroyLocalFileInfo(local);
 			return -1;
 		}
@@ -2743,7 +2863,7 @@ static int cmd_download(ShellContext *context, struct args *arg)
 
 	path = combin_net_disk_path(context->workdir, relPath);
 	if (strcmp(path, "/") == 0) {
-		printf("Error: Can't download root directory. \nYou can use 'synch -cd' command to download the directory.\n");
+		fprintf(stderr, "Error: Can't download root directory. \nYou can use 'synch -cd' command to download the directory.\n");
 		pcs_free(path);
 		return -1;
 	}
@@ -2751,12 +2871,12 @@ static int cmd_download(ShellContext *context, struct args *arg)
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
 	if (!meta) {
-		printf("Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
+		fprintf(stderr, "Error: The remote file not exist, or have error: %s\n", pcs_strerror(context->pcs));
 		pcs_free(path);
 		return -1;
 	}
 	if (meta->isdir) {
-		printf("Error: The remote file is directory. \nYou can use 'synch -cd' command to download the directory.\n");
+		fprintf(stderr, "Error: The remote file is directory. \nYou can use 'synch -cd' command to download the directory.\n");
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
@@ -2769,7 +2889,7 @@ static int cmd_download(ShellContext *context, struct args *arg)
 		locPath, meta->path, meta->server_mtime,
 		"", context->workdir,
 		&errmsg, NULL)) {
-		printf("Error: %s\n", errmsg);
+		fprintf(stderr, "Error: %s\n", errmsg);
 		pcs_fileinfo_destroy(meta);
 		if (errmsg) pcs_free(errmsg);
 		pcs_free(path);
@@ -2809,7 +2929,7 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 	sz = strlen(text);
 
 	if (strcmp(path, "/") == 0) {
-		printf("Error: Can't specify root directory, you should specify the file name.\n");
+		fprintf(stderr, "Error: Can't specify root directory, you should specify the file name.\n");
 		pcs_free(path);
 		return -1;
 	}
@@ -2817,7 +2937,7 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
 	if (meta && meta->isdir) {
-		printf("Error: The remote file is directory. \n");
+		fprintf(stderr, "Error: The remote file is directory. \n");
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
@@ -2834,7 +2954,7 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 		//获取文件的内容
 		org = pcs_cat(context->pcs, path, &len);
 		if (org == NULL) {
-			printf("Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
+			fprintf(stderr, "Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
 			pcs_free(path);
 			return -1;
 		}
@@ -2850,7 +2970,7 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 	}
 	f = pcs_upload_buffer(context->pcs, path, PcsTrue, t, sz);
 	if (!f) {
-		printf("Error: %s. \n", pcs_strerror(context->pcs), path);
+		fprintf(stderr, "Error: %s. \n", pcs_strerror(context->pcs), path);
 		pcs_free(path);
 		if (t != text) pcs_free(t);
 		return -1;
@@ -2875,13 +2995,13 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	int rc;
 	rc = AES_set_encrypt_key(md5_string_raw(secure_key), secure_method, &aes);
 	if (rc < 0) {
-		printf("Error: Can't set encrypt key.\n");
+		fprintf(stderr, "Error: Can't set encrypt key.\n");
 		return -1;
 	}
 	MD5_Init(&md5);
 	srcFile = fopen(src, "rb");
 	if (!srcFile) {
-		printf("Error: Can't open the source file: %s\n", src);
+		fprintf(stderr, "Error: Can't open the source file: %s\n", src);
 		return -1;
 	}
 	tmp_local_path = (char *)pcs_malloc(strlen(dst) + strlen(TEMP_FILE_SUFFIX) + 1);
@@ -2889,7 +3009,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	strcat(tmp_local_path, TEMP_FILE_SUFFIX);
 	dstFile = fopen(tmp_local_path, "wb");
 	if (!dstFile) {
-		printf("Error: Can't create the temp file: %s\n", tmp_local_path);
+		fprintf(stderr, "Error: Can't create the temp file: %s\n", tmp_local_path);
 		fclose(srcFile);
 		pcs_free(tmp_local_path);
 		return -1;
@@ -2912,7 +3032,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	int2Buffer(0, &buf[12]);
 	sz = fwrite(buf, 1, 16, dstFile);
 	if (sz != 16) {
-		printf("Error: Write data to %s error. \n", dst);
+		fprintf(stderr, "Error: Write data to %s error. \n", dst);
 		fclose(srcFile);
 		fclose(dstFile);
 		DeleteFileRecursive(tmp_local_path);
@@ -2933,7 +3053,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 		AES_cbc_encrypt(buf, out_buf, buf_sz, &aes, iv, AES_ENCRYPT);
 		sz = fwrite(out_buf, 1, buf_sz, dstFile);
 		if (sz != buf_sz) {
-			printf("Error: Write data to %s error. \n", dst);
+			fprintf(stderr, "Error: Write data to %s error. \n", dst);
 			fclose(srcFile);
 			fclose(dstFile);
 			DeleteFileRecursive(tmp_local_path);
@@ -2944,7 +3064,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	MD5_Final(md5_value, &md5);
 	sz = fwrite(md5_value, 1, 16, dstFile);
 	if (sz != 16) {
-		printf("Error: Write data to %s error. \n", dst);
+		fprintf(stderr, "Error: Write data to %s error. \n", dst);
 		fclose(srcFile);
 		fclose(dstFile);
 		DeleteFileRecursive(tmp_local_path);
@@ -2955,7 +3075,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	fclose(dstFile);
 	DeleteFileRecursive(dst);
 	if (rename(tmp_local_path, dst)) {
-		printf("Error: The file have been encrypted at %s, but can't rename to %s.\n You should be rename manual.\n", tmp_local_path, dst);
+		fprintf(stderr, "Error: The file have been encrypted at %s, but can't rename to %s.\n You should be rename manual.\n", tmp_local_path, dst);
 		DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		return -1;
@@ -2988,7 +3108,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 	MD5_Init(&md5);
 	srcFile = fopen(src, "rb");
 	if (!srcFile) {
-		printf("Error: Can't open the source file: %s\n", src);
+		fprintf(stderr, "Error: Can't open the source file: %s\n", src);
 		return -1;
 	}
 	tmp_local_path = (char *)pcs_malloc(strlen(dst) + strlen(TEMP_FILE_SUFFIX) + 1);
@@ -2996,7 +3116,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 	strcat(tmp_local_path, TEMP_FILE_SUFFIX);
 	dstFile = fopen(tmp_local_path, "wb");
 	if (!dstFile) {
-		printf("Error: Can't create the temp file: %s\n", tmp_local_path);
+		fprintf(stderr, "Error: Can't create the temp file: %s\n", tmp_local_path);
 		fclose(srcFile);
 		pcs_free(tmp_local_path);
 		return -1;
@@ -3007,7 +3127,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 	fseek(srcFile, 0L, SEEK_SET);
 
 	if (file_sz < 32 || ((file_sz - 32) % AES_BLOCK_SIZE) != 0) {
-		printf("Error: The file is not a encrypt file or is broken.\n");
+		fprintf(stderr, "Error: The file is not a encrypt file or is broken.\n");
 		fclose(srcFile);
 		fclose(dstFile);
 		DeleteFileRecursive(tmp_local_path);
@@ -3017,7 +3137,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 
 	sz = fread(buf, 1, 16, srcFile);
 	if (sz != 16) {
-		printf("Error: Can't read the source file: %s\n", src);
+		fprintf(stderr, "Error: Can't read the source file: %s\n", src);
 		fclose(srcFile);
 		fclose(dstFile);
 		DeleteFileRecursive(tmp_local_path);
@@ -3027,7 +3147,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 
 	readToAesHead(buf, &head);
 	if (head.magic != PCS_AES_MAGIC || (head.bits != 128 && head.bits != 192 && head.bits != 256)) {
-		printf("Error: The file is not a encrypt file or is broken.\n");
+		fprintf(stderr, "Error: The file is not a encrypt file or is broken.\n");
 		fclose(srcFile);
 		fclose(dstFile);
 		DeleteFileRecursive(tmp_local_path);
@@ -3037,7 +3157,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 
 	rc = AES_set_decrypt_key(md5_string_raw(secure_key), head.bits, &aes);
 	if (rc < 0) {
-		printf("Error: Can't set decrypt key.\n");
+		fprintf(stderr, "Error: Can't set decrypt key.\n");
 		fclose(srcFile);
 		fclose(dstFile);
 		DeleteFileRecursive(tmp_local_path);
@@ -3053,7 +3173,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 	}
 	while ((sz = fread(buf, 1, buf_sz, srcFile)) > 0) {
 		if (sz != buf_sz) {
-			printf("Error: Can't read the source file: %s\n", src);
+			fprintf(stderr, "Error: Can't read the source file: %s\n", src);
 			fclose(srcFile);
 			fclose(dstFile);
 			DeleteFileRecursive(tmp_local_path);
@@ -3068,7 +3188,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 		MD5_Update(&md5, out_buf, buf_sz);
 		sz = fwrite(out_buf, 1, buf_sz, dstFile);
 		if (sz != buf_sz) {
-			printf("Error: Write data to %s error. \n", dst);
+			fprintf(stderr, "Error: Write data to %s error. \n", dst);
 			fclose(srcFile);
 			fclose(dstFile);
 			DeleteFileRecursive(tmp_local_path);
@@ -3087,7 +3207,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 	MD5_Final(md5_value, &md5);
 	sz = fread(buf, 1, 16, srcFile);
 	if (sz != 16) {
-		printf("Error: Can't read the source file: %s\n", src);
+		fprintf(stderr, "Error: Can't read the source file: %s\n", src);
 		fclose(srcFile);
 		fclose(dstFile);
 		DeleteFileRecursive(tmp_local_path);
@@ -3096,7 +3216,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 	}
 	for (i = 0; i < 16; i++) {
 		if (md5_value[i] != buf[i]) {
-			printf("Error: Wrong key or broken file\n");
+			fprintf(stderr, "Error: Wrong key or broken file\n");
 			fclose(srcFile);
 			fclose(dstFile);
 			DeleteFileRecursive(tmp_local_path);
@@ -3108,7 +3228,7 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 	fclose(dstFile);
 	DeleteFileRecursive(dst);
 	if (rename(tmp_local_path, dst)) {
-		printf("Error: The file have been decrypted at %s, but can't rename to %s.\n You should be rename manual.\n", tmp_local_path, dst);
+		fprintf(stderr, "Error: The file have been decrypted at %s, but can't rename to %s.\n You should be rename manual.\n", tmp_local_path, dst);
 		//DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		return -1;
@@ -3158,12 +3278,12 @@ static int cmd_encode(ShellContext *context, struct args *arg)
 	dstInfo = GetLocalFileInfo(arg->argv[1]);
 	if (dstInfo) {
 		if (dstInfo->isdir) {
-			printf("The dest is directory. %s", arg->argv[1]);
+			fprintf(stderr, "Error: The dest is directory. %s", arg->argv[1]);
 			DestroyLocalFileInfo(dstInfo);
 			return -1;
 		}
 		else if (!force) {
-			printf("The dest is exist. You can use '-f' to force override. %s", arg->argv[1]);
+			fprintf(stderr, "Error: The dest is exist. You can use '-f' to force override. %s", arg->argv[1]);
 			DestroyLocalFileInfo(dstInfo);
 			return -1;
 		}
@@ -3173,18 +3293,18 @@ static int cmd_encode(ShellContext *context, struct args *arg)
 	if (encrypt) {
 		secure_method = get_secure_method(context);
 		if (secure_method != PCS_SECURE_AES_CBC_128 && secure_method != PCS_SECURE_AES_CBC_192 && secure_method != PCS_SECURE_AES_CBC_256) {
-			printf("Error: You have not set the encrypt method, the method should be one of [aes-cbc-128|aes-cbc-192|aes-cbc-256]. You can set it by '%s set'.\n", app_name);
+			fprintf(stderr, "Error: You have not set the encrypt method, the method should be one of [aes-cbc-128|aes-cbc-192|aes-cbc-256]. You can set it by '%s set'.\n", app_name);
 			return -1;
 		}
 		if (!context->secure_key || strlen(context->secure_key) == 0) {
-			printf("Error: You have not set the encrypt key. You can set it by '%s set'.", app_name);
+			fprintf(stderr, "Error: You have not set the encrypt key. You can set it by '%s set'.", app_name);
 			return -1;
 		}
 		return encrypt_file(arg->argv[0], arg->argv[1], secure_method, context->secure_key);
 	}
 	else if (decrypt) {
 		if (!context->secure_key || strlen(context->secure_key) == 0) {
-			printf("Error: You have not set the encrypt key. You can set it by '%s set'.", app_name);
+			fprintf(stderr, "Error: You have not set the encrypt key. You can set it by '%s set'.", app_name);
 			return -1;
 		}
 		return decrypt_file(context, arg->argv[0], arg->argv[1], context->secure_key);
@@ -3372,7 +3492,7 @@ static int cmd_list(ShellContext *context, struct args *arg)
 			streq(context->list_sort_direction, "desc", -1) ? PcsTrue: PcsFalse);
 		if (!list) {
 			if (pcs_strerror(context->pcs)) {
-				printf("Error: %s\n", pcs_strerror(context->pcs));
+				fprintf(stderr, "Error: %s\n", pcs_strerror(context->pcs));
 				pcs_free(path);
 				return -1;
 			}
@@ -3461,7 +3581,7 @@ static int cmd_logout(ShellContext *context, struct args *arg)
 		return 0;
 	}
 	if (!is_login(context, "")) {
-		printf("You are not login, you can use 'login' command to login.\n");
+		fprintf(stderr, "You are not login, you can use 'login' command to login.\n");
 		return -1;
 	}
 	pcsres = pcs_logout(context->pcs);
@@ -3493,13 +3613,13 @@ static int cmd_meta(ShellContext *context, struct args *arg)
 		path = context->workdir;
 	assert(path);
 	if (strcmp(path, "/") == 0) {
-		printf("Error: Can't get meta for root directory.\n");
+		fprintf(stderr, "Error: Can't get meta for root directory.\n");
 		if (path != context->workdir) pcs_free(path);
 		return -1;
 	}
 	fi = pcs_meta(context->pcs, path);
 	if (!fi) {
-		printf("Error: The target not exist, or have error: %s\n", pcs_strerror(context->pcs));
+		fprintf(stderr, "Error: The target not exist, or have error: %s\n", pcs_strerror(context->pcs));
 		if (path != context->workdir) pcs_free(path);
 		return -1;
 	}
@@ -3526,13 +3646,13 @@ static int cmd_mkdir(ShellContext *context, struct args *arg)
 	path = combin_net_disk_path(context->workdir, arg->argv[0]);
 	assert(path);
 	if (strcmp(path, "/") == 0) {
-		printf("Error: The root directory have been exist.\n");
+		fprintf(stderr, "Error: The root directory have been exist.\n");
 		pcs_free(path);
 		return -1;
 	}
 	res = pcs_mkdir(context->pcs, path);
 	if (res != PCS_OK) {
-		printf("Error: %s\n", pcs_strerror(context->pcs));
+		fprintf(stderr, "Error: %s\n", pcs_strerror(context->pcs));
 		pcs_free(path);
 		return -1;
 	}
@@ -3560,13 +3680,13 @@ static int cmd_move(ShellContext *context, struct args *arg)
 	slist.string2 = combin_net_disk_path(context->workdir, arg->argv[1]); /* new_name */
 	slist.next = NULL;
 	if (strcmp(slist.string1, "/") == 0) {
-		printf("Error: Can't move root directory.\n");
+		fprintf(stderr, "Error: Can't move root directory.\n");
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
 		return -1;
 	}
 	if (strcmp(slist.string2, "/") == 0) {
-		printf("Error: Can't move to root directory.\n");
+		fprintf(stderr, "Error: Can't move to root directory.\n");
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
 		return -1;
@@ -3574,14 +3694,14 @@ static int cmd_move(ShellContext *context, struct args *arg)
 
 	res = pcs_move(context->pcs, &slist);
 	if (!res) {
-		printf("Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
+		fprintf(stderr, "Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
 		return -1;
 	}
 	info = res->info_list;
 	if (info->info.error) {
-		printf("Error: unknow src=%s, dst=%s. \n", slist.string1, slist.string2);
+		fprintf(stderr, "Error: unknow src=%s, dst=%s. \n", slist.string1, slist.string2);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string1);
 		pcs_free(slist.string2);
@@ -3630,7 +3750,7 @@ static int cmd_quota(ShellContext *context, struct args *arg)
 	if (!is_login(context, NULL)) return -1;
 	pcsres = pcs_quota(context->pcs, &quota, &used);
 	if (pcsres != PCS_OK) {
-		printf("Error: %s\n", pcs_strerror(context->pcs));
+		fprintf(stderr, "Error: %s\n", pcs_strerror(context->pcs));
 		return -1;
 	}
 	if (is_exact) {
@@ -3667,20 +3787,20 @@ static int cmd_remove(ShellContext *context, struct args *arg)
 	slist.string = combin_net_disk_path(context->workdir, arg->argv[0]); /* path */
 	slist.next = NULL;
 	if (strcmp(slist.string, "/") == 0) {
-		printf("Error: Can't remove root directory.\n");
+		fprintf(stderr, "Error: Can't remove root directory.\n");
 		pcs_free(slist.string);
 		return -1;
 	}
 
 	res = pcs_delete(context->pcs, &slist);
 	if (!res) {
-		printf("Error: %s path=%s.\n", pcs_strerror(context->pcs), slist.string);
+		fprintf(stderr, "Error: %s path=%s.\n", pcs_strerror(context->pcs), slist.string);
 		pcs_free(slist.string);
 		return -1;
 	}
 	info = res->info_list;
 	if (info->info.error) {
-		printf("Error: unknow path=%s. \n", slist.string);
+		fprintf(stderr, "Error: unknow path=%s. \n", slist.string);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string);
 		return -1;
@@ -3709,7 +3829,7 @@ static int cmd_rename(ShellContext *context, struct args *arg)
 	p = arg->argv[1];
 	while (*p) {
 		if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' || *p == '?' || *p == '"' || *p == '<' || *p == '>' || *p == '|') {
-			printf("The file name can't include \"/\\:*?\"<>|\"\n");
+			fprintf(stderr, "Error: The file name can't include \"/\\:*?\"<>|\"\n");
 			return -1;
 		}
 		p++;
@@ -3719,25 +3839,25 @@ static int cmd_rename(ShellContext *context, struct args *arg)
 	slist.string2 = arg->argv[1]; /* new_name */
 	slist.next = NULL;
 	if (strcmp(slist.string1, "/") == 0) {
-		printf("Error: Can't rename root directory.\n");
+		fprintf(stderr, "Error: Can't rename root directory.\n");
 		pcs_free(slist.string1);
 		return -1;
 	}
 	if (strcmp(slist.string2, "/") == 0) {
-		printf("Error: Can't rename to root directory.\n");
+		fprintf(stderr, "Error: Can't rename to root directory.\n");
 		pcs_free(slist.string1);
 		return -1;
 	}
 
 	res = pcs_rename(context->pcs, &slist);
 	if (!res) {
-		printf("Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
+		fprintf(stderr, "Error: %s src=%s, dst=%s.\n", pcs_strerror(context->pcs), slist.string1, slist.string2);
 		pcs_free(slist.string1);
 		return -1;
 	}
 	info = res->info_list;
 	if (info->info.error) {
-		printf("Error: unknow src=%s, dst=%s. \n", slist.string1, slist.string2);
+		fprintf(stderr, "Error: unknow src=%s, dst=%s. \n", slist.string1, slist.string2);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string1);
 		return -1;
@@ -3869,7 +3989,7 @@ static int cmd_search(ShellContext *context, struct args *arg)
 	list = pcs_search(context->pcs, path, keyword, is_recursive ? PcsTrue : PcsFalse);
 	if (!list) {
 		if (pcs_strerror(context->pcs)) {
-			printf("Error: %s\n", pcs_strerror(context->pcs));
+			fprintf(stderr, "Error: %s\n", pcs_strerror(context->pcs));
 			pcs_free(path);
 			return -1;
 		}
@@ -4071,11 +4191,11 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 	/*检查本地文件 - 开始*/
 	local = GetLocalFileInfo(locPath);
 	if (!local) {
-		printf("Error: The local file not exist.\n");
+		fprintf(stderr, "Error: The local file not exist.\n");
 		return -1;
 	}
 	else if (local->isdir) {
-		printf("Error: The local file is directory. \nYou can use 'synch -cu' command to upload the directory.\n", locPath);
+		fprintf(stderr, "Error: The local file is directory. \nYou can use 'synch -cu' command to upload the directory.\n", locPath);
 		DestroyLocalFileInfo(local);
 		return -1;
 	}
@@ -4094,8 +4214,7 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 	}
 
 	if (strcmp(path, "/") == 0) {
-		printf("Error: Can't specify root directory, you should specify the file name.\n");
-		pcs_fileinfo_destroy(meta);
+		fprintf(stderr, "Error: Can't specify root directory, you should specify the file name.\n");
 		pcs_free(path);
 		return -1;
 	}
@@ -4103,13 +4222,13 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
 	if (meta && meta->isdir) {
-		printf("Error: The remote file exist, and it is directory. \n");
+		fprintf(stderr, "Error: The remote file exist, and it is directory. \n");
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
 	}
 	else if (meta && !is_force){
-		printf("Error: The remote file exist. You can specify '-f' to force override.\n");
+		fprintf(stderr, "Error: The remote file exist. You can specify '-f' to force override.\n");
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
@@ -4121,7 +4240,7 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 		locPath, path, is_force ? PcsTrue : PcsFalse,
 		"", context->workdir,
 		&errmsg, NULL)) {
-		printf("Error: %s\n", errmsg);
+		fprintf(stderr, "Error: %s\n", errmsg);
 		if (errmsg) pcs_free(errmsg);
 		pcs_free(path);
 		if (meta) pcs_fileinfo_destroy(meta);
