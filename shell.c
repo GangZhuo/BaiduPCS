@@ -34,12 +34,15 @@
 #include "shell.h"
 
 #define USAGE "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36"
+#define TIMEOUT						60
+#define CONNECTTIMEOUT				10
 
 #define PCS_CONTEXT_ENV				"PCS_CONTEXT"
 #define PCS_COOKIE_ENV				"PCS_COOKIE"
 #define PCS_CAPTCHA_ENV				"PCS_CAPTCHA"
 #define TEMP_FILE_SUFFIX			".pcs_temp"
 //#define PCS_DEFAULT_CONTEXT_FILE	"/tmp/pcs_context.json"
+
 
 #ifndef PCS_BUFFER_SIZE
 #  define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
@@ -147,6 +150,12 @@ struct PcsAesHead
 	int					reserve;
 };
 
+struct ScanLocalFileState
+{
+	rb_red_blk_tree *rb;
+	int				total;
+};
+
 static char *app_name = NULL;
 
 /*
@@ -246,6 +255,9 @@ int u8_tombs_size(const char *src, int srcsz)
 	return err;
 }
 # define printf u8_printf
+
+# define sleep(s) Sleep((s) * 1000)
+
 #endif
 
 #pragma region 获取默认路径
@@ -664,6 +676,10 @@ static char *context2str(ShellContext *context)
 	assert(item);
 	cJSON_AddItemToObject(root, "secure_enable", item);
 
+	item = cJSON_CreateBool(context->timeout_retry);
+	assert(item);
+	cJSON_AddItemToObject(root, "timeout_retry", item);
+
 	json = cJSON_Print(root);
 	assert(json);
 
@@ -808,6 +824,11 @@ static int restore_context(ShellContext *context, const char *filename)
 		context->secure_enable = item->valueint ? 1 : 0;
 	}
 
+	item = cJSON_GetObjectItem(root, "timeout_retry");
+	if (item) {
+		context->timeout_retry = item->valueint ? 1 : 0;
+	}
+
 	cJSON_Delete(root);
 	pcs_free(filecontent);
 	if (context->contextfile) pcs_free(context->contextfile);
@@ -830,6 +851,8 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->secure_method = pcs_utils_strdup("plaintext");
 	context->secure_key = pcs_utils_strdup("");
 	context->secure_enable = 1;
+
+	context->timeout_retry = 1;
 }
 
 /*释放上下文*/
@@ -890,6 +913,8 @@ static void init_pcs(ShellContext *context)
 		PCS_OPTION_PROGRESS_FUNCTION, (void *)&upload_progress,
 		PCS_OPTION_PROGRESS, (void *)((long)PcsFalse),
 		PCS_OPTION_USAGE, (void *)USAGE,
+		//PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
+		PCS_OPTION_CONNECTTIMEOUT, (void *)((long)CONNECTTIMEOUT),
 		PCS_OPTION_END);
 	init_pcs_secure(context);
 }
@@ -1609,7 +1634,8 @@ static void meta_destroy(MyMeta *meta)
 /*meta_load()函数中当获取到一个文件后的回调函数*/
 static void onGotLocalFile(LocalFileInfo *info, LocalFileInfo *parent, void *state)
 {
-	rb_red_blk_tree *rb = (rb_red_blk_tree *)state;
+	struct ScanLocalFileState *st = (struct ScanLocalFileState *)state;
+	rb_red_blk_tree *rb = st->rb;
 	MyMeta *meta;
 	if (!info->isdir && endsWith(info->path, TEMP_FILE_SUFFIX)) {
 		return;
@@ -1622,6 +1648,9 @@ static void onGotLocalFile(LocalFileInfo *info, LocalFileInfo *parent, void *sta
 	meta->parent = (parent ? (MyMeta *)parent->userdata : NULL);
 	info->userdata = meta;
 	RBTreeInsert(rb, (void *)meta->path, (void *)meta);
+	st->total++;
+	printf("Scanned %d                     \r", st->total);
+	fflush(stdout);
 }
 
 /*
@@ -1633,14 +1662,18 @@ static rb_red_blk_tree *meta_load(const char *dir, int recursive)
 	rb_red_blk_tree *rb = NULL;
 	LocalFileInfo *link = NULL;
 	int cnt = 0;
+	struct ScanLocalFileState state = { 0 };
 
 	rb = RBTreeCreate(&rb_compare, &rb_destory_key, &rb_destory_info, &rb_print_key, &rb_print_info);
 
-	cnt = GetDirectoryFiles(&link, dir, recursive, &onGotLocalFile, rb);
+	state.rb = rb;
+	state.total = 0;
+	cnt = GetDirectoryFiles(&link, dir, recursive, &onGotLocalFile, &state);
 	if (cnt < 0) {
 		RBTreeDestroy(rb);
 		return NULL;
 	}
+	if (cnt > 0) putchar('\n');
 	if (link)
 		DestroyLocalFileInfoLink(link);
 	return rb;
@@ -1746,11 +1779,13 @@ static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 		: (meta->op == OP_CONFUSE ? "><"
 		: "  "))));
 	if (meta->flag & FLAG_ON_REMOTE) {
-		printf("%s%s%s\n", meta->remote_path, meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
+		printf("%s", meta->remote_path);
+		i = strlen(meta->remote_path);
+		if (meta->remote_isdir && i > 0 && meta->remote_path[i - 1] != '/' && meta->remote_path[i - 1] != '\\') {
+			putchar('/');
+		}
 	}
-	else {
-		printf("%s%s\n", meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
-	}
+	printf("%s%s\n", meta->msg ? "\t " : "", meta->msg ? meta->msg : "");
 }
 
 /*
@@ -1910,6 +1945,8 @@ static int rb_decide_op(void *a, void *state)
 		if (s->second < len) s->second = len;
 	}
 	s->cnt_valid_total++;
+	printf("Compared %d                     \r", s->cnt_total);
+	fflush(stdout);
 	return 0;
 }
 
@@ -2028,13 +2065,18 @@ static inline int do_download(ShellContext *context,
 	pcs_setopts(context->pcs,
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
+		//PCS_OPTION_TIMEOUT, (void *)((long)(60 * 60)),
 		PCS_OPTION_END);
 	res = pcs_download(context->pcs, remote_path);
 	fclose(ds.pf);
+	//pcs_setopts(context->pcs,
+	//	PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
+	//	PCS_OPTION_END);
 	if (res != PCS_OK) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: %s. remote_path=%s\n", pcs_strerror(context->pcs), remote_path);
+			(*pErrMsg) = pcs_utils_sprintf("Error: %s. local_path=%s, remote_path=%s\n", 
+				pcs_strerror(context->pcs), tmp_local_path, remote_path);
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
 		DeleteFileRecursive(tmp_local_path);
@@ -2048,7 +2090,8 @@ static inline int do_download(ShellContext *context,
 	if (rename(tmp_local_path, local_path)) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: The file have been download at %s, but can't rename to %s.\n You should be rename manual.", tmp_local_path, local_path);
+			(*pErrMsg) = pcs_utils_sprintf("Error: The file have been download at %s, but can't rename to %s.\n"
+				" You should be rename manual.", tmp_local_path, local_path);
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
 		//DeleteFileRecursive(tmp_local_path);
@@ -2083,12 +2126,17 @@ static inline int do_upload(ShellContext *context,
 		PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
 		PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
 		PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
+		//PCS_OPTION_TIMEOUT, (void *)0L,
 		PCS_OPTION_END);
 	res = pcs_upload(context->pcs, remote_path, is_force, local_path);
+	//pcs_setopts(context->pcs,
+	//	PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
+	//	PCS_OPTION_END);
 	if (!res || !res->path || !res->path[0]) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: %s\n", pcs_strerror(context->pcs));
+			(*pErrMsg) = pcs_utils_sprintf("Error: %s. local_path=%s, remote_path=%s\n", 
+				pcs_strerror(context->pcs), local_path, remote_path);
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
 		if (res) pcs_fileinfo_destroy(res);
@@ -2313,8 +2361,8 @@ static int combin_with_remote_dir_files(ShellContext *context, rb_red_blk_tree *
 	PcsFileInfoListIterater iterater;
 	PcsFileInfo *info = NULL;
 	int page_index = 1,
-		page_size = 100;
-	int cnt = 0;
+		page_size = 1000;
+	int cnt = 0, second;
 	rb_red_blk_node *rbn;
 	MyMeta *meta;
 
@@ -2325,6 +2373,16 @@ static int combin_with_remote_dir_files(ShellContext *context, rb_red_blk_tree *
 		if (!list) {
 			if (pcs_strerror(context->pcs)) {
 				printf("Error: %s \n", pcs_strerror(context->pcs));
+				if (context->timeout_retry && strstr(pcs_strerror(context->pcs), "Can't get response from the remote server") >= 0) {
+					second = 10;
+					while (second > 0) {
+						printf("Retry after %d second...\n", second);
+						sleep(1);
+						second--;
+					}
+					//printf("Retrying...\n");
+					continue;
+				}
 				return -1;
 			}
 			return 0;
@@ -2333,7 +2391,7 @@ static int combin_with_remote_dir_files(ShellContext *context, rb_red_blk_tree *
 		cnt = list->count;
 		if (total_cnt) (*total_cnt) += cnt;
 		if (total_cnt && cnt > 0) {
-			printf("Fetch %d Metas                     \r", *total_cnt);
+			printf("Fetch %d                     \r", *total_cnt);
 			fflush(stdout);
 		}
 
@@ -2424,7 +2482,10 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 	state.remote_basedir = arg->remote_file;
 	rb->enumerateInfoState = &state;
 	rb->EnumerateInfo = &rb_decide_op;
+	printf("Comparing...\n");
 	RBTreeEnumerateInfo(rb);
+	if (state.cnt_total > 0) putchar('\n');
+	printf("Completed\n");
 	state.first = 0;
 	if (state.second < 10) state.second = 10;
 	state.other = 13;
@@ -2440,8 +2501,10 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 	}
 	rb->EnumerateInfo = &rb_print_meta;
 	if (state.print_op && state.print_flag) {
+		printf("Printing|Synching...\n");
 		RBTreeEnumerateInfo(rb);
 		printed_count += state.printed_count;
+		printf("Completed\n");
 		/*if (state.printed_count == 0)
 			print_meta_list_head(state.first, state.second, state.other);
 		print_notes = 1;
@@ -2454,7 +2517,9 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 		state.printed_count = 0;
 		state.prefixion = "[Confuse] ";
 		putchar('\n');
+		printf("Printing Confuse...\n");
 		RBTreeEnumerateInfo(rb);
+		printf("Completed\n");
 		printed_count += state.printed_count;
 	}
 	if (printed_count == 0) {
@@ -2551,6 +2616,7 @@ static int compare(ShellContext *context, compare_arg *arg,
 		rb_red_blk_tree *rb = NULL;
 		int skip = 0, total_cnt = 0;
 		int rc;
+		printf("Scanning local file system...\n");
 		rb = meta_load(arg->local_file, arg->recursive);
 		if (!rb) {
 			printf("Error: Can't list the local directory.\n");
@@ -2559,8 +2625,10 @@ static int compare(ShellContext *context, compare_arg *arg,
 			pcs_free(path);
 			return -1;
 		}
+		printf("Completed\n");
 		skip = strlen(remote->path);
 		if (remote->path[skip - 1] != '/' && remote->path[skip - 1] != '\\') skip++;
+		printf("Fetching net disk file list...\n");
 		if (combin_with_remote_dir_files(context, rb, remote->path, arg->recursive, skip, &total_cnt, arg->check_local_dir_exist)) {
 			printf("Error: Can't list the remote directory.\n");
 			RBTreeDestroy(rb);
@@ -2569,6 +2637,8 @@ static int compare(ShellContext *context, compare_arg *arg,
 			pcs_free(path);
 			return -1;
 		}
+		if (total_cnt > 0) putchar('\n');
+		printf("Completed\n");
 		if (onComparedDir)
 			rc = (*onComparedDir)(context, arg, rb, comparedDirState);
 		RBTreeDestroy(rb);
