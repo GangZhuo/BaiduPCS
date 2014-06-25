@@ -25,6 +25,7 @@ typedef struct ShellContext
 	char		*secure_key;    /*加密时的KEY*/
 	int			secure_enable;  /*是否启用加密*/
 
+	int			timeout_retry;  /*是否启用超时后重试*/
 } ShellContext;
 
 #endif
