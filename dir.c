@@ -256,7 +256,7 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 			cusor = info;
 			subdir = (char *)pcs_malloc(len + strlen(ent->d_name) + 2);
 			strcpy(subdir, dir);
-			if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "\\");
+			if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "/");
 			strcat(subdir, ent->d_name);
 			if (!stat(subdir, &st))
 				info->mtime = st.st_mtime;
@@ -277,7 +277,7 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 			cusor = info;
 			subdir = (char *)pcs_malloc(len + strlen(ent->d_name) + 2);
 			strcpy(subdir, dir);
-			if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "\\");
+			if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "/");
 			strcat(subdir, ent->d_name);
 			if (!stat(subdir, &st))
 				info->mtime = st.st_mtime;
