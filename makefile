@@ -29,7 +29,7 @@ endif
 all: pre version.h bin/libpcs.a bin/pcs
 
 bin/pcs : bin/libpcs.a $(SHELL_OBJS)
-	$(CC) -o $@ $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto -lsqlite3
+	$(CC) -o $@ $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto
 
 version.h:
 	bash ver.sh
