@@ -93,6 +93,7 @@ struct MyMeta
 
 	time_t		local_mtime;	/*本地文件的修改时间*/
 	int			local_isdir;	/*本地文件是否是目录。0表示不是目录；非0值表示本地文件是目录*/
+	int			local_filecount; /*当本地是目录时，存储目录下文件的数目。递归统计。*/
 
 	char		*remote_path;	/*文件路径*/
 	time_t		remote_mtime;	/*文件在网盘中的最后修改时间*/
@@ -1662,6 +1663,7 @@ static void onGotLocalFile(LocalFileInfo *info, LocalFileInfo *parent, void *sta
 	meta->flag |= FLAG_ON_LOCAL;
 	meta->local_mtime = info->mtime;
 	meta->local_isdir = info->isdir;
+	meta->local_filecount = info->filecount;
 	meta->parent = (parent ? (MyMeta *)parent->userdata : NULL);
 	info->userdata = meta;
 	RBTreeInsert(rb, (void *)meta->path, (void *)meta);
@@ -4074,6 +4076,17 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 	}
 
 	if (meta->remote_isdir) { /*跳过目录*/
+		char *local_path;
+		local_path = combin_path(s->local_basedir, -1, meta->path);
+		/*创建目录*/
+		if (CreateDirectoryRecursive(local_path) != MKDIR_OK) {
+			if (meta->msg) pcs_free(meta->msg);
+			meta->msg = pcs_utils_sprintf("Error: Can't create the directory: %s", local_path);
+			meta->op_st = OP_ST_FAIL;
+			pcs_free(local_path);
+			return -1;
+		}
+		pcs_free(local_path);
 		meta->op_st = OP_ST_SUCC;
 		return 0;
 	}
@@ -4092,6 +4105,24 @@ static int synchUpload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 	}
 
 	if (meta->local_isdir) { /*跳过目录*/
+		if (meta->local_filecount == 0 && !(meta->flag & FLAG_ON_REMOTE)) { /*其下没有文件，因此需手动创建目录*/
+			/*创建目录*/
+			char *remote_path, *dir;
+			PcsRes res;
+
+			dir = combin_net_disk_path(s->context->workdir, s->remote_basedir);
+			remote_path = combin_net_disk_path(dir, meta->path);
+			pcs_free(dir);
+			res = pcs_mkdir(s->context->pcs, remote_path);
+			if (res != PCS_OK) {
+				if (meta->msg) pcs_free(meta->msg);
+				meta->msg = pcs_utils_sprintf("Error: Can't create the directory %s: %s", remote_path, pcs_strerror(s->context->pcs));
+				pcs_free(remote_path);
+				meta->op_st = OP_ST_FAIL;
+				return -1;
+			}
+			pcs_free(remote_path);
+		}
 		meta->op_st = OP_ST_SUCC;
 		return 0;
 	}
