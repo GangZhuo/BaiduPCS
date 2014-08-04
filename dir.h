@@ -22,6 +22,7 @@ struct LocalFileInfo
    size_t			size;
    LocalFileInfo	*parent;
    LocalFileInfo	*next;
+   int				filecount; /*当是目录时，存储目录下文件的数量。递归统计。*/
 
    void				*userdata;
 };
