@@ -2284,9 +2284,9 @@ static inline int do_upload(ShellContext *context,
 			strcpy(&orgName[1], diskName);
 			while (1) {
 				sl.string2 = orgName;
-				printf("\nrename %s -> %s \n", sl.string1, sl.string2);
+				//printf("\nrename %s -> %s \n", sl.string1, sl.string2);
 				res2 = pcs_rename(context->pcs, &sl);
-				printf("\nrename %s -> %s %d \n", sl.string1, sl.string2, res2->error);
+				//printf("\nrename %s -> %s %d \n", sl.string1, sl.string2, res2->error);
 				if (res2 && res2->error == 0) {
 					pcs_pan_api_res_destroy(res2);
 					res2 = NULL;
@@ -2296,9 +2296,9 @@ static inline int do_upload(ShellContext *context,
 					if (res2) { pcs_pan_api_res_destroy(res2); res2 = NULL; }
 					if (is_force) {
 						sl2.string = remote_path;
-						printf("\ndelete %s \n", sl2.string);
+						//printf("\ndelete %s \n", sl2.string);
 						res2 = pcs_delete(context->pcs, &sl2);
-						printf("\ndelete %s %d \n", sl2.string, res2->error);
+						//printf("\ndelete %s %d \n", sl2.string, res2->error);
 						if (!res2 || res2->error != 0) {
 							if (pErrMsg) {
 								if (*pErrMsg) pcs_free(*pErrMsg);
