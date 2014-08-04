@@ -2264,6 +2264,67 @@ static inline int do_upload(ShellContext *context,
 		pcs_free(remote_path);
 		return -1;
 	}
+	/*当文件名以.(点号)开头的话，则网盘会自动去除第一个点。以下if语句的目的就是把网盘文件重命名为以点号开头。*/
+	if (res) {
+		char *diskName = pcs_utils_filename(res->path),
+			*orgName = pcs_utils_filename(remote_file);
+		if (diskName && orgName && orgName[0] == '.' && diskName[0] != '.') {
+			PcsPanApiRes *res2;
+			PcsSList2 sl = {
+				res->path,
+				orgName,
+				NULL
+			};
+			PcsSList sl2 = {
+				res->path, NULL
+			};
+			pcs_free(orgName);
+			orgName = (char *)malloc(strlen(diskName) + 2);
+			orgName[0] = '.';
+			strcpy(&orgName[1], diskName);
+			while (1) {
+				sl.string2 = orgName;
+				printf("\nrename %s -> %s \n", sl.string1, sl.string2);
+				res2 = pcs_rename(context->pcs, &sl);
+				printf("\nrename %s -> %s %d \n", sl.string1, sl.string2, res2->error);
+				if (res2 && res2->error == 0) {
+					pcs_pan_api_res_destroy(res2);
+					res2 = NULL;
+					break;
+				}
+				else {
+					if (res2) { pcs_pan_api_res_destroy(res2); res2 = NULL; }
+					if (is_force) {
+						sl2.string = remote_path;
+						printf("\ndelete %s \n", sl2.string);
+						res2 = pcs_delete(context->pcs, &sl2);
+						printf("\ndelete %s %d \n", sl2.string, res2->error);
+						if (!res2 || res2->error != 0) {
+							if (pErrMsg) {
+								if (*pErrMsg) pcs_free(*pErrMsg);
+								(*pErrMsg) = pcs_utils_sprintf("Error: Can't delete the %s, so can't rename %s to %s. You can rename manually.\n",
+									remote_path, sl.string1, sl.string2);
+							}
+							if (res2) { pcs_pan_api_res_destroy(res2); res2 = NULL; }
+							break;
+						}
+						if (res2) { pcs_pan_api_res_destroy(res2); res2 = NULL; }
+					}
+					else {
+						if (pErrMsg) {
+							if (*pErrMsg) pcs_free(*pErrMsg);
+							(*pErrMsg) = pcs_utils_sprintf("Error: Can't rename %s to %s. You can rename manually.\n",
+								sl.string1, sl.string2);
+						}
+						break;
+					}
+				}
+			}
+		}
+		if (diskName) pcs_free(diskName);
+		if (orgName) pcs_free(orgName);
+		//print_fileinfo(res, " ");
+	}
 	if (op_st) (*op_st) = OP_ST_SUCC;
 	if (res) pcs_fileinfo_destroy(res);
 	pcs_free(local_path);
@@ -4232,6 +4293,24 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
+	}
+	else if (meta && is_force) {
+		char *diskName = pcs_utils_filename(meta->path);
+		if (diskName[0] == '.') { /*以点开头的文件在上传后点号会被自动去掉，
+								  因此需要再次执行pcs_rename()函数重命名其为正确的名字。
+								  此处预先删除该文件的目的是为了防止在do_upload()函数中重命名失败。*/
+			PcsPanApiRes *res2;
+			PcsSList sl2 = {
+				meta->path, NULL
+			};
+			res2 = pcs_delete(context->pcs, &sl2);
+			if (!res2 || res2->error != 0) {
+				fprintf(stderr, "Error: Can't delete the %s, so can't override the file.\n", sl2.string);
+				if (res2) { pcs_pan_api_res_destroy(res2); res2 = NULL; }
+			}
+			if (res2) { pcs_pan_api_res_destroy(res2); res2 = NULL; }
+		}
+		pcs_free(diskName);
 	}
 	/*检查网盘文件 - 结束*/
 
