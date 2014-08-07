@@ -868,7 +868,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	
 	context->secure_method = pcs_utils_strdup("plaintext");
 	context->secure_key = pcs_utils_strdup("");
-	context->secure_enable = 1;
+	context->secure_enable = 0;
 
 	context->timeout_retry = 1;
 }
