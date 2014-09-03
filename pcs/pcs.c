@@ -1617,9 +1617,14 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	const char *html, *errmsg;
+	int http_code;
 
 	pcs_clear_errmsg(handle);
-	html = pcs_http_get(pcs->http, URL_DISK_HOME, PcsTrue);
+	html = pcs_http_get(pcs->http, URL_DISK_HOME, PcsFalse);
+	http_code = pcs_http_code(pcs->http);
+	if (http_code != 200) {
+		return PCS_NOT_LOGIN;
+	}
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (!errmsg)
