@@ -893,16 +893,16 @@ static void init_pcs_secure(ShellContext *context)
 {
 	int method = 0;
 	if (context->secure_method && context->secure_method[0]) {
-		if (strcmp(context->secure_method, "aes-cbc-128")) {
+		if (!strcmp(context->secure_method, "aes-cbc-128")) {
 			method = PCS_SECURE_AES_CBC_128;
 		}
-		else if (strcmp(context->secure_method, "aes-cbc-192")) {
+		else if (!strcmp(context->secure_method, "aes-cbc-192")) {
 			method = PCS_SECURE_AES_CBC_192;
 		}
-		else if (strcmp(context->secure_method, "aes-cbc-256")) {
+		else if (!strcmp(context->secure_method, "aes-cbc-256")) {
 			method = PCS_SECURE_AES_CBC_256;
 		}
-		else if (strcmp(context->secure_method, "plaintext")) {
+		else if (!strcmp(context->secure_method, "plaintext")) {
 			method = PCS_SECURE_PLAINTEXT;
 		}
 	}
