@@ -48,5 +48,10 @@ PCS_API void int2Buffer(int v, char *buf);
 /*int2Buffer的逆过程*/
 PCS_API int readInt(char *buf);
 
+/*
+* 提取出字符 callback({...}) 中的 {...} 部分
+*/
+PCS_API char *extract_json_from_callback(char *callback);
+
 
 #endif

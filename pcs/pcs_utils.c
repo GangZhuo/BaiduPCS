@@ -268,3 +268,26 @@ PCS_API int readInt(char *buf)
 	rc = (unsigned int)((rc << 8) | ((unsigned char)buf[3]));
 	return rc;
 }
+
+/*
+ * 提取出字符 callback({...}) 中的 {...} 部分 
+ */
+PCS_API char *extract_json_from_callback(char *callback)
+{
+	char *start, *p;
+	start = callback;
+	while ((*start) && ((*start) != '(') && ((*start) != '{')) {
+		start++;
+	}
+	if ((*start) == '{') return start;
+	if ((*start) != '(') return NULL;
+	start++;
+	p = start;
+	while (*p) p++;
+	while ((p >= start) && (*p != ')')) p--;
+	if ((*p) == ')') {
+		*p = '\0';
+		return start;
+	}
+	return NULL;
+}
