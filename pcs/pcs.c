@@ -2041,6 +2041,8 @@ try_login:
 	else {
 		if (code_string) pcs_free(code_string);
 		code_string = pcs_get_embed_query_token_by_key(html, "&codestring");
+		if (!code_string)
+			code_string = pcs_get_embed_query_token_by_key(html, "&codeString");
 		if (!code_string) {
 			pcs_set_errmsg(handle, "Can't read the codestring from the response. Response: %s", html);
 			pcs_free(token);
