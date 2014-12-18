@@ -12,6 +12,7 @@
 #include <openssl/aes.h>
 #include <openssl/md5.h>
 #include <openssl/rsa.h>
+#include <openssl/evp.h>
 #endif
 
 #include "pcs_defs.h"
@@ -1474,6 +1475,20 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 	return meta;
 }
 
+/*移除字符串中的换行符*/
+static char * remove_enter(char *str)
+{
+	char *p1, *p2;
+	p1 = p2 = str;
+	for (p1 = p2 = str; *p1; p1++) {
+		if (*p1 != '\n') {
+			*p2++ = *p1;
+		}
+	}
+	*p2 = '\0';
+	return str;
+}
+
 /**
 * Use EVP to Base64 encode the input byte array to readable text
 */
@@ -1487,11 +1502,44 @@ static char* base64(const char *inputBuffer, int inputLen)
 	EVP_EncodeInit(&ctx);
 	EVP_EncodeUpdate(&ctx, (unsigned char *)base64, &result, (unsigned char *)inputBuffer, inputLen);
 	EVP_EncodeFinal(&ctx, (unsigned char *)&base64[result], &result);
-	return base64;
+	return remove_enter(base64);
+}
+
+static char * escape_symbol(const char *buf)
+{
+	static char tb[] = "0123456789ABCDEF";
+	char *p = buf, *tmp, *np;
+	int newLen = 0;
+#define IS_SYMBOL(p) (*p == '#' || *p == '%' || *p == '&' || *p == '+' || *p == '=' || *p == '/' || *p == '\\' || *p == ' ' || *p == '\f' || *p == '\r' || *p == '\n' || *p == '\t')
+	while (*p) {
+		if (IS_SYMBOL(p))
+			newLen += 3;
+		else
+			newLen++;
+		p++;
+	}
+	p = buf;
+	tmp = (char *)pcs_malloc(newLen + 1);
+	np = tmp;
+	while (*p) {
+		if (IS_SYMBOL(p)) {
+			np[0] = '%';
+			np[1] = tb[(((int)(*p)) >> 4) & 0xF];
+			np[2] = tb[(((int)(*p))) & 0xF];
+			np += 3;
+		}
+		else {
+			*np = *p;
+			np++;
+		}
+		p++;
+	}
+	*np = '\0';
+	return tmp;
 }
 
 static char *rsa_encrypt(const char *str, const char *pub_key){
-	char *p_en;
+	char *p_en, *b64;
 	int rsa_len;
 	BIO *bufio;
 	RSA *rsa = NULL;
@@ -1510,62 +1558,9 @@ static char *rsa_encrypt(const char *str, const char *pub_key){
 	}
 	RSA_free(rsa);
 
-	/*
-	baidu.url.escapeSymbol = function(source) {
-		return String(source).replace(/[#%&+=\/\\\ \　\f\r\n\t]/g,
-			function(all) {
-				return "%" + (256 + all.charCodeAt()).toString(16).substring(1).toUpperCase()
-			});
-	};
-	*/
-	{
-		static char tb[] = "0123456789ABCDEF";
-		char *p = p_en, *tmp, *np;
-		int newLen = 0;
-		p = base64(p_en, rsa_len);
-		pcs_free(p_en);
-		p_en = p;
-		while (*p) {
-			if (*p == '\n') {
-
-			}
-			else if (*p == '#' || *p == '%' || *p == '&' || *p == '+' || *p == '=' || *p == '/' || *p == '\\'
-				|| *p == ' ' || *p == '\f' || *p == '\r' || *p == '\t') {
-				newLen += 3;
-			}
-			else {
-				newLen++;
-			}
-			p++;
-		}
-		p = p_en;
-		tmp = (char *)pcs_malloc(newLen + 1);
-		np = tmp;
-		while (*p) {
-			if (*p == '\n') {
-
-			}
-			else if (*p == '#' || *p == '%' || *p == '&' || *p == '+' || *p == '=' || *p == '/' || *p == '\\'
-				|| *p == ' ' || *p == '\f' || *p == '\r' || *p == '\t') {
-				np[0] = '%';
-				np[1] = tb[(((int)(*p)) >> 4) & 0xF];
-				np[2] = tb[(((int)(*p))) & 0xF];
-				np += 3;
-			}
-			else {
-				*np = *p;
-				np++;
-			}
-			p++;
-		}
-		*np = '\0';
-		pcs_free(p_en);
-		p_en = tmp;
-	}
-
-
-	return p_en;
-
+	b64 = base64(p_en, rsa_len);
+	pcs_free(p_en);
+	return b64;
 }
 
 PCS_API const char *pcs_version()
@@ -1760,7 +1755,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsRes res;
-	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt, *codetype, *rsa_pwd;
+	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt, *codetype, *rsa_pwd, *ptmp;
 	cJSON *json, *root, *item;
 	int error = -1, i;
 	const char *errmsg;
@@ -1935,8 +1930,9 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	cJSON_Delete(json);
 
 	i = 0;
-	rsa_pwd = rsa_encrypt(pcs->password, "-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC2mehCLA8WCPuxRmFCb5uluaRm\nSzgjJ37bLQy+w2cU4Sv5vK6rq5B1zqcGSL2GexZFCIa8DHeD7NFFWGd9s\/z9pKsM\n22yZ25hNwbJXcssujLVI3kIgkpikAKpM+HzFM1kdCar7JHs5\/dsn1MTEgNouEcoF\nfmbB1R197rjNKyQYKQIDAQAB\n-----END PUBLIC KEY-----\n");
-	//rsa_pwd = rsa_encrypt(pcs->password, pcs->public_key);
+	ptmp = rsa_encrypt(pcs->password, pcs->public_key);
+	rsa_pwd = escape_symbol(ptmp);
+	pcs_free(ptmp);
 try_login:
 	if (code_string[0]) {
 		res = pcs_get_captcha(pcs, code_string, captch, sizeof(captch));
@@ -1967,11 +1963,14 @@ try_login:
 		"idc", "",
 		"loginmerge", "true",
 		"username", pcs->username,
-		"password", rsa_pwd,
+		//"password", rsa_pwd,
+		"password", pcs->password,
 		"verifycode", captch,
 		"mem_pass", "on",
-		"rsakey", pcs->key,
-		"crypttype", "12",
+		//"rsakey", pcs->key,
+		//"crypttype", "12",
+		"rsakey", "",
+		"crypttype", "",
 		"ppui_logintime", "2602",
 		"callback", "parent.bd__pcbs__msdlhs",
 		NULL);
@@ -2000,6 +1999,7 @@ try_login:
 	}
 	else {
 		char *errorStr = pcs_get_embed_query_int_value_by_key(html, "&error");
+		if (!errorStr) errorStr = pcs_get_embed_query_int_value_by_key(html, "err_no");
 		if (!errorStr) {
 			pcs_set_errmsg(handle, "Can't read the error from the response. Response: %s", html);
 			pcs_free(token);
@@ -2028,6 +2028,14 @@ try_login:
 			pcs_free(rsa_pwd);
 			return PCS_FAIL;
 		}
+	}
+	else if (error == 4) {
+		pcs_set_errmsg(handle, "Wrong password");
+		pcs_free(token);
+		pcs_free(code_string);
+		pcs_free(codetype);
+		pcs_free(rsa_pwd);
+		return PCS_FAIL;
 	}
 	else {
 		if (code_string) pcs_free(code_string);
