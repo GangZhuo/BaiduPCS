@@ -140,6 +140,9 @@
     <ClInclude Include="..\utf8.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="openssl_rsa.h">
+      <Filter>Header Files\pcs</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\config.json" />

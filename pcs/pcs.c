@@ -6,10 +6,12 @@
 # include <malloc.h>
 #include "openssl_aes.h"
 #include "openssl_md5.h"
+#include "openssl_rsa.h"
 #else
 # include <alloca.h>
 #include <openssl/aes.h>
 #include <openssl/md5.h>
+#include <openssl/rsa.h>
 #endif
 
 #include "pcs_defs.h"
@@ -32,6 +34,7 @@
 #define URL_HOME			"http://www.baidu.com"
 #define URL_DISK_HOME		"http://pan.baidu.com/disk/home"
 #define URL_PASSPORT_API	"https://passport.baidu.com/v2/api/?"
+#define URL_GET_PUBLIC_KEY	"https://passport.baidu.com/v2/getpublickey?"
 #define URL_PASSPORT_LOGOUT	"https://passport.baidu.com/?logout&u=http://pan.baidu.com"
 #define URL_CAPTCHA			"https://passport.baidu.com/cgi-bin/genimage?"
 #define URL_PAN_API			"http://pan.baidu.com/api/"
@@ -44,6 +47,8 @@ struct pcs {
 	char		*bduss;
 	char		*sysUID;
 	char		*errmsg;
+	char		*public_key;
+	char		*key;
 
 	PcsGetCaptchaFunction		captcha_func;
 	void						*captcha_data;
@@ -1469,6 +1474,100 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 	return meta;
 }
 
+/**
+* Use EVP to Base64 encode the input byte array to readable text
+*/
+static char* base64(const char *inputBuffer, int inputLen)
+{
+	EVP_ENCODE_CTX  ctx;
+	int base64Len = (((inputLen + 2) / 3) * 4) + 1; // Base64 text length  
+	int pemLen = base64Len + base64Len / 64; // PEM adds a newline every 64 bytes  
+	char* base64 = (char *)pcs_malloc(pemLen + 1);
+	int result;
+	EVP_EncodeInit(&ctx);
+	EVP_EncodeUpdate(&ctx, (unsigned char *)base64, &result, (unsigned char *)inputBuffer, inputLen);
+	EVP_EncodeFinal(&ctx, (unsigned char *)&base64[result], &result);
+	return base64;
+}
+
+static char *rsa_encrypt(const char *str, const char *pub_key){
+	char *p_en;
+	int rsa_len;
+	BIO *bufio;
+	RSA *rsa = NULL;
+
+	bufio = BIO_new_mem_buf((void*)pub_key, -1);
+	rsa = PEM_read_bio_RSA_PUBKEY(bufio, &rsa, NULL, NULL);
+	if (rsa == NULL){
+		ERR_print_errors_fp(stdout);
+		return NULL;
+	}
+	rsa_len = RSA_size(rsa);
+	p_en = (unsigned char *)pcs_malloc(rsa_len + 1);
+	memset(p_en, 0, rsa_len + 1);
+	if (RSA_public_encrypt(rsa_len, (unsigned char *)str, (unsigned char*)p_en, rsa, RSA_NO_PADDING)<0){
+		return NULL;
+	}
+	RSA_free(rsa);
+
+	/*
+	baidu.url.escapeSymbol = function(source) {
+		return String(source).replace(/[#%&+=\/\\\ \　\f\r\n\t]/g,
+			function(all) {
+				return "%" + (256 + all.charCodeAt()).toString(16).substring(1).toUpperCase()
+			});
+	};
+	*/
+	{
+		static char tb[] = "0123456789ABCDEF";
+		char *p = p_en, *tmp, *np;
+		int newLen = 0;
+		p = base64(p_en, rsa_len);
+		pcs_free(p_en);
+		p_en = p;
+		while (*p) {
+			if (*p == '\n') {
+
+			}
+			else if (*p == '#' || *p == '%' || *p == '&' || *p == '+' || *p == '=' || *p == '/' || *p == '\\'
+				|| *p == ' ' || *p == '\f' || *p == '\r' || *p == '\t') {
+				newLen += 3;
+			}
+			else {
+				newLen++;
+			}
+			p++;
+		}
+		p = p_en;
+		tmp = (char *)pcs_malloc(newLen + 1);
+		np = tmp;
+		while (*p) {
+			if (*p == '\n') {
+
+			}
+			else if (*p == '#' || *p == '%' || *p == '&' || *p == '+' || *p == '=' || *p == '/' || *p == '\\'
+				|| *p == ' ' || *p == '\f' || *p == '\r' || *p == '\t') {
+				np[0] = '%';
+				np[1] = tb[(((int)(*p)) >> 4) & 0xF];
+				np[2] = tb[(((int)(*p))) & 0xF];
+				np += 3;
+			}
+			else {
+				*np = *p;
+				np++;
+			}
+			p++;
+		}
+		*np = '\0';
+		pcs_free(p_en);
+		p_en = tmp;
+	}
+
+
+	return p_en;
+
+}
+
 PCS_API const char *pcs_version()
 {
 	return PCS_API_VERSION;
@@ -1507,6 +1606,10 @@ PCS_API void pcs_destroy(Pcs handle)
 		pcs_free(pcs->sysUID);
 	if (pcs->errmsg)
 		pcs_free(pcs->errmsg);
+	if (pcs->public_key)
+		pcs_free(pcs->public_key);
+	if (pcs->key)
+		pcs_free(pcs->key);
 	if (pcs->secure_key)
 		pcs_free(pcs->secure_key);
 	if (pcs->buffer)
@@ -1657,12 +1760,13 @@ PCS_API PcsRes pcs_login(Pcs handle)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsRes res;
-	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt;
+	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt, *codetype, *rsa_pwd;
 	cJSON *json, *root, *item;
 	int error = -1, i;
 	const char *errmsg;
 
 	pcs_clear_errmsg(handle);
+
 	html = pcs_http_get(pcs->http, URL_HOME, PcsTrue);
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
@@ -1672,16 +1776,18 @@ PCS_API PcsRes pcs_login(Pcs handle)
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return PCS_NETWORK_ERROR;
 	}
-	html = pcs_http_get(pcs->http, URL_PASSPORT_API "login", PcsTrue);
-	if (!html) {
-		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
-			pcs_set_errmsg(handle, errmsg);
-		else
-			pcs_set_errmsg(handle, "Can't get response from the remote server.");
-		return PCS_NETWORK_ERROR;
-	}
-	url = pcs_utils_sprintf(URL_PASSPORT_API "getapi" "&tpl=ik" "&apiver=v3" "&class=login" "&tt=%d", 
+
+	//html = pcs_http_get(pcs->http, URL_PASSPORT_API "login", PcsTrue);
+	//if (!html) {
+	//	errmsg = pcs_http_strerror(pcs->http);
+	//	if (!errmsg)
+	//		pcs_set_errmsg(handle, errmsg);
+	//	else
+	//		pcs_set_errmsg(handle, "Can't get response from the remote server.");
+	//	return PCS_NETWORK_ERROR;
+	//}
+
+	url = pcs_utils_sprintf(URL_PASSPORT_API "getapi" "&tpl=netdisk" "&apiver=v3" "&tt=%d" "&class=login" "&logintype=basicLogin" "&callback=bd__cbs__pwxtn7",
 		(int)time(0));
 	html = pcs_http_get(pcs->http, url, PcsTrue); pcs_free(url);
 	if (!html) {
@@ -1692,19 +1798,17 @@ PCS_API PcsRes pcs_login(Pcs handle)
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return PCS_NETWORK_ERROR;
 	}
-	json = cJSON_Parse(html);
+	json = cJSON_Parse(extract_json_from_callback(html));
 	if (!json){
 		pcs_set_errmsg(handle, "Can't parse the response as object. Response: %s", html);
 		return PCS_WRONG_RESPONSE;
 	}
-
 	root = cJSON_GetObjectItem(json, "data");
 	if (!root) {
 		pcs_set_errmsg(handle, "Can't read res.data. Response: %s", html);
 		cJSON_Delete(json);
 		return PCS_WRONG_RESPONSE;
 	}
-
 	item = cJSON_GetObjectItem(root, "token");
 	if (!item) {
 		pcs_set_errmsg(handle, "Can't read res.token. Response: %s", html);
@@ -1712,7 +1816,6 @@ PCS_API PcsRes pcs_login(Pcs handle)
 		return PCS_WRONG_RESPONSE;
 	}
 	token = pcs_utils_strdup(item->valuestring);
-
 	item = cJSON_GetObjectItem(root, "codeString");
 	if (!item) {
 		pcs_set_errmsg(handle, "Can't read res.codeString. Response: %s", html);
@@ -1721,7 +1824,6 @@ PCS_API PcsRes pcs_login(Pcs handle)
 		return PCS_WRONG_RESPONSE;
 	}
 	code_string = pcs_utils_strdup(item->valuestring);
-
 	cJSON_Delete(json);
 
 	p = token;
@@ -1735,41 +1837,151 @@ PCS_API PcsRes pcs_login(Pcs handle)
 		p++;
 	}
 
+	url = pcs_utils_sprintf(URL_PASSPORT_API "logincheck" "&token=%s" "&tpl=netdisk" "&apiver=v3" "&tt=%d" "&username=%s" "&isphone=false" "&callback=bd__cbs__q4ztud",
+		token, (int)time(0), pcs->username);
+	html = pcs_http_get(pcs->http, url, PcsTrue); pcs_free(url);
+	if (!html) {
+		errmsg = pcs_http_strerror(pcs->http);
+		if (!errmsg)
+			pcs_set_errmsg(handle, errmsg);
+		else
+			pcs_set_errmsg(handle, "Can't get response from the remote server.");
+		pcs_free(token);
+		pcs_free(code_string);
+		return PCS_NETWORK_ERROR;
+	}
+	json = cJSON_Parse(extract_json_from_callback(html));
+	if (!json){
+		pcs_set_errmsg(handle, "Can't parse the response as object. Response: %s", html);
+		pcs_free(token);
+		pcs_free(code_string);
+		return PCS_WRONG_RESPONSE;
+	}
+	root = cJSON_GetObjectItem(json, "data");
+	if (!root) {
+		pcs_set_errmsg(handle, "Can't read res.data. Response: %s", html);
+		cJSON_Delete(json);
+		pcs_free(token);
+		pcs_free(code_string);
+		return PCS_WRONG_RESPONSE;
+	}
+	item = cJSON_GetObjectItem(root, "codeString");
+	if (!item) {
+		pcs_set_errmsg(handle, "Can't read res.codeString. Response: %s", html);
+		pcs_free(token);
+		pcs_free(code_string);
+		cJSON_Delete(json);
+		return PCS_WRONG_RESPONSE;
+	}
+	pcs_free(code_string);
+	code_string = pcs_utils_strdup(item->valuestring);
+
+	item = cJSON_GetObjectItem(root, "vcodetype");
+	if (!item) {
+		pcs_set_errmsg(handle, "Can't read res.vcodetype. Response: %s", html);
+		pcs_free(token);
+		pcs_free(code_string);
+		cJSON_Delete(json);
+		return PCS_WRONG_RESPONSE;
+	}
+	codetype = pcs_utils_strdup(item->valuestring);
+	cJSON_Delete(json);
+
+	url = pcs_utils_sprintf(URL_GET_PUBLIC_KEY  "&token=%s" "&tpl=netdisk" "&apiver=v3" "&tt=%d" "&callback=bd__cbs__wl95ks",
+		token, (int)time(0));
+	html = pcs_http_get(pcs->http, url, PcsTrue); pcs_free(url);
+	if (!html) {
+		errmsg = pcs_http_strerror(pcs->http);
+		if (!errmsg)
+			pcs_set_errmsg(handle, errmsg);
+		else
+			pcs_set_errmsg(handle, "Can't get response from the remote server.");
+		pcs_free(token);
+		pcs_free(code_string);
+		pcs_free(codetype);
+		return PCS_NETWORK_ERROR;
+	}
+	json = cJSON_Parse(extract_json_from_callback(html));
+	if (!json){
+		pcs_set_errmsg(handle, "Can't parse the response as object. Response: %s", html);
+		pcs_free(token);
+		pcs_free(code_string);
+		pcs_free(codetype);
+		return PCS_WRONG_RESPONSE;
+	}
+	item = cJSON_GetObjectItem(json, "pubkey");
+	if (!item) {
+		pcs_set_errmsg(handle, "Can't read res.pubkey. Response: %s", html);
+		pcs_free(token);
+		pcs_free(code_string);
+		pcs_free(codetype);
+		cJSON_Delete(json);
+		return PCS_WRONG_RESPONSE;
+	}
+	if (pcs->public_key) pcs_free(pcs->public_key);
+	pcs->public_key = pcs_utils_strdup(item->valuestring);
+
+	item = cJSON_GetObjectItem(json, "key");
+	if (!item) {
+		pcs_set_errmsg(handle, "Can't read res.key. Response: %s", html);
+		pcs_free(token);
+		pcs_free(code_string);
+		pcs_free(codetype);
+		cJSON_Delete(json);
+		return PCS_WRONG_RESPONSE;
+	}
+	if (pcs->key) pcs_free(pcs->key);
+	pcs->key = pcs_utils_strdup(item->valuestring);
+	cJSON_Delete(json);
+
 	i = 0;
+	rsa_pwd = rsa_encrypt(pcs->password, "-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC2mehCLA8WCPuxRmFCb5uluaRm\nSzgjJ37bLQy+w2cU4Sv5vK6rq5B1zqcGSL2GexZFCIa8DHeD7NFFWGd9s\/z9pKsM\n22yZ25hNwbJXcssujLVI3kIgkpikAKpM+HzFM1kdCar7JHs5\/dsn1MTEgNouEcoF\nfmbB1R197rjNKyQYKQIDAQAB\n-----END PUBLIC KEY-----\n");
+	//rsa_pwd = rsa_encrypt(pcs->password, pcs->public_key);
 try_login:
 	if (code_string[0]) {
 		res = pcs_get_captcha(pcs, code_string, captch, sizeof(captch));
 		if (res != PCS_OK) {
 			pcs_free(token);
 			pcs_free(code_string);
+			pcs_free(codetype);
+			pcs_free(rsa_pwd);
 			return res;
 		}
 	}
 	tt = pcs_utils_sprintf("%d", (int)time(0));
 	post_data = pcs_http_build_post_data(pcs->http,
-		"ppui_logintime", "6852",
-		"charset", "UTF-8",
-		"codestring", code_string,
+		"staticpage", "http://pan.baidu.com/res/static/thirdparty/pass_v3_jump.html",
+		"charset", "utf-8",
 		"token", token,
-		"isPhone", "false",
-		"index", "0",
-		"u", "",
+		"tpl", "netdisk",
+		"subpro", "",
+		"apiver", "v3",
+		"tt", tt,
+		"codestring", code_string,
 		"safeflg", "0",
-		"staticpage", "http://www.baidu.com/cache/user/html/jump.html",
-		"loginType", "1",
-		"tpl", "mn",
-		"callback", "parent.bdPass.api.login._postCallback",
+		"u", "http://pan.baidu.com/",
+		"isPhone", "",
+		"quick_user", "0",
+		"logintype", "basicLogin",
+		"logLoginType", "pc_loginBasic",
+		"idc", "",
+		"loginmerge", "true",
 		"username", pcs->username,
-		"password", pcs->password,
+		"password", rsa_pwd,
 		"verifycode", captch,
 		"mem_pass", "on",
-		"tt", tt,
+		"rsakey", pcs->key,
+		"crypttype", "12",
+		"ppui_logintime", "2602",
+		"callback", "parent.bd__pcbs__msdlhs",
 		NULL);
 	pcs_free(tt);
 	if (!post_data) {
 		pcs_set_errmsg(handle, "Can't build the post data.");
 		pcs_free(token);
 		pcs_free(code_string);
+		pcs_free(codetype);
+		pcs_free(rsa_pwd);
 		return PCS_BUILD_POST_DATA;
 	}
 	html = pcs_http_post(pcs->http, URL_PASSPORT_API "login", post_data, PcsTrue);
@@ -1782,6 +1994,8 @@ try_login:
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		pcs_free(token);
 		pcs_free(code_string);
+		pcs_free(codetype);
+		pcs_free(rsa_pwd);
 		return PCS_NETWORK_ERROR;
 	}
 	else {
@@ -1790,6 +2004,8 @@ try_login:
 			pcs_set_errmsg(handle, "Can't read the error from the response. Response: %s", html);
 			pcs_free(token);
 			pcs_free(code_string);
+			pcs_free(codetype);
+			pcs_free(rsa_pwd);
 			return PCS_NETWORK_ERROR;
 		}
 		error = atoi(errorStr);
@@ -1800,12 +2016,16 @@ try_login:
 		if (pcs_islogin(pcs) == PCS_LOGIN) {
 			pcs_free(token);
 			pcs_free(code_string);
+			pcs_free(codetype);
+			pcs_free(rsa_pwd);
 			return PCS_OK;
 		}
 		else {
 			pcs_set_errmsg(handle, "Unknown Error");
 			pcs_free(token);
 			pcs_free(code_string);
+			pcs_free(codetype);
+			pcs_free(rsa_pwd);
 			return PCS_FAIL;
 		}
 	}
@@ -1816,6 +2036,8 @@ try_login:
 			pcs_set_errmsg(handle, "Can't read the codestring from the response. Response: %s", html);
 			pcs_free(token);
 			pcs_free(code_string);
+			pcs_free(codetype);
+			pcs_free(rsa_pwd);
 			return PCS_FAIL;
 		}
 		pcs_set_errmsg(handle, "error: %d. Maybe because wrong captcha");
@@ -1832,6 +2054,8 @@ try_login:
 	}
 	pcs_free(token);
 	pcs_free(code_string);
+	pcs_free(codetype);
+	pcs_free(rsa_pwd);
 	pcs_set_errmsg(handle, "Unknown Error");
 	return PCS_FAIL;
 }
