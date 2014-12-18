@@ -1508,7 +1508,8 @@ static char* base64(const char *inputBuffer, int inputLen)
 static char * escape_symbol(const char *buf)
 {
 	static char tb[] = "0123456789ABCDEF";
-	char *p = buf, *tmp, *np;
+	const char *p = buf;
+	char *tmp, *np;
 	int newLen = 0;
 #define IS_SYMBOL(p) (*p == '#' || *p == '%' || *p == '&' || *p == '+' || *p == '=' || *p == '/' || *p == '\\' || *p == ' ' || *p == '\f' || *p == '\r' || *p == '\n' || *p == '\t')
 	while (*p) {
@@ -1544,8 +1545,8 @@ static char *rsa_encrypt(const char *str, const char *pub_key){
 	BIO *bufio;
 	RSA *rsa = NULL;
 
-	bufio = BIO_new_mem_buf((void*)pub_key, -1);
-	rsa = PEM_read_bio_RSA_PUBKEY(bufio, &rsa, NULL, NULL);
+	bufio = BIO_new_mem_buf((void *)(char *)pub_key, -1);
+	PEM_read_bio_RSA_PUBKEY(bufio, &rsa, NULL, NULL);
 	if (rsa == NULL){
 		ERR_print_errors_fp(stdout);
 		return NULL;
@@ -1967,7 +1968,7 @@ try_login:
 		"password", pcs->password,
 		"verifycode", captch,
 		"mem_pass", "on",
-		//"rsakey", pcs->key,
+		//"rsakey", pcs->key, /*使用RSA加密密码后提交数据，测试一直是密码错误，以后再搞吧...*/
 		//"crypttype", "12",
 		"rsakey", "",
 		"crypttype", "",
