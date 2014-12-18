@@ -1756,7 +1756,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsRes res;
-	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt, *codetype, *rsa_pwd, *ptmp;
+	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt, *codetype, *rsa_pwd = NULL, *ptmp;
 	cJSON *json, *root, *item;
 	int error = -1, i;
 	const char *errmsg;
@@ -1931,9 +1931,10 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	cJSON_Delete(json);
 
 	i = 0;
-	ptmp = rsa_encrypt(pcs->password, pcs->public_key);
-	rsa_pwd = escape_symbol(ptmp);
-	pcs_free(ptmp);
+	/*使用RSA加密密码后提交数据，测试一直是密码错误，以后再搞吧...*/
+	//ptmp = rsa_encrypt(pcs->password, pcs->public_key);
+	//rsa_pwd = escape_symbol(ptmp);
+	//pcs_free(ptmp);
 try_login:
 	if (code_string[0]) {
 		res = pcs_get_captcha(pcs, code_string, captch, sizeof(captch));
@@ -1941,7 +1942,7 @@ try_login:
 			pcs_free(token);
 			pcs_free(code_string);
 			pcs_free(codetype);
-			pcs_free(rsa_pwd);
+			if (rsa_pwd) pcs_free(rsa_pwd);
 			return res;
 		}
 	}
@@ -1964,14 +1965,11 @@ try_login:
 		"idc", "",
 		"loginmerge", "true",
 		"username", pcs->username,
-		//"password", rsa_pwd,
-		"password", pcs->password,
+		"password", rsa_pwd ? rsa_pwd : pcs->password,
 		"verifycode", captch,
 		"mem_pass", "on",
-		//"rsakey", pcs->key, /*使用RSA加密密码后提交数据，测试一直是密码错误，以后再搞吧...*/
-		//"crypttype", "12",
-		"rsakey", "",
-		"crypttype", "",
+		"rsakey", rsa_pwd ? pcs->key : "", 
+		"crypttype", rsa_pwd ? "12" : "",
 		"ppui_logintime", "2602",
 		"callback", "parent.bd__pcbs__msdlhs",
 		NULL);
@@ -1981,7 +1979,7 @@ try_login:
 		pcs_free(token);
 		pcs_free(code_string);
 		pcs_free(codetype);
-		pcs_free(rsa_pwd);
+		if (rsa_pwd) pcs_free(rsa_pwd);
 		return PCS_BUILD_POST_DATA;
 	}
 	html = pcs_http_post(pcs->http, URL_PASSPORT_API "login", post_data, PcsTrue);
@@ -1995,7 +1993,7 @@ try_login:
 		pcs_free(token);
 		pcs_free(code_string);
 		pcs_free(codetype);
-		pcs_free(rsa_pwd);
+		if (rsa_pwd) pcs_free(rsa_pwd);
 		return PCS_NETWORK_ERROR;
 	}
 	else {
@@ -2006,7 +2004,7 @@ try_login:
 			pcs_free(token);
 			pcs_free(code_string);
 			pcs_free(codetype);
-			pcs_free(rsa_pwd);
+			if (rsa_pwd) pcs_free(rsa_pwd);
 			return PCS_NETWORK_ERROR;
 		}
 		error = atoi(errorStr);
@@ -2018,7 +2016,7 @@ try_login:
 			pcs_free(token);
 			pcs_free(code_string);
 			pcs_free(codetype);
-			pcs_free(rsa_pwd);
+			if (rsa_pwd) pcs_free(rsa_pwd);
 			return PCS_OK;
 		}
 		else {
@@ -2026,7 +2024,7 @@ try_login:
 			pcs_free(token);
 			pcs_free(code_string);
 			pcs_free(codetype);
-			pcs_free(rsa_pwd);
+			if (rsa_pwd) pcs_free(rsa_pwd);
 			return PCS_FAIL;
 		}
 	}
@@ -2035,7 +2033,7 @@ try_login:
 		pcs_free(token);
 		pcs_free(code_string);
 		pcs_free(codetype);
-		pcs_free(rsa_pwd);
+		if (rsa_pwd) pcs_free(rsa_pwd);
 		return PCS_FAIL;
 	}
 	else {
@@ -2048,7 +2046,7 @@ try_login:
 			pcs_free(token);
 			pcs_free(code_string);
 			pcs_free(codetype);
-			pcs_free(rsa_pwd);
+			if (rsa_pwd) pcs_free(rsa_pwd);
 			return PCS_FAIL;
 		}
 		pcs_set_errmsg(handle, "error: %d. Maybe because wrong captcha");
@@ -2066,7 +2064,7 @@ try_login:
 	pcs_free(token);
 	pcs_free(code_string);
 	pcs_free(codetype);
-	pcs_free(rsa_pwd);
+	if (rsa_pwd) pcs_free(rsa_pwd);
 	pcs_set_errmsg(handle, "Unknown Error");
 	return PCS_FAIL;
 }
