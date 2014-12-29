@@ -2286,7 +2286,7 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 	return res;
 }
 
-static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state)
+static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state, size_t resume_from)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url;
@@ -2310,7 +2310,7 @@ static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunc
 		pcs_set_errmsg(handle, "Can't build the url.");
 		return PCS_BUILD_URL;
 	}
-	if (pcs_http_get_download(pcs->http, url, PcsTrue)) {
+	if (pcs_http_get_download(pcs->http, url, PcsTrue, resume_from)) {
 		pcs_free(url);
 		return PCS_OK;
 	}
@@ -2323,10 +2323,10 @@ static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunc
 	return PCS_FAIL;
 }
 
-PCS_API PcsRes pcs_download(Pcs handle, const char *path)
+PCS_API PcsRes pcs_download(Pcs handle, const char *path, size_t resume_from)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data);
+	return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data, resume_from);
 }
 
 static size_t pcs_cat_write_func(char *ptr, size_t size, size_t contentlength, void *userdata)
@@ -2360,7 +2360,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 	if (pcs->buffer) pcs_free(pcs->buffer);
 	pcs->buffer = NULL;
 	pcs->buffer_size = 0;
-	rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs);
+	rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs, 0);
 	if (rc != PCS_OK) {
 		return NULL;
 	}
@@ -2424,4 +2424,10 @@ PCS_API const char *pcs_req_rawdata(Pcs handle, int *size, const char **encode)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	return pcs_http_rawdata(pcs->http, size, encode);
+}
+
+PCS_API double pcs_speed_download(Pcs handle)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	return pcs_http_speed_download(pcs->http);
 }

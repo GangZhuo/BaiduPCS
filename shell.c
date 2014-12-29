@@ -127,6 +127,7 @@ struct MyMeta
 	char		*remote_path;	/*文件路径*/
 	time_t		remote_mtime;	/*文件在网盘中的最后修改时间*/
 	int			remote_isdir;	/*文件在网盘中是以文件存在还是以目录存在。0表示以文件存在；非0值表示以目录存在*/
+	char		*md5;
 
 	int			flag;
 
@@ -143,6 +144,10 @@ struct DownloadState
 	FILE *pf;
 	char *msg;
 	size_t size;
+	size_t resume_from;
+	size_t noflush_size;
+	time_t time;
+	ShellContext *context;
 };
 
 struct RBEnumerateState
@@ -927,15 +932,28 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	struct DownloadState *ds = (struct DownloadState *)userdata;
 	FILE *pf = ds->pf;
 	size_t i;
+	time_t tm;
 	char tmp[64];
+	double downloadSpeed;
 	tmp[63] = '\0';
 	i = fwrite(ptr, 1, size, pf);
 	ds->size += i;
-	if (ds->msg)
-		printf("%s", ds->msg);
-	printf("%s", pcs_utils_readable_size(ds->size, tmp, 63, NULL));
-	printf("/%s      \r", pcs_utils_readable_size(contentlength, tmp, 63, NULL));
-	fflush(stdout);
+	ds->noflush_size += i;
+	if (ds->noflush_size > 2 * 1024 * 1024) {
+		fflush(pf);
+		ds->noflush_size = 0;
+	}
+	tm = time(&tm);
+	if (tm != ds->time) {
+		ds->time = tm;
+		if (ds->msg)
+			printf("%s", ds->msg);
+		downloadSpeed = pcs_speed_download(ds->context->pcs);
+		printf("%s", pcs_utils_readable_size(ds->size + ds->resume_from, tmp, 63, NULL));
+		printf("/%s      ", pcs_utils_readable_size(contentlength + ds->resume_from, tmp, 63, NULL));
+		printf("%s/s      \r", pcs_utils_readable_size(downloadSpeed, tmp, 63, NULL));
+		fflush(stdout);
+	}
 	return i;
 }
 
@@ -2113,13 +2131,16 @@ static void rb_print_info(void *a, void *state)
 #pragma endregion
 
 /*创建一个MyMeta*/
-static MyMeta *meta_create(const char *path)
+static MyMeta *meta_create(const char *path, const char *md5)
 {
 	MyMeta *meta;
 	meta = (MyMeta *)pcs_malloc(sizeof(MyMeta));
 	memset(meta, 0, sizeof(MyMeta));
 	if (path) {
 		meta->path = pcs_utils_strdup(path);
+	}
+	if (md5) {
+		meta->md5 = pcs_utils_strdup(md5);
 	}
 	return meta;
 }
@@ -2130,6 +2151,7 @@ static void meta_destroy(MyMeta *meta)
 	if (!meta) return;
 	if (meta->path) pcs_free(meta->path);
 	if (meta->remote_path) pcs_free(meta->remote_path);
+	if (meta->md5) pcs_free(meta->md5);
 	if (meta->msg) pcs_free(meta->msg);
 	pcs_free(meta);
 }
@@ -2144,7 +2166,7 @@ static void onGotLocalFile(LocalFileInfo *info, LocalFileInfo *parent, void *sta
 		return;
 	}
 	fix_unix_path(info->path);
-	meta = meta_create(info->path);
+	meta = meta_create(info->path, NULL);
 	meta->flag |= FLAG_ON_LOCAL;
 	meta->local_mtime = info->mtime;
 	meta->local_isdir = info->isdir;
@@ -2604,7 +2626,7 @@ static PcsBool is_login(ShellContext *context, const char *msg)
  */
 static inline int do_download(ShellContext *context, 
 	const char *local_file, const char *remote_file, time_t remote_mtime,
-	const char *local_basedir, const char *remote_basedir,
+	const char *local_basedir, const char *remote_basedir, const char *md5,
 	char **pErrMsg, int *op_st)
 {
 	PcsRes res;
@@ -2612,6 +2634,9 @@ static inline int do_download(ShellContext *context,
 	char *local_path, *remote_path, *dir,
 		*tmp_local_path;
 	int secure_method = 0;
+	LocalFileInfo *tmpFileInfo;
+
+	ds.context = context;
 
 	local_path = combin_path(local_basedir, -1, local_file);
 
@@ -2631,12 +2656,22 @@ static inline int do_download(ShellContext *context,
 		pcs_free(dir);
 	}
 
-	tmp_local_path = (char *)pcs_malloc(strlen(local_path) + strlen(TEMP_FILE_SUFFIX) + 1);
+	tmp_local_path = (char *)pcs_malloc(strlen(local_path) + (md5 ? strlen(md5) + 1 : 0) + strlen(TEMP_FILE_SUFFIX) + 1);
 	strcpy(tmp_local_path, local_path);
+	if (md5) {
+		strcat(tmp_local_path, ".");
+		strcat(tmp_local_path, md5);
+	}
 	strcat(tmp_local_path, TEMP_FILE_SUFFIX);
 
+	tmpFileInfo = GetLocalFileInfo(tmp_local_path);
+	if (tmpFileInfo) {
+		ds.resume_from = tmpFileInfo->size;
+		DestroyLocalFileInfo(tmpFileInfo);
+	}
+
 	/*打开文件*/
-	ds.pf = fopen(tmp_local_path, "wb");
+	ds.pf = fopen(tmp_local_path, ds.resume_from > 0 ? "ab+" : "wb");
 	if (!ds.pf) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
@@ -2681,7 +2716,7 @@ static inline int do_download(ShellContext *context,
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
 		//PCS_OPTION_TIMEOUT, (void *)((long)(60 * 60)),
 		PCS_OPTION_END);
-	res = pcs_download(context->pcs, remote_path);
+	res = pcs_download(context->pcs, remote_path, ds.resume_from);
 	fclose(ds.pf);
 	//pcs_setopts(context->pcs,
 	//	PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
@@ -3087,7 +3122,7 @@ static MyMeta *compare_file(const LocalFileInfo *local, const PcsFileInfo *remot
 {
 	MyMeta *meta = NULL;
 
-	meta = meta_create(local->path);
+	meta = meta_create(local->path, NULL);
 	meta->flag |= FLAG_ON_LOCAL;
 	meta->local_mtime = local->mtime;
 	meta->local_isdir = local->isdir;
@@ -3097,6 +3132,9 @@ static MyMeta *compare_file(const LocalFileInfo *local, const PcsFileInfo *remot
 		meta->remote_path = pcs_utils_strdup(remote->path);
 		meta->remote_mtime = remote->server_mtime;
 		meta->remote_isdir = remote->isdir;
+		if (!remote->isdir && remote->md5) {
+			meta->md5 = pcs_utils_strdup(remote->md5);
+		}
 	}
 
 	decide_op(meta);
@@ -3168,13 +3206,19 @@ static int combin_with_remote_dir_files(ShellContext *context, rb_red_blk_tree *
 				meta->remote_path = pcs_utils_strdup(info->path + skip);
 				meta->remote_mtime = info->server_mtime;
 				meta->remote_isdir = info->isdir;
+				if (!info->isdir && info->md5) {
+					meta->md5 = pcs_utils_strdup(info->md5);
+				}
 			}
 			else {
-				meta = meta_create(info->path + skip);
+				meta = meta_create(info->path + skip, NULL);
 				meta->flag |= FLAG_ON_REMOTE;
 				meta->remote_path = pcs_utils_strdup(info->path + skip);
 				meta->remote_mtime = info->server_mtime;
 				meta->remote_isdir = info->isdir;
+				if (!info->isdir && info->md5) {
+					meta->md5 = pcs_utils_strdup(info->md5);
+				}
 				RBTreeInsert(rb, (void *)meta->path, (void *)meta);
 			}
 		}
@@ -3529,7 +3573,7 @@ static int cmd_download(ShellContext *context, struct args *arg)
 
 	if (do_download(context,
 		locPath, meta->path, meta->server_mtime,
-		"", context->workdir,
+		"", context->workdir, meta->md5,
 		&errmsg, NULL)) {
 		fprintf(stderr, "Error: %s\n", errmsg);
 		pcs_fileinfo_destroy(meta);
@@ -4457,7 +4501,7 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 
 	return do_download(s->context, 
 		meta->path, meta->remote_path, meta->remote_mtime, 
-		s->local_basedir, s->remote_basedir,
+		s->local_basedir, s->remote_basedir, meta->md5,
 		&meta->msg, &meta->op_st);
 }
 
@@ -4563,7 +4607,7 @@ static int synchFile(ShellContext *context, compare_arg *arg, MyMeta *meta, void
 		else
 			do_download(context,
 				meta->path, meta->remote_path, meta->remote_mtime,
-				arg->local_file, arg->remote_file,
+				arg->local_file, arg->remote_file, meta->md5,
 				&meta->msg, &meta->op_st);
 		break;
 	}

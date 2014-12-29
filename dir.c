@@ -353,6 +353,15 @@ int CreateDirectoryRecursive(const char *path)
 
 	if (!path || (len = strlen(path)) == 0)
 		return MKDIR_OK;
+#ifdef _WIN32
+	if (len == 2 && *(path + 1) == ':' && ((*path >= 'a' && *path <= 'z') || (*path >= 'A' && *path <= 'Z')))
+		return MKDIR_OK;
+	else if (len == 3 && *(path + 1) == ':' && (*(path + 2) == '\\' || *(path + 2) == '/') && ((*path >= 'a' && *path <= 'z') || (*path >= 'A' && *path <= 'Z')))
+		return MKDIR_OK;
+#else
+	if (len == 1 && *path == '/')
+		return MKDIR_OK;
+#endif
 	info = GetLocalFileInfo(path);
 	if (info) {
 		if (!info->isdir) {
