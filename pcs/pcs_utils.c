@@ -259,7 +259,7 @@ PCS_API void int2Buffer(int v, char *buf)
 }
 
 /*int2Buffer的逆过程*/
-PCS_API int readInt(char *buf)
+PCS_API int readInt(const char *buf)
 {
 	unsigned int rc = 0;
 	rc = (unsigned int)(((unsigned char)buf[0]));

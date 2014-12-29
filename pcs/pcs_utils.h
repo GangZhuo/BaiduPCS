@@ -46,7 +46,7 @@ PCS_API const char *md5_file(const char *file_name);
 PCS_API void int2Buffer(int v, char *buf);
 
 /*int2Buffer的逆过程*/
-PCS_API int readInt(char *buf);
+PCS_API int readInt(const char *buf);
 
 /*
 * 提取出字符 callback({...}) 中的 {...} 部分
