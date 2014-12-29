@@ -2678,8 +2678,7 @@ static inline int do_download(ShellContext *context,
 			(*pErrMsg) = pcs_utils_sprintf("Error: Can't open or create the temp file: %s\n", tmp_local_path);
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
-		if (!strstr(pcs_strerror(context->pcs), "Can't get response from the remote server"))
-			DeleteFileRecursive(tmp_local_path);
+		DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		pcs_free(local_path);
 		return -1;
@@ -2729,7 +2728,8 @@ static inline int do_download(ShellContext *context,
 				pcs_strerror(context->pcs), tmp_local_path, remote_path);
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
-		DeleteFileRecursive(tmp_local_path);
+		//if (!strstr(pcs_strerror(context->pcs), "Timeout"))
+		//	DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		pcs_free(local_path);
 		pcs_free(remote_path);
