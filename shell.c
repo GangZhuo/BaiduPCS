@@ -673,7 +673,7 @@ static int get_data_secure_method(const char *buffer, size_t buffer_size)
 	return head.bits;
 }
 
-static int encrypt_data(const char *src, size_t src_size, const char **dst, size_t *dst_size,
+static int encrypt_data(const char *src, size_t src_size, char **dst, size_t *dst_size,
 	int secure_method, const char *secure_key)
 {
 	int rc;
@@ -737,7 +737,7 @@ static int encrypt_data(const char *src, size_t src_size, const char **dst, size
 	return 0;
 }
 
-static int decrypt_data(const char *src, size_t src_size, const char **dst, size_t *dst_size,
+static int decrypt_data(const char *src, size_t src_size, char **dst, size_t *dst_size,
 	const char *secure_key)
 {
 	int rc;
