@@ -190,7 +190,7 @@ PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, Pc
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
-PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location);
+PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location, size_t resume_from);
 
 /*
  * 向PcsHttpForm对象中添加一个本地文件。
@@ -241,5 +241,7 @@ PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm dat
 PCS_API char *pcs_http_cookie_data(PcsHttp handle);
 
 PCS_API const char *pcs_http_rawdata(PcsHttp handle, int *size, const char **encode);
+
+PCS_API double pcs_http_speed_download(PcsHttp handle);
 
 #endif

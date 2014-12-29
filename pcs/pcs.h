@@ -287,7 +287,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz);
  * 必须指定写入下载内容的函数，可通过PCS_OPTION_DOWNLOAD_WRITE_FUNCTION选项来指定
  * 成功后返回PCS_OK，失败则返回错误编号
  */
-PCS_API PcsRes pcs_download(Pcs handle, const char *path);
+PCS_API PcsRes pcs_download(Pcs handle, const char *path, size_t resume_from);
 
 /*
  * 把内存中的字节序上传到网盘
@@ -330,5 +330,7 @@ PCS_API char *pcs_cookie_data(Pcs handle);
 * 返回原始数据的指针。
 */
 PCS_API const char *pcs_req_rawdata(Pcs handle, int *size, const char **encode);
+
+PCS_API double pcs_speed_download(Pcs handle);
 
 #endif
