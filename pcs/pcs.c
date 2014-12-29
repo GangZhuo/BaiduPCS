@@ -4,15 +4,8 @@
 #include <string.h>
 #ifdef WIN32
 # include <malloc.h>
-#include "openssl_aes.h"
-#include "openssl_md5.h"
-#include "openssl_rsa.h"
 #else
 # include <alloca.h>
-#include <openssl/aes.h>
-#include <openssl/md5.h>
-#include <openssl/rsa.h>
-#include <openssl/evp.h>
 #endif
 
 #include "pcs_defs.h"
@@ -56,10 +49,6 @@ struct pcs {
 
 	PcsHttp		http;
 
-	int			secure_method;
-	char		*secure_key;
-	PcsBool		secure_enable;
-
 	PcsHttpWriteFunction	download_func;
 	void					*download_data;
 
@@ -71,64 +60,6 @@ struct pcs {
 #define PCS_ACTION_NONE			0
 #define PCS_ACTION_DOWNLOAD		1
 #define PCS_ACTION_UPLOAD		2
-
-struct PcsDownloadState
-{
-	Pcs					handle;
-	size_t				contentlength;
-	unsigned char		buffer[PCS_BUFFER_SIZE];
-	int					buffer_size;
-	int					secure;
-
-	void				*userdata;
-
-	PcsHttpWriteFunction write;
-	void				 *write_state;
-
-	PcsBool (*finish)(void *finish_state);
-	void				*finish_state;
-
-	void (*destroy)(void *destroy_state);
-	void				*destroy_state;
-};
-
-struct PcsAesHead
-{
-	int					magic; /*Should be AES*/
-	int					bits;
-	int					polish;
-};
-
-struct PcsAesState
-{
-	struct PcsAesHead	head;
-	int					mod;
-
-	AES_KEY				aes;
-	unsigned char		key[AES_BLOCK_SIZE];
-	unsigned char		iv[AES_BLOCK_SIZE];
-	unsigned char		buffer[PCS_BUFFER_SIZE];
-	int					buffer_size;
-	unsigned char		last_block[AES_BLOCK_SIZE]; /*128bits block*/
-	int					last_block_size;
-
-
-	MD5_CTX				md5; /*用于文件校验*/
-};
-
-struct PcsUploadState
-{
-	Pcs					handle;
-	size_t				contentlength;
-	FILE				*file;
-	unsigned char		buffer[PCS_BUFFER_SIZE];
-	size_t				buffer_size;
-	int					secure;
-
-	int					eof;
-
-	struct PcsAesState	*aes;
-};
 
 /*从网盘JS获取，应该是网盘API的错误消息*/
 const char *get_errmsg_by_errno(int error)
@@ -1476,93 +1407,96 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 }
 
 /*移除字符串中的换行符*/
-static char * remove_enter(char *str)
-{
-	char *p1, *p2;
-	p1 = p2 = str;
-	for (p1 = p2 = str; *p1; p1++) {
-		if (*p1 != '\n') {
-			*p2++ = *p1;
-		}
-	}
-	*p2 = '\0';
-	return str;
-}
+//static char * remove_enter(char *str)
+//{
+//	char *p1, *p2;
+//	p1 = p2 = str;
+//	for (p1 = p2 = str; *p1; p1++) {
+//		if (*p1 != '\n') {
+//			*p2++ = *p1;
+//		}
+//	}
+//	*p2 = '\0';
+//	return str;
+//}
 
 /**
+* 登录时，转换字节串为其base64编码
 * Use EVP to Base64 encode the input byte array to readable text
 */
-static char* base64(const char *inputBuffer, int inputLen)
-{
-	EVP_ENCODE_CTX  ctx;
-	int base64Len = (((inputLen + 2) / 3) * 4) + 1; // Base64 text length  
-	int pemLen = base64Len + base64Len / 64; // PEM adds a newline every 64 bytes  
-	char* base64 = (char *)pcs_malloc(pemLen + 1);
-	int result;
-	EVP_EncodeInit(&ctx);
-	EVP_EncodeUpdate(&ctx, (unsigned char *)base64, &result, (unsigned char *)inputBuffer, inputLen);
-	EVP_EncodeFinal(&ctx, (unsigned char *)&base64[result], &result);
-	return remove_enter(base64);
-}
+//static char* base64(const char *inputBuffer, int inputLen)
+//{
+//	EVP_ENCODE_CTX  ctx;
+//	int base64Len = (((inputLen + 2) / 3) * 4) + 1; // Base64 text length  
+//	int pemLen = base64Len + base64Len / 64; // PEM adds a newline every 64 bytes  
+//	char* base64 = (char *)pcs_malloc(pemLen + 1);
+//	int result;
+//	EVP_EncodeInit(&ctx);
+//	EVP_EncodeUpdate(&ctx, (unsigned char *)base64, &result, (unsigned char *)inputBuffer, inputLen);
+//	EVP_EncodeFinal(&ctx, (unsigned char *)&base64[result], &result);
+//	return remove_enter(base64);
+//}
 
-static char * escape_symbol(const char *buf)
-{
-	static char tb[] = "0123456789ABCDEF";
-	const char *p = buf;
-	char *tmp, *np;
-	int newLen = 0;
-#define IS_SYMBOL(p) (*p == '#' || *p == '%' || *p == '&' || *p == '+' || *p == '=' || *p == '/' || *p == '\\' || *p == ' ' || *p == '\f' || *p == '\r' || *p == '\n' || *p == '\t')
-	while (*p) {
-		if (IS_SYMBOL(p))
-			newLen += 3;
-		else
-			newLen++;
-		p++;
-	}
-	p = buf;
-	tmp = (char *)pcs_malloc(newLen + 1);
-	np = tmp;
-	while (*p) {
-		if (IS_SYMBOL(p)) {
-			np[0] = '%';
-			np[1] = tb[(((int)(*p)) >> 4) & 0xF];
-			np[2] = tb[(((int)(*p))) & 0xF];
-			np += 3;
-		}
-		else {
-			*np = *p;
-			np++;
-		}
-		p++;
-	}
-	*np = '\0';
-	return tmp;
-}
+/*登录时编码密码密文中的符号*/
+//static char * escape_symbol(const char *buf)
+//{
+//	static char tb[] = "0123456789ABCDEF";
+//	const char *p = buf;
+//	char *tmp, *np;
+//	int newLen = 0;
+//#define IS_SYMBOL(p) (*p == '#' || *p == '%' || *p == '&' || *p == '+' || *p == '=' || *p == '/' || *p == '\\' || *p == ' ' || *p == '\f' || *p == '\r' || *p == '\n' || *p == '\t')
+//	while (*p) {
+//		if (IS_SYMBOL(p))
+//			newLen += 3;
+//		else
+//			newLen++;
+//		p++;
+//	}
+//	p = buf;
+//	tmp = (char *)pcs_malloc(newLen + 1);
+//	np = tmp;
+//	while (*p) {
+//		if (IS_SYMBOL(p)) {
+//			np[0] = '%';
+//			np[1] = tb[(((int)(*p)) >> 4) & 0xF];
+//			np[2] = tb[(((int)(*p))) & 0xF];
+//			np += 3;
+//		}
+//		else {
+//			*np = *p;
+//			np++;
+//		}
+//		p++;
+//	}
+//	*np = '\0';
+//	return tmp;
+//}
 
-static char *rsa_encrypt(const char *str, const char *pub_key){
-	char *p_en, *b64;
-	int rsa_len;
-	BIO *bufio;
-	RSA *rsa = NULL;
-
-	bufio = BIO_new_mem_buf((void *)(char *)pub_key, -1);
-	PEM_read_bio_RSA_PUBKEY(bufio, &rsa, NULL, NULL);
-	if (rsa == NULL){
-		ERR_print_errors_fp(stdout);
-		return NULL;
-	}
-	rsa_len = RSA_size(rsa);
-	p_en = (unsigned char *)pcs_malloc(rsa_len + 1);
-	memset(p_en, 0, rsa_len + 1);
-	if (RSA_public_encrypt(rsa_len, (unsigned char *)str, (unsigned char*)p_en, rsa, RSA_NO_PADDING)<0){
-		return NULL;
-	}
-	RSA_free(rsa);
-
-	b64 = base64(p_en, rsa_len);
-	pcs_free(p_en);
-	return b64;
-}
+/*登录时加密用户密码*/
+//static char *rsa_encrypt(const char *str, const char *pub_key){
+//	char *p_en, *b64;
+//	int rsa_len;
+//	BIO *bufio;
+//	RSA *rsa = NULL;
+//
+//	bufio = BIO_new_mem_buf((void *)(char *)pub_key, -1);
+//	PEM_read_bio_RSA_PUBKEY(bufio, &rsa, NULL, NULL);
+//	if (rsa == NULL){
+//		ERR_print_errors_fp(stdout);
+//		return NULL;
+//	}
+//	rsa_len = RSA_size(rsa);
+//	p_en = (unsigned char *)pcs_malloc(rsa_len + 1);
+//	memset(p_en, 0, rsa_len + 1);
+//	if (RSA_public_encrypt(rsa_len, (unsigned char *)str, (unsigned char*)p_en, rsa, RSA_NO_PADDING)<0){
+//		return NULL;
+//	}
+//	RSA_free(rsa);
+//
+//	b64 = base64(p_en, rsa_len);
+//	pcs_free(p_en);
+//	return b64;
+//}
 
 PCS_API const char *pcs_version()
 {
@@ -1606,8 +1540,6 @@ PCS_API void pcs_destroy(Pcs handle)
 		pcs_free(pcs->public_key);
 	if (pcs->key)
 		pcs_free(pcs->key);
-	if (pcs->secure_key)
-		pcs_free(pcs->secure_key);
 	if (pcs->buffer)
 		pcs_free(pcs->buffer);
 	pcs_free(pcs);
@@ -1667,16 +1599,6 @@ PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value)
 		break;
 	case PCS_OPTION_PROGRESS:
 		pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_PROGRESS, value);
-		break;
-	case PCS_OPTION_SECURE_METHOD:
-		pcs->secure_method = (int)((long)value);
-		break;
-	case PCS_OPTION_SECURE_KEY:
-		if (pcs->secure_key) pcs_free(pcs->secure_key);
-		pcs->secure_key = pcs_utils_strdup((char *)value);
-		break;
-	case PCS_OPTION_SECURE_ENABLE:
-		pcs->secure_enable = (PcsBool)((long)value);
 		break;
 	case PCS_OPTION_USAGE:
 		pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_USAGE, value);
@@ -1756,7 +1678,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsRes res;
-	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt, *codetype, *rsa_pwd = NULL, *ptmp;
+	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt, *codetype, *rsa_pwd = NULL/*, *ptmp*/;
 	cJSON *json, *root, *item;
 	int error = -1, i;
 	const char *errmsg;
@@ -2364,315 +2286,6 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 	return res;
 }
 
-static inline void readToAesHead(char *buf, struct PcsAesHead *head)
-{
-	head->magic = readInt(buf);
-	head->bits = readInt(&buf[4]);
-	head->polish = readInt(&buf[8]);
-}
-
-//static inline void fillAesHead(const struct PcsAesHead *head, char *buf)
-//{
-//	int2Buffer(head->magic, buf);
-//	int2Buffer(head->bits, &buf[4]);
-//	int2Buffer(head->polish, &buf[8]);
-//}
-
-static struct PcsAesState *createPcsAesState(Pcs handle, int bits, int mod, int polish)
-{
-	struct pcs *pcs = (struct pcs *)handle;
-	struct PcsAesState *state = NULL;
-	const char *key;
-	int rc;
-	if (!pcs->secure_key || !pcs->secure_key[0]) {
-		pcs_set_errmsg(handle, "The key is not specify.");
-		return NULL;
-	}
-	if (bits != 128 && bits != 192 && bits != 256) {
-		pcs_set_errmsg(handle, "bits should be 128, 192 or 256.");
-		return NULL;
-	}
-	state = (struct PcsAesState *)pcs_malloc(sizeof(struct PcsAesState));
-	if (!state) {
-		pcs_set_errmsg(handle, "Can't create PcsAesState.");
-		return NULL;
-	}
-	memset(state, 0, sizeof(struct PcsAesState));
-	state->head.magic = PCS_AES_MAGIC;
-	state->head.bits = bits;
-	state->head.polish = polish;
-	state->mod = mod;
-	key = md5_string_raw(pcs->secure_key);
-	memcpy(state->key, key, AES_BLOCK_SIZE);
-	switch (mod)
-	{
-	case AES_ENCRYPT:
-		rc = AES_set_encrypt_key(key, bits, &state->aes);
-		break;
-	case AES_DECRYPT:
-		rc = AES_set_decrypt_key(key, bits, &state->aes);
-		break;
-	default:
-		pcs_set_errmsg(handle, "Unknow AES Mod.");
-		pcs_free(state);
-		return NULL;
-		//break;
-	}
-	if (rc < 0) {
-		pcs_set_errmsg(handle, "Can't set encryption|decryption key in AES.");
-		pcs_free(state);
-		return NULL;
-	}
-	return state;
-}
-
-static void destroyPcsAesState(struct PcsAesState *state)
-{
-	if (state) pcs_free(state);
-}
-
-static int pcs_download_aes_process_buffer(struct PcsDownloadState *state)
-{
-	struct pcs *pcs = (struct pcs *)state->handle;
-	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
-	int sz;
-
-	aes->buffer_size = (state->buffer_size / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
-	if (aes->buffer_size == state->buffer_size) {
-		aes->buffer_size -= PCS_MD5_SIZE;
-		aes->buffer_size = (aes->buffer_size / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
-	}
-	// decrypt AES_ENCRYPT
-	AES_cbc_encrypt(state->buffer, aes->buffer,
-		aes->buffer_size, &aes->aes, aes->iv, AES_DECRYPT);
-	state->buffer_size -= aes->buffer_size;
-	memcpy(state->buffer, &state->buffer[aes->buffer_size], state->buffer_size);
-	if (aes->buffer_size >= AES_BLOCK_SIZE) {
-		/*如果缓存中字节数超过last_block需要的字节数的话，
-		则把last_block的字节送出去。
-		然后把缓存中最后的字节填充到last_block中。
-		然后把缓存中剩余的字节送出去。*/
-		if (aes->last_block_size > 0){
-			MD5_Update(&aes->md5, aes->last_block, aes->last_block_size); /*用送出去的值更新MD5*/
-			sz = (*state->write)(aes->last_block,
-				aes->last_block_size, state->contentlength, state->write_state);
-			if (sz != aes->last_block_size) return -1;
-			aes->last_block_size = 0;
-		}
-		memcpy(aes->last_block,
-			&aes->buffer[aes->buffer_size - AES_BLOCK_SIZE],
-			AES_BLOCK_SIZE);
-		aes->last_block_size = AES_BLOCK_SIZE;
-		aes->buffer_size -= aes->last_block_size;
-		if (aes->buffer_size > 0) {
-			MD5_Update(&aes->md5, aes->buffer, aes->buffer_size); /*用送出去的值更新MD5*/
-			sz = (*state->write)(aes->buffer, aes->buffer_size,
-				state->contentlength, state->write_state);
-			if (sz != aes->buffer_size) return -1;
-		}
-	}
-	else {
-		int wsz = aes->buffer_size + aes->last_block_size - AES_BLOCK_SIZE; /*获取补齐last_block后还多余的字节数*/
-		if (wsz > 0) { /*如果有多余的数据的话，则送出去*/
-			MD5_Update(&aes->md5, aes->last_block, wsz); /*用送出去的值更新MD5*/
-			sz = (*state->write)(aes->last_block, wsz, state->contentlength, state->write_state);
-			if (sz != wsz) return -1;
-			memcpy(aes->last_block, &aes->last_block[wsz], aes->last_block_size - wsz);
-			aes->last_block_size -= wsz;
-			memcpy(&aes->last_block[aes->last_block_size], aes->buffer, aes->buffer_size);
-			aes->last_block_size += aes->buffer_size;
-		}
-		else {
-			/*如果不够last_block需要的字节数，则直接复制到last_block中*/
-			memcpy(&aes->last_block[aes->last_block_size], aes->buffer, aes->buffer_size);
-			aes->last_block_size += aes->buffer_size;
-		}
-	}
-	return 0;
-}
-
-static PcsBool pcs_download_aes_finish(void *userdata)
-{
-	struct PcsDownloadState *state = (struct PcsDownloadState *)userdata;
-	struct pcs *pcs = (struct pcs *)state->handle;
-	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
-	int sz, i;
-	unsigned char md[PCS_MD5_SIZE], *p;
-	if (state->buffer_size != PCS_MD5_SIZE) {
-		pcs_set_errmsg(state->handle, "Broken file.");
-		return PcsFalse;
-	}
-	if (aes->last_block) {
-		MD5_Update(&aes->md5, aes->last_block, aes->last_block_size - aes->head.polish); /*用送出去的值更新MD5*/
-		sz = (*state->write)(aes->last_block, aes->last_block_size - aes->head.polish, state->contentlength, state->write_state);
-		if (sz != aes->last_block_size - aes->head.polish) {
-			pcs_set_errmsg(state->handle, "Write wrong size data.");
-			return PcsFalse;
-		}
-		aes->last_block_size = 0;
-	}
-	MD5_Final(md, &aes->md5);
-	p = (unsigned char *)state->buffer;
-	for (i = 0; i < PCS_MD5_SIZE; i++) {
-		if (md[i] != p[i]) {
-			pcs_set_errmsg(state->handle, "Wrong secure key or broken file.");
-			return PcsFalse;
-		}
-	}
-	return PcsTrue;
-}
-
-static void pcs_download_aes_destroy(void *userdata)
-{
-	struct PcsDownloadState *state = (struct PcsDownloadState *)userdata;
-	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
-	destroyPcsAesState(aes);
-}
-
-static PcsBool pcs_download_finish(struct PcsDownloadState *state)
-{
-	struct pcs *pcs = (struct pcs *)state->handle;
-	PcsBool rc = PcsTrue;
-	if (state->finish) {
-		rc = (*state->finish)(state->finish_state);
-	}
-	else if (state->buffer_size > 0) {
-		int l = (*state->write)(state->buffer, state->buffer_size, state->contentlength, state->write_state);
-		if (l != state->buffer_size) {
-			rc = PcsFalse;
-		}
-		else
-			state->buffer_size = 0;
-	}
-	return rc;
-}
-
-static void pcs_download_destroy(struct PcsDownloadState *state)
-{
-	if (state->destroy) {
-		(*state->destroy)(state->destroy_state);
-	}
-}
-
-static size_t pcs_download_write_func(char *ptr, size_t size, size_t contentlength, void *userdata)
-{
-	struct PcsDownloadState *state = (struct PcsDownloadState *)userdata;
-	struct pcs *pcs = (struct pcs *)state->handle;
-	struct PcsAesState *aes = (struct PcsAesState *)state->userdata;
-	char *p = ptr;
-	size_t sz = size, l;
-
-	state->contentlength = contentlength;
-	while (sz > 0) {
-		l = (PCS_BUFFER_SIZE) - state->buffer_size;
-		if (l > sz) l = sz;
-		memcpy(&state->buffer[state->buffer_size], p, l);
-		state->buffer_size += l;
-		sz -= l;
-		p += l;
-		if (!state->secure && state->buffer_size >= AES_BLOCK_SIZE) {
-			struct PcsAesHead head = { 0 };
-			readToAesHead(state->buffer, &head);
-			if (head.magic == PCS_AES_MAGIC
-				&& (head.bits == 128
-				|| head.bits == 192
-				|| head.bits == 256)
-				&& head.polish >= 0
-				&& head.polish < AES_BLOCK_SIZE) { /*检测到文件被AES加密*/
-				aes = createPcsAesState(state->handle, head.bits, AES_DECRYPT, head.polish);
-				if (!aes) return 0;
-				state->userdata = aes;
-				state->finish_state = state;
-				state->finish = &pcs_download_aes_finish;
-				state->destroy_state = state;
-				state->destroy = &pcs_download_aes_destroy;
-				switch (head.bits)
-				{
-				case 128:
-					state->secure = PCS_SECURE_AES_CBC_128;
-					break;
-				case 192:
-					state->secure = PCS_SECURE_AES_CBC_192;
-					break;
-				case 256:
-					state->secure = PCS_SECURE_AES_CBC_256;
-					break;
-				}
-				state->buffer_size -= AES_BLOCK_SIZE;
-				memcpy(state->buffer, &state->buffer[AES_BLOCK_SIZE], state->buffer_size);
-				MD5_Init(&aes->md5);
-			}
-			else {
-				state->secure = PCS_SECURE_PLAINTEXT;
-			}
-		}
-		if (state->secure == PCS_SECURE_AES_CBC_128
-			|| state->secure == PCS_SECURE_AES_CBC_192
-			|| state->secure == PCS_SECURE_AES_CBC_256) {
-			if (pcs_download_aes_process_buffer(state))
-				return 0;
-		}
-		else if (state->secure == PCS_SECURE_PLAINTEXT) {
-			l = (*state->write)(state->buffer, state->buffer_size, contentlength, state->write_state);
-			if (l != state->buffer_size) return 0;
-			state->buffer_size = 0;
-		}
-		else {
-			return size;
-		}
-	}
-	return size;
-}
-
-static PcsRes pcs_download_secure(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state)
-{
-	struct pcs *pcs = (struct pcs *)handle;
-	char *url;
-	struct PcsDownloadState state = { 0 };
-	const char *errmsg;
-
-	pcs_clear_errmsg(handle);
-	if (!write) {
-		pcs_set_errmsg(handle, "Please specify the write function.");
-		return PCS_FAIL;
-	}
-	state.handle = handle;
-	state.contentlength = 0;
-	state.userdata = NULL;
-	state.write = write;
-	state.write_state = write_state;
-	pcs_http_setopts(pcs->http,
-		PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, &pcs_download_write_func,
-		PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION_DATE, &state,
-		PCS_HTTP_OPTION_END);
-	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
-		"method", "download",
-		"app_id", "250528",
-		"path", path,
-		NULL);
-	if (!url) {
-		pcs_set_errmsg(handle, "Can't build the url.");
-		return PCS_BUILD_URL;
-	}
-	if (pcs_http_get_download(pcs->http, url, PcsTrue)) {
-		pcs_free(url);
-		if (!pcs_download_finish(&state)) {
-			pcs_download_destroy(&state);
-			return PCS_FAIL;
-		}
-		pcs_download_destroy(&state);
-		return PCS_OK;
-	}
-	pcs_free(url);
-	errmsg = pcs_http_strerror(pcs->http);
-	if (!errmsg)
-		pcs_set_errmsg(handle, errmsg);
-	else
-		pcs_set_errmsg(handle, "Can't download the file: %s", pcs_http_strerror(pcs->http));
-	pcs_download_destroy(&state);
-	return PCS_FAIL;
-}
-
 static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state)
 {
 	struct pcs *pcs = (struct pcs *)handle;
@@ -2713,10 +2326,7 @@ static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunc
 PCS_API PcsRes pcs_download(Pcs handle, const char *path)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	if (pcs->secure_enable)
-		return pcs_download_secure(handle, path, pcs->download_func, pcs->download_data);
-	else
-		return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data);
+	return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data);
 }
 
 static size_t pcs_cat_write_func(char *ptr, size_t size, size_t contentlength, void *userdata)
@@ -2750,12 +2360,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 	if (pcs->buffer) pcs_free(pcs->buffer);
 	pcs->buffer = NULL;
 	pcs->buffer_size = 0;
-	if (pcs->secure_enable) {
-		rc = pcs_download_secure(handle, path, &pcs_cat_write_func, pcs);
-	}
-	else {
-		rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs);
-	}
+	rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs);
 	if (rc != PCS_OK) {
 		return NULL;
 	}
@@ -2775,61 +2380,6 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 
 	pcs_clear_errmsg(handle);
 	filename = pcs_utils_filename(path);
-	if (pcs->secure_enable
-		&& (pcs->secure_method == PCS_SECURE_AES_CBC_128 || pcs->secure_method == PCS_SECURE_AES_CBC_192 || pcs->secure_method == PCS_SECURE_AES_CBC_256)) {
-		struct PcsAesState *aes = NULL;
-		MD5_CTX md5;
-		unsigned char md5_value[PCS_MD5_SIZE];
-		int polish = 0;
-		char tmp_buf[AES_BLOCK_SIZE] = { 0 };
-		MD5_Init(&md5);
-		MD5_Update(&md5, buffer, buffer_size);
-		MD5_Final(md5_value, &md5);
-		// set the encryption length
-		sz = 0;
-		if (buffer_size % AES_BLOCK_SIZE == 0) {
-			sz = buffer_size;
-			polish = 0;
-		}
-		else {
-			int tmp_sz = (buffer_size / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
-			sz = tmp_sz + AES_BLOCK_SIZE;
-			polish = sz - buffer_size;
-			memcpy(tmp_buf, &buffer[tmp_sz], buffer_size - tmp_sz);
-		}
-		buf = (char *)pcs_malloc(sz + AES_BLOCK_SIZE + PCS_MD5_SIZE);
-		if (!buf) {
-			pcs_set_errmsg(handle, "Can't alloc buffer for post data.");
-			pcs_free(filename);
-			return NULL;
-		}
-		memset(buf, 0, sz + AES_BLOCK_SIZE);
-		int2Buffer(PCS_AES_MAGIC, buf);
-		int2Buffer(pcs->secure_method, &buf[4]);
-		int2Buffer(polish, &buf[8]);
-		aes = createPcsAesState(handle, pcs->secure_method, AES_ENCRYPT, (unsigned char)polish);
-		if (!aes) {
-			pcs_set_errmsg(handle, "Can't create AES object.");
-			pcs_free(filename);
-			pcs_free(buf);
-			return NULL;
-		}
-		if (polish) {
-			// encrypt (iv will change)
-			AES_cbc_encrypt(buffer, &buf[AES_BLOCK_SIZE], sz - AES_BLOCK_SIZE, &aes->aes, aes->iv, AES_ENCRYPT);
-			AES_cbc_encrypt(tmp_buf, &buf[AES_BLOCK_SIZE + sz - AES_BLOCK_SIZE], AES_BLOCK_SIZE, &aes->aes, aes->iv, AES_ENCRYPT);
-		}
-		else {
-			// encrypt (iv will change)
-			AES_cbc_encrypt(buffer, &buf[AES_BLOCK_SIZE], buffer_size, &aes->aes, aes->iv, AES_ENCRYPT);
-		}
-		sz += AES_BLOCK_SIZE;
-		destroyPcsAesState(aes);
-
-		/*复制md5值到最后*/
-		memcpy(&buf[sz], md5_value, PCS_MD5_SIZE);
-		sz += PCS_MD5_SIZE;
-	}
 	if (pcs_http_form_addbuffer(pcs->http, &form, "file", buf, (long)sz, filename) != PcsTrue) {
 		pcs_set_errmsg(handle, "Can't build the post data.");
 		pcs_free(filename);
@@ -2843,61 +2393,6 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 	return meta;
 }
 
-size_t pcs_upload_read_func(void *ptr, size_t size, size_t nmemb, void *userdata)
-{
-	struct PcsUploadState *state = (struct PcsUploadState *) userdata;
-	struct PcsAesState *aes = state->aes;
-	FILE *file = state->file;
-	char *buf = state->buffer;
-	size_t sz, buf_size = state->buffer_size;
-
-	if (buf_size == 0) {
-		sz = fread(aes->buffer, 1, PCS_BUFFER_SIZE, file);
-		if (ferror(file)) {
-			return CURL_READFUNC_ABORT;
-		}
-		if (sz > 0) {
-			MD5_Update(&aes->md5, aes->buffer, sz);
-			if ((sz % AES_BLOCK_SIZE) != 0) {
-				buf_size = (sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-				memset(&aes->buffer[sz], 0, buf_size - sz);
-			}
-			else {
-				buf_size = sz;
-			}
-			// encrypt (iv will change)
-			AES_cbc_encrypt(aes->buffer, buf, buf_size, &aes->aes, aes->iv, AES_ENCRYPT);
-			state->buffer_size = buf_size;
-		}
-		else if (!state->eof) {
-			MD5_Final(buf, &aes->md5);
-			buf_size = state->buffer_size = PCS_MD5_SIZE;
-			state->eof = 1;
-		}
-	}
-
-	if (buf_size > 0) {
-		sz = size * nmemb;
-		if (sz >= buf_size) {
-			sz = buf_size;
-			memcpy((char *)ptr, buf, sz);
-			memset(buf, 0, PCS_BUFFER_SIZE);
-			buf_size = 0;
-			state->buffer_size = buf_size;
-		}
-		else {
-			memcpy((char *)ptr, buf, sz);
-			buf_size -= sz;
-			memcpy(buf, &buf[sz], buf_size);
-			state->buffer_size = buf_size;
-		}
-	}
-	else {
-		sz = 0;
-	}
-	return sz;
-}
-
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
 									   const char *local_filename)
 {
@@ -2905,72 +2400,17 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 	char *filename;
 	PcsHttpForm form = NULL;
 	PcsFileInfo *meta;
-	struct PcsUploadState state = { 0 };
-	struct PcsAesState *aes = NULL;
 
 	pcs_clear_errmsg(handle);
 	filename = pcs_utils_filename(path);
-	if (pcs->secure_enable 
-		&& (pcs->secure_method == PCS_SECURE_AES_CBC_128 
-		|| pcs->secure_method == PCS_SECURE_AES_CBC_192 
-		|| pcs->secure_method == PCS_SECURE_AES_CBC_256)) {
-		size_t file_size = 0, sz = 0;
-		state.file = fopen(local_filename, "rb");
-		if (state.file) {
-			fseek(state.file, 0, SEEK_END);
-			file_size = ftell(state.file);
-			fseek(state.file, 0, SEEK_SET);
-		}
-		else {
-			pcs_set_errmsg(handle, "Can't open the file.");
-			pcs_free(filename);
-			return NULL;
-		}
-		if (file_size % AES_BLOCK_SIZE == 0) {
-			sz = file_size;
-		}
-		else {
-			sz = (file_size / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-		}
-		memset(state.buffer, 0, AES_BLOCK_SIZE);
-		int2Buffer(PCS_AES_MAGIC, state.buffer);
-		int2Buffer(pcs->secure_method, &state.buffer[4]);
-		int2Buffer((int)(sz - file_size), &state.buffer[8]);
-		state.buffer_size = AES_BLOCK_SIZE;
-		state.handle = handle;
-		state.contentlength = sz + AES_BLOCK_SIZE;
-		state.secure = pcs->secure_method;
-		aes = createPcsAesState(handle, pcs->secure_method, AES_ENCRYPT, (unsigned char)(sz - file_size));
-		if (!aes) {
-			pcs_set_errmsg(handle, "Can't create AES object.");
-			pcs_free(filename);
-			if (state.file) fclose(state.file);
-			return NULL;
-		}
-		state.aes = aes;
-		MD5_Init(&aes->md5);
-
-		if (pcs_http_form_addbufferfile(pcs->http, &form, "file", filename, &pcs_upload_read_func, &state, sz + AES_BLOCK_SIZE + PCS_MD5_SIZE) != PcsTrue) {
-			pcs_set_errmsg(handle, "Can't build the post data.");
-			pcs_free(filename);
-			destroyPcsAesState(aes);
-			if (state.file) fclose(state.file);
-			return NULL;
-		}
-
-	}
-	else {
-		if (pcs_http_form_addfile(pcs->http, &form, "file", local_filename, filename) != PcsTrue) {
-			pcs_set_errmsg(handle, "Can't build the post data.");
-			pcs_free(filename);
-			return NULL;
-		}
+	if (pcs_http_form_addfile(pcs->http, &form, "file", local_filename, filename) != PcsTrue) {
+		pcs_set_errmsg(handle, "Can't build the post data.");
+		pcs_free(filename);
+		return NULL;
 	}
 	pcs_free(filename);
 	meta = pcs_upload_form(handle, path, overwrite, form);
 	pcs_http_form_destroy(pcs->http, form);
-	if (aes) destroyPcsAesState(aes);
-	if (state.file) fclose(state.file);
 	return meta;
 }
 
