@@ -50,22 +50,41 @@
 #  define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
 #endif
 
-#define NONE         "\033[m"
-#define RED          "\033[0;32;31m"
-#define LIGHT_RED    "\033[1;31m"
-#define GREEN        "\033[0;32;32m"
-#define LIGHT_GREEN  "\033[1;32m"
-#define BLUE         "\033[0;32;34m"
-#define LIGHT_BLUE   "\033[1;34m"
-#define DARY_GRAY    "\033[1;30m"
-#define CYAN         "\033[0;36m"
-#define LIGHT_CYAN   "\033[1;36m"
-#define PURPLE       "\033[0;35m"
-#define LIGHT_PURPLE "\033[1;35m"
-#define BROWN        "\033[0;33m"
-#define YELLOW       "\033[1;33m"
-#define LIGHT_GRAY   "\033[0;37m"
-#define WHITE        "\033[1;37m"
+#ifdef _WIN32
+#  define NONE
+#  define RED
+#  define LIGHT_RED
+#  define GREEN
+#  define LIGHT_GREEN
+#  define BLUE
+#  define LIGHT_BLUE
+#  define DARY_GRAY
+#  define CYAN
+#  define LIGHT_CYAN
+#  define PURPLE
+#  define LIGHT_PURPLE
+#  define BROWN
+#  define YELLOW
+#  define LIGHT_GRAY
+#  define WHITE
+#else
+#  define NONE         "\033[m"
+#  define RED          "\033[0;32;31m"
+#  define LIGHT_RED    "\033[1;31m"
+#  define GREEN        "\033[0;32;32m"
+#  define LIGHT_GREEN  "\033[1;32m"
+#  define BLUE         "\033[0;32;34m"
+#  define LIGHT_BLUE   "\033[1;34m"
+#  define DARY_GRAY    "\033[1;30m"
+#  define CYAN         "\033[0;36m"
+#  define LIGHT_CYAN   "\033[1;36m"
+#  define PURPLE       "\033[0;35m"
+#  define LIGHT_PURPLE "\033[1;35m"
+#  define BROWN        "\033[0;33m"
+#  define YELLOW       "\033[1;33m"
+#  define LIGHT_GRAY   "\033[0;37m"
+#  define WHITE        "\033[1;37m"
+#endif
 
 #define PRINT_PAGE_SIZE			20		/*列出目录或列出比较结果时，分页大小*/
 
@@ -935,15 +954,25 @@ static inline char *findchar(char *str, int ch)
 /*回到上一行*/
 static inline void clear_current_print_line()
 {
+#ifdef _WIN32
+	printf("\r");  //清除该行
+#else
 	//printf("\033[1A"); //先回到上一行
 	printf("\033[K");  //清除该行
+#endif
 }
 
 /*回到上一行*/
 static inline void back_prev_print_line()
 {
+#ifdef _WIN32
+	printf("\r"); //先回到上一行
+	printf("                                        ");  //清除该行
+	printf("\r"); //先回到上一行
+#else
 	printf("\033[1A"); //先回到上一行
 	printf("\033[K");  //清除该行
+#endif
 }
 
 /*把文件大小转换成字符串*/
@@ -2460,9 +2489,15 @@ static int rb_print_meta(void *a, void *state)
 		back_prev_print_line();
 		if (meta->op_st == OP_ST_PROCESSING) meta->op_st = OP_ST_FAIL;
 		if (meta->op_st == OP_ST_FAIL) {
+#ifdef _WIN32
+			fprintf(stderr, "\r");  //清除该行
+			fprintf(stderr, "                                        ");  //清除该行
+			fprintf(stderr, "\r");  //清除该行
+#else
 			fprintf(stderr, "\033[K");  //清除该行
 			fprintf(stderr, "\033[1A"); //先回到上一行
 			fprintf(stderr, "\033[K");  //清除该行
+#endif
 			print_meta_list_row_err(s->first, s->second, s->other, meta);
 		}
 		else {
