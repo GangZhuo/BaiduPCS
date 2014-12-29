@@ -3304,9 +3304,9 @@ int decrypt_file(ShellContext *context, const char *src, const char *dst, const 
 static inline int get_secure_method(ShellContext *context)
 {
 	if (!context->secure_method) return -1;
-	if (strcmp(context->secure_method, "aes-cbc-128")) return PCS_SECURE_AES_CBC_128;
-	if (strcmp(context->secure_method, "aes-cbc-192")) return PCS_SECURE_AES_CBC_192;
-	if (strcmp(context->secure_method, "aes-cbc-256")) return PCS_SECURE_AES_CBC_256;
+	if (!strcmp(context->secure_method, "aes-cbc-128")) return PCS_SECURE_AES_CBC_128;
+	if (!strcmp(context->secure_method, "aes-cbc-192")) return PCS_SECURE_AES_CBC_192;
+	if (!strcmp(context->secure_method, "aes-cbc-256")) return PCS_SECURE_AES_CBC_256;
 	return -1;
 }
 
