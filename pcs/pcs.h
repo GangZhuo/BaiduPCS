@@ -9,7 +9,7 @@
 #include "pcs_slist.h"
 #include "pcs_utils.h"
 
-#define PCS_API_VERSION "v1.0.9"
+#define PCS_API_VERSION "v1.0.10"
 
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
