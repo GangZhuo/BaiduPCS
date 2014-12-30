@@ -1057,7 +1057,6 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	ShellContext *context = ts->ds->context;
 	struct DownloadState *ds = ts->ds;
 	FILE *pf = ds->pf;
-	size_t i;
 	time_t tm;
 	char tmp[64];
 	int rc;
@@ -1069,11 +1068,12 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 		size = ts->end - ts->start;
 		ts->status = DOWNLOAD_STATUS_SUCC;
 	}
-	i = fwrite(ptr, 1, size, pf);
-	ds->downloaded_size += i;
-	ts->start += i;
-	ds->speed += i;
-	ds->noflush_size += i;
+	if (size > 0)
+		fwrite(ptr, 1, size, pf);
+	ds->downloaded_size += size;
+	ts->start += size;
+	ds->speed += size;
+	ds->noflush_size += size;
 
 	//lseek(fileno(pf), ds->file_size, SEEK_SET);
 	rc = fseek((pf), ds->file_size, SEEK_SET);
@@ -1100,7 +1100,7 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	}
 	
 	unlock_for_download(ds);
-	return i;
+	return size;
 }
 
 #pragma endregion
@@ -3200,11 +3200,19 @@ static inline int do_download(ShellContext *context,
 		for (i = 0; i < thread_num; i++) {
 			start_download_thread(&ds);
 		}
-		while (ds.thread_num > 0) {
+		while (1) {
+			lock_for_download(&ds);
+			thread_num = ds.thread_num;
+			unlock_for_download(&ds);
+			if (thread_num < 1) break;
 			sleep(1);
 		}
 		fclose(ds.pf);
 		if (ds.status == DOWNLOAD_STATUS_FAIL) {
+			if (pErrMsg) {
+				if (!(*pErrMsg))
+					(*pErrMsg) = pcs_utils_sprintf("Error: Download fail.\n");
+			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			DeleteFileRecursive(tmp_local_path);
 			pcs_free(tmp_local_path);
@@ -3236,6 +3244,10 @@ static inline int do_download(ShellContext *context,
 			//	(*pErrMsg) = pcs_utils_sprintf("Error: The file have been download at %s, but can't decrypted to %s.\n"
 			//		" Maybe broken data.", tmp_local_path, local_path);
 			//}
+			if (pErrMsg) {
+				if (!(*pErrMsg))
+					(*pErrMsg) = pcs_utils_sprintf("Error: Can't decrypt the file.\n");
+			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			//DeleteFileRecursive(tmp_local_path);
 			pcs_free(tmp_local_path);
