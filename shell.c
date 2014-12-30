@@ -1,4 +1,5 @@
-﻿#include <stdio.h>
+﻿#include <io.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -13,6 +14,7 @@
 # include "pcs/openssl_aes.h"
 # include "pcs/openssl_md5.h"
 #else
+# include <unistd.h>
 # include <inttypes.h>
 # include <termios.h>
 # include <pthread.h>
@@ -31,6 +33,8 @@
 #include "arg.h"
 #ifdef WIN32
 # include "utf8.h"
+# define lseek _lseek
+# define fileno _fileno
 #endif
 #include "shell.h"
 
@@ -47,6 +51,8 @@
 #define DECRYPT_FILE_SUFFIX			".decrypt"
 #define ENCRYPT_FILE_SUFFIX			".encrypt"
 //#define PCS_DEFAULT_CONTEXT_FILE	"/tmp/pcs_context.json"
+
+#define THREAD_STATE_MAGIC			(((int)'T' << 24) | ((int)'S' << 16) | ((int)'H' << 8) | ((int)'T'))
 
 #ifndef PCS_BUFFER_SIZE
 #  define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
@@ -118,6 +124,7 @@
 
 #define DOWNLOAD_STATUS_SUCC		1
 #define DOWNLOAD_STATUS_FAIL		2
+#define DOWNLOAD_STATUS_DOWNLOADING	3
 
 /* 文件元数据*/
 typedef struct MyMeta MyMeta;
@@ -144,20 +151,24 @@ struct MyMeta
 	void		*userdata;		/*用户数据*/
 };
 
+struct DownloadThreadState;
+
 struct DownloadState
 {
 	FILE *pf;
-	size_t downloaded_size;
-	size_t resume_from;
-	size_t noflush_size;
-	time_t time;
-	size_t speed;
+	size_t downloaded_size; /*已经下载的字节数*/
+	size_t resume_from; /*断点续传时，从这个位置开始续传*/
+	size_t noflush_size; /*未执行fflush()的字节大小*/
+	time_t time; /*最后一次在屏幕打印信息的时间*/
+	size_t speed; /*用于统计下载速度*/
+	size_t file_size; /*完整的文件的字节大小*/
 	ShellContext *context;
 	void *mutex;
 	int	thread_num;
 	char **pErrMsg;
 	int	status;
 	const char *remote_file;
+	struct DownloadThreadState *threads;
 };
 
 struct DownloadThreadState
@@ -166,8 +177,8 @@ struct DownloadThreadState
 	size_t	start;
 	size_t	end;
 	int		status;
-	void	*thread_handle;
-	int		tid;
+	Pcs		*pcs;
+	struct DownloadThreadState *next;
 };
 
 struct RBEnumerateState
@@ -329,6 +340,21 @@ int u8_tombs_size(const char *src, int srcsz)
 # define printf u8_printf
 
 # define sleep(s) Sleep((s) * 1000)
+
+int truncate(const char *file, size_t size)
+{
+	HANDLE hFile;
+	hFile = CreateFile(file, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile) {
+		SetFilePointer(hFile, size, NULL, FILE_BEGIN);
+
+		SetEndOfFile(hFile);
+
+		CloseHandle(hFile);
+		return 0;
+	}
+	return -1;
+}
 
 #endif
 
@@ -913,12 +939,18 @@ static void init_download_state(struct DownloadState *ds)
 
 static void uninit_download_state(struct DownloadState *ds)
 {
+	struct DownloadThreadState *ts = ds->threads, *ps = NULL;
 #ifdef _WIN32
 	CloseHandle(ds->mutex);
 #else
 	pthread_mutex_destroy((pthread_mutex_t *)ds->mutex);
 	pcs_free(ds->mutex);
 #endif
+	while (ts) {
+		ps = ts;
+		ts = ts->next;
+		pcs_free(ps);
+	}
 }
 
 static void lock_for_download(struct DownloadState *ds)
@@ -1020,38 +1052,53 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 
 static int download_write_for_multy_thread(char *ptr, size_t size, size_t contentlength, void *userdata)
 {
-	struct DownloadThreadState *ts = (struct DownloadThreadState *)userdata;
+	static int magic = THREAD_STATE_MAGIC;
+	struct DownloadThreadState *ts = (struct DownloadThreadState *)userdata, *pts;
 	ShellContext *context = ts->ds->context;
 	struct DownloadState *ds = ts->ds;
 	FILE *pf = ds->pf;
 	size_t i;
 	time_t tm;
 	char tmp[64];
+	int rc;
 	tmp[63] = '\0';
 	lock_for_download(ds);
-	fseek(pf, ts->start, SEEK_SET);
+	//lseek(fileno(pf), ts->start, SEEK_SET);
+	rc = fseek((pf), ts->start, SEEK_SET);
 	if (ts->start + size > ts->end) {
 		size = ts->end - ts->start;
-		ts->start = DOWNLOAD_STATUS_SUCC;
+		ts->status = DOWNLOAD_STATUS_SUCC;
 	}
 	i = fwrite(ptr, 1, size, pf);
 	ds->downloaded_size += i;
 	ts->start += i;
 	ds->speed += i;
 	ds->noflush_size += i;
+
+	//lseek(fileno(pf), ds->file_size, SEEK_SET);
+	rc = fseek((pf), ds->file_size, SEEK_SET);
+	rc = fwrite(&magic, 4, 1, pf);
+	pts = ds->threads;
+	while (pts) {
+		rc = fwrite(pts, sizeof(struct DownloadThreadState), 1, pf);
+		pts = pts->next;
+	}
+
 	if (ds->noflush_size > 2 * 1024 * 1024) {
 		fflush(pf);
 		ds->noflush_size = 0;
 	}
+
 	tm = time(&tm);
 	if (tm != ds->time) {
 		ds->time = tm;
 		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
-		printf("/%s      ", pcs_utils_readable_size(contentlength + ds->resume_from, tmp, 63, NULL));
+		printf("/%s      ", pcs_utils_readable_size(ds->file_size, tmp, 63, NULL));
 		printf("%s/s      \r", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
 		fflush(stdout);
 		ds->speed = 0;
 	}
+	
 	unlock_for_download(ds);
 	return i;
 }
@@ -1501,7 +1548,7 @@ static int restore_context(ShellContext *context, const char *filename)
 
 	item = cJSON_GetObjectItem(root, "thread_num");
 	if (item) {
-		if (((int)item->valueint) < 0) {
+		if (((int)item->valueint) < 1) {
 			printf("warning: Invalid context.thread_num, the value should be great than 0, use default value: %d.\n", context->thread_num);
 		}
 		else {
@@ -1533,7 +1580,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->secure_enable = 0;
 
 	context->timeout_retry = 1;
-	context->thread_num = 0;
+	context->thread_num = 1;
 }
 
 /*释放上下文*/
@@ -1920,7 +1967,7 @@ static void usage_set()
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("  timeout_retry        Boolean    true|false\n");
-	printf("  thread_num           UInt       >=0 and <%d\n", MAX_THREAD_NUM);
+	printf("  thread_num           UInt       >0 and <%d\n", MAX_THREAD_NUM);
 	printf("\nSamples:\n");
 	printf("  %s set -h\n", app_name);
 	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
@@ -2219,7 +2266,7 @@ static int set_thread_num(ShellContext *context, const char *val)
 		p++;
 	}
 	v = atoi(val);
-	if (v < 0 || v > MAX_THREAD_NUM) return -1;
+	if (v < 1 || v > MAX_THREAD_NUM) return -1;
 	context->thread_num = v;
 	return 0;
 }
@@ -2768,6 +2815,22 @@ static PcsBool is_login(ShellContext *context, const char *msg)
 	return PcsFalse;
 }
 
+static struct DownloadThreadState *pop_download_threadstate(struct DownloadState *ds)
+{
+	struct DownloadThreadState *ts = NULL;
+	lock_for_download(ds);
+	ts = ds->threads;
+	while (ts && ts->status != 0) {
+		ts = ts->next;
+	}
+	if (ts && ts->status == 0)
+		ts->status = DOWNLOAD_STATUS_DOWNLOADING;
+	else
+		ts = NULL;
+	unlock_for_download(ds);
+	return ts;
+}
+
 #ifdef _WIN32
 static DWORD WINAPI download_thread(LPVOID params)
 #else
@@ -2776,10 +2839,21 @@ static void *download_thread(void *params)
 {
 	PcsRes res;
 	int dsstatus;
-	struct DownloadThreadState *ts = (struct DownloadThreadState *)params;
-	ShellContext *context = ts->ds->context;
-	struct DownloadState *ds = ts->ds;
-	Pcs *pcs = create_pcs(context);
+	struct DownloadState *ds = (struct DownloadState *)params;
+	ShellContext *context = ds->context;
+	struct DownloadThreadState *ts = pop_download_threadstate(ds);
+	Pcs *pcs;
+	if (ts == NULL) {
+		lock_for_download(ds);
+		ds->thread_num--;
+		unlock_for_download(ds);
+#ifdef _WIN32
+		return (DWORD)0;
+#else
+		return NULL;
+#endif
+	}
+	pcs = create_pcs(context);
 	if (!pcs) {
 		lock_for_download(ds);
 		if (ds->pErrMsg) {
@@ -2790,20 +2864,20 @@ static void *download_thread(void *params)
 		ds->thread_num--;
 		unlock_for_download(ds);
 		ts->status = DOWNLOAD_STATUS_FAIL;
-		pcs_free(ts);
 #ifdef _WIN32
 		return (DWORD)0;
 #else
 		return NULL;
 #endif
 	}
-	while (1) {
+	while (ts) {
+		ts->pcs = pcs;
 		lock_for_download(ds);
 		dsstatus = ds->status;
 		unlock_for_download(ds);
 		if (dsstatus == DOWNLOAD_STATUS_FAIL) {
 			lock_for_download(ds);
-			ts->status = DOWNLOAD_STATUS_FAIL;
+			ts->status = 0;
 			unlock_for_download(ds);
 			break;
 		}
@@ -2812,7 +2886,7 @@ static void *download_thread(void *params)
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, ts,
 			PCS_OPTION_END);
 		res = pcs_download(pcs, ds->remote_file, ts->start);
-		if (res != PCS_OK && ts->start != DOWNLOAD_STATUS_SUCC) {
+		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_SUCC) {
 			lock_for_download(ds);
 			if (ds->pErrMsg) {
 				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
@@ -2822,8 +2896,8 @@ static void *download_thread(void *params)
 			unlock_for_download(ds);
 			continue;
 		}
-		ts->start = DOWNLOAD_STATUS_SUCC;
-		break;
+		ts->status = DOWNLOAD_STATUS_SUCC;
+		ts = pop_download_threadstate(ds);
 	}
 
 	destroy_pcs(pcs);
@@ -2831,7 +2905,6 @@ static void *download_thread(void *params)
 	lock_for_download(ds);
 	ds->thread_num--;
 	unlock_for_download(ds);
-	pcs_free(ts);
 #ifdef _WIN32
 	return (DWORD)0;
 #else
@@ -2839,11 +2912,11 @@ static void *download_thread(void *params)
 #endif
 }
 
-static void start_download_thread(struct DownloadThreadState *ts)
+static void start_download_thread(struct DownloadState *ds)
 {
-	struct DownloadState *ds = ts->ds;
 #ifdef _WIN32
 	DWORD tid;
+	HANDLE thandle;
 	/* hThread = CreateThread (&security_attributes, dwStackSize, ThreadProc, pParam, dwFlags, &idThread)
 	WINBASEAPI HANDLE WINAPI CreateThread(LPSECURITY_ATTRIBUTES,DWORD,LPTHREAD_START_ROUTINE,PVOID,DWORD,PDWORD);
 	第一个参数是指向SECURITY_ATTRIBUTES型态的结构的指针。在Windows 98中忽略该参数。在Windows NT中，它被设为NULL。
@@ -2853,32 +2926,88 @@ static void start_download_thread(struct DownloadThreadState *ts)
 	第五个参数通常为0，但当建立的线程不马上执行时为旗标
 	第六个参数是一个指针，指向接受执行绪ID值的变量
 	*/
-	ts->thread_handle = CreateThread(NULL, 0, download_thread, (LPVOID)ts, 0, &tid); // 建立线程
-	if (!ts->thread_handle) {
-		ts->status = DOWNLOAD_STATUS_FAIL;
+	thandle = CreateThread(NULL, 0, download_thread, (LPVOID)ds, 0, &tid); // 建立线程
+	if (!thandle) {
+		printf("Error: Can't create download thread.\n");
 		lock_for_download(ds);
 		ds->status = DOWNLOAD_STATUS_FAIL;
 		ds->thread_num--;
 		unlock_for_download(ds);
-	}
-	else {
-		printf("Starting thread %d ...\n", ts->tid);
 	}
 #else
 	int err;
 	pthread_t main_tid;
-	err = pthread_create(&main_tid, NULL, download_thread, ts);
-	if (!ts->thread_handle) {
-		ts->status = DOWNLOAD_STATUS_FAIL;
+	err = pthread_create(&main_tid, NULL, download_thread, ds);
+	if (err) {
+		printf("Error: Can't create download thread.\n");
 		lock_for_download(ds);
 		ds->status = DOWNLOAD_STATUS_FAIL;
 		ds->thread_num--;
 		unlock_for_download(ds);
 	}
-	else {
-		printf("Start thread %d ...\n", ts->tid);
-	}
 #endif
+}
+
+static int restore_download_state(struct DownloadState *ds, const char *tmp_local_path)
+{
+	LocalFileInfo *tmpFileInfo;
+	size_t tmp_file_size = 0;
+	tmpFileInfo = GetLocalFileInfo(tmp_local_path);
+	if (tmpFileInfo) {
+		tmp_file_size = tmpFileInfo->size;
+		DestroyLocalFileInfo(tmpFileInfo);
+	}
+
+	if ((tmp_file_size >= ds->file_size + 4 + sizeof(struct DownloadThreadState))) {
+		FILE *pf;
+		int magic;
+		int thread_count = 0;
+		struct DownloadThreadState *ts, *tail = NULL;
+		size_t left_size = 0;
+		pf = fopen(tmp_local_path, "rb");
+		if (!pf) return -1;
+		if (fseek(pf, ds->file_size, SEEK_SET)) {
+			fclose(pf);
+			return -1;
+		}
+		if (fread(&magic, 4, 1, pf) != 1) {
+			fclose(pf);
+			return -1;
+		}
+		if (magic != THREAD_STATE_MAGIC) {
+			fclose(pf);
+			return -1;
+		}
+		while(1) {
+			ts = (struct DownloadThreadState *) pcs_malloc(sizeof(struct DownloadThreadState));
+			if (fread(ts, sizeof(struct DownloadThreadState), 1, pf) != 1) {
+				pcs_free(ts);
+				break;
+			}
+			ts->ds = ds;
+			if (ts->status == DOWNLOAD_STATUS_DOWNLOADING)
+				ts->status = 0;
+			left_size += (ts->end - ts->start);
+			if (tail == NULL) {
+				ds->threads = tail = ts;
+			}
+			else {
+				tail->next = ts;
+				tail = ts;
+			}
+			thread_count++;
+			if (!ts->next) {
+				ts->next = NULL;
+				break;
+			}
+			ts->next = NULL;
+		}
+		fclose(pf);
+		ds->resume_from = ds->file_size - left_size;
+		ds->thread_num = thread_count;
+		return 0;
+	}
+	return -1;
 }
 
 /*
@@ -2903,10 +3032,8 @@ static inline int do_download(ShellContext *context,
 	struct DownloadState ds = { 0 };
 	char *local_path, *remote_path, *dir,
 		*tmp_local_path;
-	int secure_method = 0, i;
-	LocalFileInfo *tmpFileInfo;
-	int thread_num;
-	size_t slice_size;
+	int secure_method = 0;
+	size_t fsize = 0;
 
 	init_download_state(&ds);
 
@@ -2941,12 +3068,6 @@ static inline int do_download(ShellContext *context,
 	}
 	strcat(tmp_local_path, TEMP_FILE_SUFFIX);
 
-	tmpFileInfo = GetLocalFileInfo(tmp_local_path);
-	if (tmpFileInfo) {
-		ds.resume_from = tmpFileInfo->size;
-		DestroyLocalFileInfo(tmpFileInfo);
-	}
-
 	dir = combin_net_disk_path(context->workdir, remote_basedir);
 	if (!dir) {
 		if (pErrMsg) {
@@ -2977,14 +3098,13 @@ static inline int do_download(ShellContext *context,
 
 	ds.remote_file = remote_path;
 
-	size_t fsize = 0;
-	if (context->thread_num > 0)
-		fsize = pcs_get_download_filesize(context->pcs, remote_path);
+	fsize = pcs_get_download_filesize(context->pcs, remote_path);
+	ds.file_size = fsize;
 
-	if (context->thread_num <= 0 || fsize <= MIN_SLICE_SIZE) {
+	if (fsize <= 0) {
 		/*启动下载*/
 		/*打开文件*/
-		ds.pf = fopen(tmp_local_path, ds.resume_from > 0 ? "ab+" : "wb");
+		ds.pf = fopen(tmp_local_path, "wb");
 		if (!ds.pf) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
@@ -3002,7 +3122,7 @@ static inline int do_download(ShellContext *context,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
 			PCS_OPTION_END);
-		res = pcs_download(context->pcs, remote_path, ds.resume_from);
+		res = pcs_download(context->pcs, remote_path, 0);
 		fclose(ds.pf);
 		if (res != PCS_OK) {
 			if (pErrMsg) {
@@ -3021,22 +3141,47 @@ static inline int do_download(ShellContext *context,
 		}
 	}
 	else {
-		struct DownloadThreadState *ts;
+		struct DownloadThreadState *ts, *tail = NULL;
 		size_t start = 0;
-		ds.resume_from = 0;
+		const char *mode = "rb+";
+		int thread_num, i;
+		size_t slice_size;
 		thread_num = context->thread_num;
 		if (thread_num < 1) thread_num = 1;
+		if (restore_download_state(&ds, tmp_local_path)) {
+			//分片开始
+			mode = "wb";
+			ds.resume_from = 0;
+			slice_size = fsize / thread_num;
+			if ((fsize % thread_num))
+				slice_size++;
+			if (slice_size <= MIN_SLICE_SIZE)
+				slice_size = MIN_SLICE_SIZE;
+			thread_num = fsize / slice_size;
+			if ((fsize % slice_size)) thread_num++;
 
-		slice_size = fsize / thread_num;
-		if ((fsize % thread_num))
-			slice_size++;
-		if (slice_size <= MIN_SLICE_SIZE)
-			slice_size = MIN_SLICE_SIZE;
-		thread_num = fsize / slice_size;
-		if ((fsize % slice_size)) thread_num++;
-		ds.thread_num = thread_num;
+			for (i = 0; i < thread_num; i++) {
+				ts = (struct DownloadThreadState *) pcs_malloc(sizeof(struct DownloadThreadState));
+				ts->ds = &ds;
+				ts->start = start;
+				start += slice_size;
+				ts->end = start;
+				if (ts->end > fsize) ts->end = fsize;
+				ts->status = 0;
+				ts->next = NULL;
+				if (tail == NULL) {
+					ds.threads = tail = ts;
+				}
+				else {
+					tail->next = ts;
+					tail = ts;
+				}
+			}
+			ds.thread_num = thread_num;
+			//分片结束
+		}
 		/*打开文件*/
-		ds.pf = fopen(tmp_local_path, "wb");
+		ds.pf = fopen(tmp_local_path, mode);
 		if (!ds.pf) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
@@ -3050,17 +3195,10 @@ static inline int do_download(ShellContext *context,
 			uninit_download_state(&ds);
 			return -1;
 		}
+		if (thread_num > context->thread_num && context->thread_num > 0)
+			thread_num = context->thread_num;
 		for (i = 0; i < thread_num; i++) {
-			ts = (struct DownloadThreadState *) pcs_malloc(sizeof(struct DownloadThreadState));
-			ts->ds = &ds;
-			ts->start = start;
-			start += slice_size;
-			ts->end = start;
-			if (ts->end > fsize) ts->end = fsize;
-			ts->status = 0;
-			ts->thread_handle = NULL;
-			ts->tid = i + 1;
-			start_download_thread(ts);
+			start_download_thread(&ds);
 		}
 		while (ds.thread_num > 0) {
 			sleep(1);
@@ -3075,6 +3213,7 @@ static inline int do_download(ShellContext *context,
 			uninit_download_state(&ds);
 			return -1;
 		}
+		truncate(tmp_local_path, ds.file_size);
 	}
 
 	uninit_download_state(&ds);
