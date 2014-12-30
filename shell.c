@@ -15,6 +15,7 @@
 #else
 # include <inttypes.h>
 # include <termios.h>
+# include <pthread.h>
 # include <openssl/aes.h>
 # include <openssl/md5.h>
 #endif
@@ -36,6 +37,8 @@
 #define USAGE "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36"
 #define TIMEOUT						60
 #define CONNECTTIMEOUT				10
+#define MAX_THREAD_NUM				100
+#define MIN_SLICE_SIZE				(1024 * 1024)
 
 #define PCS_CONTEXT_ENV				"PCS_CONTEXT"
 #define PCS_COOKIE_ENV				"PCS_COOKIE"
@@ -44,7 +47,6 @@
 #define DECRYPT_FILE_SUFFIX			".decrypt"
 #define ENCRYPT_FILE_SUFFIX			".encrypt"
 //#define PCS_DEFAULT_CONTEXT_FILE	"/tmp/pcs_context.json"
-
 
 #ifndef PCS_BUFFER_SIZE
 #  define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
@@ -114,6 +116,9 @@
 
 #define PCS_AES_MAGIC				(0x41455300)
 
+#define DOWNLOAD_STATUS_SUCC		1
+#define DOWNLOAD_STATUS_FAIL		2
+
 /* 文件元数据*/
 typedef struct MyMeta MyMeta;
 struct MyMeta
@@ -148,6 +153,21 @@ struct DownloadState
 	time_t time;
 	size_t speed;
 	ShellContext *context;
+	void *mutex;
+	int	thread_num;
+	char **pErrMsg;
+	int	status;
+	const char *remote_file;
+};
+
+struct DownloadThreadState
+{
+	struct DownloadState *ds;
+	size_t	start;
+	size_t	end;
+	int		status;
+	void	*thread_handle;
+	int		tid;
 };
 
 struct RBEnumerateState
@@ -878,6 +898,49 @@ static const char *captchafile()
 
 #pragma endregion
 
+#pragma region DownloadState 相关
+
+static void init_download_state(struct DownloadState *ds)
+{
+	memset(ds, 0, sizeof(struct DownloadState));
+#ifdef _WIN32
+	ds->mutex = CreateMutex(NULL, FALSE, NULL);
+#else
+	ds->mutex = (pthread_mutex_t *)pcs_malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init((pthread_mutex_t *)ds->mutex, NULL);
+#endif
+}
+
+static void uninit_download_state(struct DownloadState *ds)
+{
+#ifdef _WIN32
+	CloseHandle(ds->mutex);
+#else
+	pthread_mutex_destroy((pthread_mutex_t *)ds->mutex);
+	pcs_free(ds->mutex);
+#endif
+}
+
+static void lock_for_download(struct DownloadState *ds)
+{
+#ifdef _WIN32
+	WaitForSingleObject(ds->mutex, INFINITE);
+#else
+	pthread_mutex_lock((pthread_mutex_t *)ds->mutex);
+#endif
+}
+
+static void unlock_for_download(struct DownloadState *ds)
+{
+#ifdef _WIN32
+	ReleaseMutex(ds->mutex);
+#else
+	pthread_mutex_unlock((pthread_mutex_t *)ds->mutex);
+#endif
+}
+
+#pragma endregion
+
 #pragma region 三个回调： 输入验证码、显示上传进度、写下载文件
 
 /*输出验证码图片，并等待用户输入识别结果*/
@@ -952,6 +1015,44 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 		fflush(stdout);
 		ds->speed = 0;
 	}
+	return i;
+}
+
+static int download_write_for_multy_thread(char *ptr, size_t size, size_t contentlength, void *userdata)
+{
+	struct DownloadThreadState *ts = (struct DownloadThreadState *)userdata;
+	ShellContext *context = ts->ds->context;
+	struct DownloadState *ds = ts->ds;
+	FILE *pf = ds->pf;
+	size_t i;
+	time_t tm;
+	char tmp[64];
+	tmp[63] = '\0';
+	lock_for_download(ds);
+	fseek(pf, ts->start, SEEK_SET);
+	if (ts->start + size > ts->end) {
+		size = ts->end - ts->start;
+		ts->start = DOWNLOAD_STATUS_SUCC;
+	}
+	i = fwrite(ptr, 1, size, pf);
+	ds->downloaded_size += i;
+	ts->start += i;
+	ds->speed += i;
+	ds->noflush_size += i;
+	if (ds->noflush_size > 2 * 1024 * 1024) {
+		fflush(pf);
+		ds->noflush_size = 0;
+	}
+	tm = time(&tm);
+	if (tm != ds->time) {
+		ds->time = tm;
+		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
+		printf("/%s      ", pcs_utils_readable_size(contentlength + ds->resume_from, tmp, 63, NULL));
+		printf("%s/s      \r", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
+		fflush(stdout);
+		ds->speed = 0;
+	}
+	unlock_for_download(ds);
 	return i;
 }
 
@@ -1245,6 +1346,10 @@ static char *context2str(ShellContext *context)
 	assert(item);
 	cJSON_AddItemToObject(root, "timeout_retry", item);
 
+	item = cJSON_CreateNumber(context->thread_num);
+	assert(item);
+	cJSON_AddItemToObject(root, "thread_num", item);
+
 	json = cJSON_Print(root);
 	assert(json);
 
@@ -1394,6 +1499,16 @@ static int restore_context(ShellContext *context, const char *filename)
 		context->timeout_retry = item->valueint ? 1 : 0;
 	}
 
+	item = cJSON_GetObjectItem(root, "thread_num");
+	if (item) {
+		if (((int)item->valueint) < 0) {
+			printf("warning: Invalid context.thread_num, the value should be great than 0, use default value: %d.\n", context->thread_num);
+		}
+		else {
+			context->thread_num = (int)item->valueint;
+		}
+	}
+
 	cJSON_Delete(root);
 	pcs_free(filecontent);
 	if (context->contextfile) pcs_free(context->contextfile);
@@ -1418,6 +1533,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->secure_enable = 0;
 
 	context->timeout_retry = 1;
+	context->thread_num = 0;
 }
 
 /*释放上下文*/
@@ -1802,6 +1918,9 @@ static void usage_set()
 	printf("  secure_enable        Boolean    true|false\n");
 	printf("  secure_key           String     not null when 'secure_method' is not 'plaintext'\n");
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
+	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
+	printf("  timeout_retry        Boolean    true|false\n");
+	printf("  thread_num           UInt       >=0 and <%d\n", MAX_THREAD_NUM);
 	printf("\nSamples:\n");
 	printf("  %s set -h\n", app_name);
 	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
@@ -2069,6 +2188,39 @@ static int set_secure_enable(ShellContext *context, const char *val)
 	else {
 		return -1;
 	}
+	return 0;
+}
+
+/*设置上下文中的timeout_retry值*/
+static int set_timeout_retry(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (strcmp(val, "true") == 0 || strcmp(val, "1") == 0) {
+		context->timeout_retry = 1;
+	}
+	else if (strcmp(val, "false") == 0 || strcmp(val, "0") == 0) {
+		context->timeout_retry = 0;
+	}
+	else {
+		return -1;
+	}
+	return 0;
+}
+
+/*设置上下文中的thread_num值*/
+static int set_thread_num(ShellContext *context, const char *val)
+{
+	const char *p = val;
+	int v;
+	if (!val || !val[0]) return -1;
+	while (*p) {
+		if (*p < '0' || *p > '9')
+			return -1;
+		p++;
+	}
+	v = atoi(val);
+	if (v < 0 || v > MAX_THREAD_NUM) return -1;
+	context->thread_num = v;
 	return 0;
 }
 
@@ -2616,6 +2768,119 @@ static PcsBool is_login(ShellContext *context, const char *msg)
 	return PcsFalse;
 }
 
+#ifdef _WIN32
+static DWORD WINAPI download_thread(LPVOID params)
+#else
+static void *download_thread(void *params)
+#endif
+{
+	PcsRes res;
+	int dsstatus;
+	struct DownloadThreadState *ts = (struct DownloadThreadState *)params;
+	ShellContext *context = ts->ds->context;
+	struct DownloadState *ds = ts->ds;
+	Pcs *pcs = create_pcs(context);
+	if (!pcs) {
+		lock_for_download(ds);
+		if (ds->pErrMsg) {
+			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+			(*(ds->pErrMsg)) = pcs_utils_sprintf("Error: Can't create pcs context. \n");
+		}
+		ds->status = DOWNLOAD_STATUS_FAIL;
+		ds->thread_num--;
+		unlock_for_download(ds);
+		ts->status = DOWNLOAD_STATUS_FAIL;
+		pcs_free(ts);
+#ifdef _WIN32
+		return (DWORD)0;
+#else
+		return NULL;
+#endif
+	}
+	while (1) {
+		lock_for_download(ds);
+		dsstatus = ds->status;
+		unlock_for_download(ds);
+		if (dsstatus == DOWNLOAD_STATUS_FAIL) {
+			lock_for_download(ds);
+			ts->status = DOWNLOAD_STATUS_FAIL;
+			unlock_for_download(ds);
+			break;
+		}
+		pcs_setopts(pcs,
+			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write_for_multy_thread,
+			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, ts,
+			PCS_OPTION_END);
+		res = pcs_download(pcs, ds->remote_file, ts->start);
+		if (res != PCS_OK && ts->start != DOWNLOAD_STATUS_SUCC) {
+			lock_for_download(ds);
+			if (ds->pErrMsg) {
+				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+				(*(ds->pErrMsg)) = pcs_utils_sprintf("Error: %s\n", pcs_strerror(pcs));
+			}
+			//ds->status = DOWNLOAD_STATUS_FAIL;
+			unlock_for_download(ds);
+			continue;
+		}
+		ts->start = DOWNLOAD_STATUS_SUCC;
+		break;
+	}
+
+	destroy_pcs(pcs);
+
+	lock_for_download(ds);
+	ds->thread_num--;
+	unlock_for_download(ds);
+	pcs_free(ts);
+#ifdef _WIN32
+	return (DWORD)0;
+#else
+	return NULL;
+#endif
+}
+
+static void start_download_thread(struct DownloadThreadState *ts)
+{
+	struct DownloadState *ds = ts->ds;
+#ifdef _WIN32
+	DWORD tid;
+	/* hThread = CreateThread (&security_attributes, dwStackSize, ThreadProc, pParam, dwFlags, &idThread)
+	WINBASEAPI HANDLE WINAPI CreateThread(LPSECURITY_ATTRIBUTES,DWORD,LPTHREAD_START_ROUTINE,PVOID,DWORD,PDWORD);
+	第一个参数是指向SECURITY_ATTRIBUTES型态的结构的指针。在Windows 98中忽略该参数。在Windows NT中，它被设为NULL。
+	第二个参数是用于新线程的初始堆栈大小，默认值为0。在任何情况下，Windows根据需要动态延长堆栈的大小。
+	第三个参数是指向线程函数的指标。函数名称没有限制，但是必须以下列形式声明:DWORD WINAPI ThreadProc (PVOID pParam) ;
+	第四个参数为传递给ThreadProc的参数。这样主线程和从属线程就可以共享数据。
+	第五个参数通常为0，但当建立的线程不马上执行时为旗标
+	第六个参数是一个指针，指向接受执行绪ID值的变量
+	*/
+	ts->thread_handle = CreateThread(NULL, 0, download_thread, (LPVOID)ts, 0, &tid); // 建立线程
+	if (!ts->thread_handle) {
+		ts->status = DOWNLOAD_STATUS_FAIL;
+		lock_for_download(ds);
+		ds->status = DOWNLOAD_STATUS_FAIL;
+		ds->thread_num--;
+		unlock_for_download(ds);
+	}
+	else {
+		printf("Starting thread %d ...\n", ts->tid);
+	}
+#else
+	int err;
+	pthread_t main_tid;
+	err = pthread_create(&main_tid, NULL, download_thread, ts);
+	if (!ts->thread_handle) {
+		ts->status = DOWNLOAD_STATUS_FAIL;
+		lock_for_download(ds);
+		ds->status = DOWNLOAD_STATUS_FAIL;
+		ds->thread_num--;
+		unlock_for_download(ds);
+	}
+	else {
+		printf("Start thread %d ...\n", ts->tid);
+	}
+#endif
+}
+
 /*
  * 执行下载操作
  *   context        - 上下文
@@ -2638,11 +2903,16 @@ static inline int do_download(ShellContext *context,
 	struct DownloadState ds = { 0 };
 	char *local_path, *remote_path, *dir,
 		*tmp_local_path;
-	int secure_method = 0;
+	int secure_method = 0, i;
 	LocalFileInfo *tmpFileInfo;
-	Pcs *pcs;
+	int thread_num;
+	size_t slice_size;
+
+	init_download_state(&ds);
 
 	ds.context = context;
+	ds.pErrMsg = pErrMsg;
+	ds.status = 0;
 
 	local_path = combin_path(local_basedir, -1, local_file);
 
@@ -2657,6 +2927,7 @@ static inline int do_download(ShellContext *context,
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			pcs_free(dir);
 			pcs_free(local_path);
+			uninit_download_state(&ds);
 			return -1;
 		}
 		pcs_free(dir);
@@ -2676,20 +2947,6 @@ static inline int do_download(ShellContext *context,
 		DestroyLocalFileInfo(tmpFileInfo);
 	}
 
-	/*打开文件*/
-	ds.pf = fopen(tmp_local_path, ds.resume_from > 0 ? "ab+" : "wb");
-	if (!ds.pf) {
-		if (pErrMsg) {
-			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: Can't open or create the temp file: %s\n", tmp_local_path);
-		}
-		if (op_st) (*op_st) = OP_ST_FAIL;
-		DeleteFileRecursive(tmp_local_path);
-		pcs_free(tmp_local_path);
-		pcs_free(local_path);
-		return -1;
-	}
-
 	dir = combin_net_disk_path(context->workdir, remote_basedir);
 	if (!dir) {
 		if (pErrMsg) {
@@ -2700,7 +2957,7 @@ static inline int do_download(ShellContext *context,
 		DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		pcs_free(local_path);
-		fclose(ds.pf);
+		uninit_download_state(&ds);
 		return -1;
 	}
 	remote_path = combin_net_disk_path(dir, remote_file);
@@ -2714,51 +2971,113 @@ static inline int do_download(ShellContext *context,
 		DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		pcs_free(local_path);
-		fclose(ds.pf);
+		uninit_download_state(&ds);
 		return -1;
 	}
 
-	pcs = create_pcs(context);
-	if (!pcs) {
-		if (pErrMsg) {
-			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: Can't create pcs context. \n");
+	ds.remote_file = remote_path;
+
+	size_t fsize = 0;
+	if (context->thread_num > 0)
+		fsize = pcs_get_download_filesize(context->pcs, remote_path);
+
+	if (context->thread_num <= 0 || fsize <= MIN_SLICE_SIZE) {
+		/*启动下载*/
+		/*打开文件*/
+		ds.pf = fopen(tmp_local_path, ds.resume_from > 0 ? "ab+" : "wb");
+		if (!ds.pf) {
+			if (pErrMsg) {
+				if (*pErrMsg) pcs_free(*pErrMsg);
+				(*pErrMsg) = pcs_utils_sprintf("Error: Can't open or create the temp file: %s\n", tmp_local_path);
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			uninit_download_state(&ds);
+			return -1;
 		}
-		if (op_st) (*op_st) = OP_ST_FAIL;
-		DeleteFileRecursive(tmp_local_path);
-		pcs_free(tmp_local_path);
-		pcs_free(local_path);
-		pcs_free(remote_path);
+		pcs_setopts(context->pcs,
+			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
+			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
+			PCS_OPTION_END);
+		res = pcs_download(context->pcs, remote_path, ds.resume_from);
 		fclose(ds.pf);
-		return -1;
+		if (res != PCS_OK) {
+			if (pErrMsg) {
+				if (*pErrMsg) pcs_free(*pErrMsg);
+				(*pErrMsg) = pcs_utils_sprintf("Error: %s. local_path=%s, remote_path=%s\n",
+					pcs_strerror(context->pcs), tmp_local_path, remote_path);
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			//if (!strstr(pcs_strerror(context->pcs), "Timeout"))
+			//	DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			uninit_download_state(&ds);
+			return -1;
+		}
+	}
+	else {
+		struct DownloadThreadState *ts;
+		size_t start = 0;
+		ds.resume_from = 0;
+		thread_num = context->thread_num;
+		if (thread_num < 1) thread_num = 1;
+
+		slice_size = fsize / thread_num;
+		if ((fsize % thread_num))
+			slice_size++;
+		if (slice_size <= MIN_SLICE_SIZE)
+			slice_size = MIN_SLICE_SIZE;
+		thread_num = fsize / slice_size;
+		if ((fsize % slice_size)) thread_num++;
+		ds.thread_num = thread_num;
+		/*打开文件*/
+		ds.pf = fopen(tmp_local_path, "wb");
+		if (!ds.pf) {
+			if (pErrMsg) {
+				if (*pErrMsg) pcs_free(*pErrMsg);
+				(*pErrMsg) = pcs_utils_sprintf("Error: Can't open or create the temp file: %s\n", tmp_local_path);
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			uninit_download_state(&ds);
+			return -1;
+		}
+		for (i = 0; i < thread_num; i++) {
+			ts = (struct DownloadThreadState *) pcs_malloc(sizeof(struct DownloadThreadState));
+			ts->ds = &ds;
+			ts->start = start;
+			start += slice_size;
+			ts->end = start;
+			if (ts->end > fsize) ts->end = fsize;
+			ts->status = 0;
+			ts->thread_handle = NULL;
+			ts->tid = i + 1;
+			start_download_thread(ts);
+		}
+		while (ds.thread_num > 0) {
+			sleep(1);
+		}
+		fclose(ds.pf);
+		if (ds.status == DOWNLOAD_STATUS_FAIL) {
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			uninit_download_state(&ds);
+			return -1;
+		}
 	}
 
-	/*启动下载*/
-	pcs_setopts(pcs,
-		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
-		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
-		//PCS_OPTION_TIMEOUT, (void *)((long)(60 * 60)),
-		PCS_OPTION_END);
-	res = pcs_download(pcs, remote_path, ds.resume_from);
-	fclose(ds.pf);
-	destroy_pcs(pcs);
-	//pcs_setopts(context->pcs,
-	//	PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
-	//	PCS_OPTION_END);
-	if (res != PCS_OK) {
-		if (pErrMsg) {
-			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: %s. local_path=%s, remote_path=%s\n", 
-				pcs_strerror(context->pcs), tmp_local_path, remote_path);
-		}
-		if (op_st) (*op_st) = OP_ST_FAIL;
-		//if (!strstr(pcs_strerror(context->pcs), "Timeout"))
-		//	DeleteFileRecursive(tmp_local_path);
-		pcs_free(tmp_local_path);
-		pcs_free(local_path);
-		pcs_free(remote_path);
-		return -1;
-	}
+	uninit_download_state(&ds);
 
 	DeleteFileRecursive(local_path);
 
@@ -4371,7 +4690,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	if (test_arg(arg, 0, 0, 
 		"cookie_file", "captcha_file", 
 		"list_page_size", "list_sort_name", "list_sort_direction",
-		"secure_method", "secure_key", "secure_enable",
+		"secure_method", "secure_key", "secure_enable", "timeout_retry", "thread_num",
 		"h", "help", NULL) && arg->optc == 0) {
 		usage_set();
 		return -1;
@@ -4436,6 +4755,21 @@ static int cmd_set(ShellContext *context, struct args *arg)
 			return -1;
 		}
 	}
+
+	if (has_optEx(arg, "timeout_retry", &val)) {
+		if (set_timeout_retry(context, val)) {
+			usage_set();
+			return -1;
+		}
+	}
+
+	if (has_optEx(arg, "thread_num", &val)) {
+		if (set_thread_num(context, val)) {
+			usage_set();
+			return -1;
+		}
+	}
+
 	printf("Success. You can view context by '%s context'\n", app_name);
 	return 0;
 }
