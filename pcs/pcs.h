@@ -289,6 +289,8 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz);
  */
 PCS_API PcsRes pcs_download(Pcs handle, const char *path, size_t resume_from);
 
+PCS_API size_t pcs_get_download_filesize(Pcs handle, const char *path);
+
 /*
  * 把内存中的字节序上传到网盘
  *   path		目标文件，地址需写全，如/temp/file.txt

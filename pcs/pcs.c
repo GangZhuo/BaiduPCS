@@ -952,7 +952,7 @@ static PcsFileInfoList *pcs_pan_api_1(Pcs handle, const char *action, ...)
 	pcs_free(url);
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1208,7 +1208,7 @@ static PcsPanApiRes *pcs_pan_api_filemanager(Pcs handle, const char *opera, cons
 	pcs_free(postdata);
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1373,7 +1373,7 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 	pcs_free(url);
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1648,7 +1648,7 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	}
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1688,7 +1688,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	html = pcs_http_get(pcs->http, URL_HOME, PcsTrue);
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1698,7 +1698,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	//html = pcs_http_get(pcs->http, URL_PASSPORT_API "login", PcsTrue);
 	//if (!html) {
 	//	errmsg = pcs_http_strerror(pcs->http);
-	//	if (!errmsg)
+	//	if (errmsg)
 	//		pcs_set_errmsg(handle, errmsg);
 	//	else
 	//		pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1710,7 +1710,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	html = pcs_http_get(pcs->http, url, PcsTrue); pcs_free(url);
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1760,7 +1760,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	html = pcs_http_get(pcs->http, url, PcsTrue); pcs_free(url);
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1810,7 +1810,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	html = pcs_http_get(pcs->http, url, PcsTrue); pcs_free(url);
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -1908,7 +1908,7 @@ try_login:
 	pcs_free(post_data);
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -2024,7 +2024,7 @@ PCS_API PcsRes pcs_logout(Pcs handle)
 		return PCS_OK;
 	}
 	errmsg = pcs_http_strerror(pcs->http);
-	if (!errmsg)
+	if (errmsg)
 		pcs_set_errmsg(handle, errmsg);
 	else
 		pcs_set_errmsg(handle, "Can't logout. Http Code: %d", http_code);
@@ -2048,7 +2048,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, size_t *quota, size_t *used)
 	pcs_free(url);
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -2126,7 +2126,7 @@ PCS_API PcsRes pcs_mkdir(Pcs handle, const char *path)
 	pcs_free(postdata);
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
-		if (!errmsg)
+		if (errmsg)
 			pcs_set_errmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
@@ -2316,7 +2316,7 @@ static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunc
 	}
 	pcs_free(url);
 	errmsg = pcs_http_strerror(pcs->http);
-	if (!errmsg)
+	if (errmsg)
 		pcs_set_errmsg(handle, errmsg);
 	else
 		pcs_set_errmsg(handle, "Can't download the file: %s", pcs_http_strerror(pcs->http));
@@ -2327,6 +2327,31 @@ PCS_API PcsRes pcs_download(Pcs handle, const char *path, size_t resume_from)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data, resume_from);
+}
+
+PCS_API size_t pcs_get_download_filesize(Pcs handle, const char *path)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	char *url;
+	const char *errmsg;
+	size_t size;
+
+	pcs_clear_errmsg(handle);
+	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
+		"method", "download",
+		"app_id", "250528",
+		"path", path,
+		NULL);
+	if (!url) {
+		pcs_set_errmsg(handle, "Can't build the url.");
+		return 0;
+	}
+	size = pcs_http_get_download_filesize(pcs->http, url, PcsTrue);
+	pcs_free(url);
+	errmsg = pcs_http_strerror(pcs->http);
+	if (errmsg)
+		pcs_set_errmsg(handle, errmsg);
+	return size;
 }
 
 static size_t pcs_cat_write_func(char *ptr, size_t size, size_t contentlength, void *userdata)

@@ -192,6 +192,9 @@ PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, Pc
 */
 PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location, size_t resume_from);
 
+/*获取待下载文件的大小*/
+PCS_API size_t pcs_http_get_download_filesize(PcsHttp handle, const char *url, PcsBool follow_location);
+
 /*
  * 向PcsHttpForm对象中添加一个本地文件。
  *   post        文件将添加到该PcsHttpForm对象中。
