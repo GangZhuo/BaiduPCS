@@ -142,11 +142,11 @@ struct MyMeta
 struct DownloadState
 {
 	FILE *pf;
-	char *msg;
-	size_t size;
+	size_t downloaded_size;
 	size_t resume_from;
 	size_t noflush_size;
 	time_t time;
+	size_t speed;
 	ShellContext *context;
 };
 
@@ -934,10 +934,10 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	size_t i;
 	time_t tm;
 	char tmp[64];
-	double downloadSpeed;
 	tmp[63] = '\0';
 	i = fwrite(ptr, 1, size, pf);
-	ds->size += i;
+	ds->downloaded_size += i;
+	ds->speed += i;
 	ds->noflush_size += i;
 	if (ds->noflush_size > 2 * 1024 * 1024) {
 		fflush(pf);
@@ -946,13 +946,11 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	tm = time(&tm);
 	if (tm != ds->time) {
 		ds->time = tm;
-		if (ds->msg)
-			printf("%s", ds->msg);
-		downloadSpeed = pcs_speed_download(ds->context->pcs);
-		printf("%s", pcs_utils_readable_size(ds->size + ds->resume_from, tmp, 63, NULL));
+		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
 		printf("/%s      ", pcs_utils_readable_size(contentlength + ds->resume_from, tmp, 63, NULL));
-		printf("%s/s      \r", pcs_utils_readable_size(downloadSpeed, tmp, 63, NULL));
+		printf("%s/s      \r", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
 		fflush(stdout);
+		ds->speed = 0;
 	}
 	return i;
 }
@@ -1430,7 +1428,6 @@ static void free_context(ShellContext *context)
 	if (context->workdir) pcs_free(context->workdir);
 	if (context->list_sort_name) pcs_free(context->list_sort_name);
 	if (context->list_sort_direction) pcs_free(context->list_sort_direction);
-	if (context->pcs) pcs_destroy(context->pcs);
 	if (context->secure_method) pcs_free(context->secure_method);
 	if (context->secure_key) pcs_free(context->secure_key);
 	if (context->contextfile) pcs_free(context->contextfile);
@@ -1438,17 +1435,24 @@ static void free_context(ShellContext *context)
 }
 
 /*初始化PCS*/
-static void init_pcs(ShellContext *context)
+static Pcs *create_pcs(ShellContext *context)
 {
-	context->pcs = pcs_create(context->cookiefile);
-	pcs_setopt(context->pcs, PCS_OPTION_CAPTCHA_FUNCTION, (void *)&verifycode);
-	pcs_setopts(context->pcs,
+	Pcs *pcs = pcs_create(context->cookiefile);
+	if (!pcs) return NULL;
+	pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, (void *)&verifycode);
+	pcs_setopts(pcs,
 		PCS_OPTION_PROGRESS_FUNCTION, (void *)&upload_progress,
 		PCS_OPTION_PROGRESS, (void *)((long)PcsFalse),
 		PCS_OPTION_USAGE, (void *)USAGE,
 		//PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
 		PCS_OPTION_CONNECTTIMEOUT, (void *)((long)CONNECTTIMEOUT),
 		PCS_OPTION_END);
+	return pcs;
+}
+
+static void destroy_pcs(Pcs *pcs)
+{
+	pcs_destroy(pcs);
 }
 
 #pragma endregion
@@ -1968,9 +1972,10 @@ static int set_cookiefile(ShellContext *context, const char *val)
 	if (context->cookiefile) pcs_free(context->cookiefile);
 	context->cookiefile = pcs_utils_strdup(val);
 	if (context->pcs) {
-		pcs_destroy(context->pcs);
-		context->pcs = NULL;
-		init_pcs(context);
+		Pcs *pcs = create_pcs(context);
+		if (!pcs) return -1;
+		destroy_pcs(context->pcs);
+		context->pcs = pcs;
 	}
 	return 0;
 }
@@ -2635,6 +2640,7 @@ static inline int do_download(ShellContext *context,
 		*tmp_local_path;
 	int secure_method = 0;
 	LocalFileInfo *tmpFileInfo;
+	Pcs *pcs;
 
 	ds.context = context;
 
@@ -2694,11 +2700,12 @@ static inline int do_download(ShellContext *context,
 		DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		pcs_free(local_path);
+		fclose(ds.pf);
 		return -1;
 	}
 	remote_path = combin_net_disk_path(dir, remote_file);
 	pcs_free(dir);
-	if (!dir) {
+	if (!remote_path) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
 			(*pErrMsg) = pcs_utils_sprintf("Error: Can't combin remote path\n");
@@ -2707,17 +2714,34 @@ static inline int do_download(ShellContext *context,
 		DeleteFileRecursive(tmp_local_path);
 		pcs_free(tmp_local_path);
 		pcs_free(local_path);
+		fclose(ds.pf);
+		return -1;
+	}
+
+	pcs = create_pcs(context);
+	if (!pcs) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("Error: Can't create pcs context. \n");
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		pcs_free(local_path);
+		pcs_free(remote_path);
+		fclose(ds.pf);
 		return -1;
 	}
 
 	/*启动下载*/
-	pcs_setopts(context->pcs,
+	pcs_setopts(pcs,
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 		PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
 		//PCS_OPTION_TIMEOUT, (void *)((long)(60 * 60)),
 		PCS_OPTION_END);
-	res = pcs_download(context->pcs, remote_path, ds.resume_from);
+	res = pcs_download(pcs, remote_path, ds.resume_from);
 	fclose(ds.pf);
+	destroy_pcs(pcs);
 	//pcs_setopts(context->pcs,
 	//	PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
 	//	PCS_OPTION_END);
@@ -4948,8 +4972,14 @@ int main(int argc, char *argv[])
 		printf("%s\n", errmsg);
 		pcs_free(errmsg);
 	}
-	init_pcs(&context);
+	context.pcs = create_pcs(&context);
+	if (!context.pcs) {
+		rc = -1;
+		printf("Can't create pcs context.\n");
+		goto exit_main;
+	}
 	rc = exec_cmd(&context, &arg);
+	destroy_pcs(context.pcs);
 	save_context(&context);
 exit_main:
 	free_context(&context);
