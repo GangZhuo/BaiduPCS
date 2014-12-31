@@ -105,6 +105,7 @@ static inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod metho
 	curl_easy_setopt(http->curl, CURLOPT_HEADER, 1L);
 	curl_easy_setopt(http->curl, CURLOPT_CONNECTTIMEOUT, (long)http->connect_timeout);
 	curl_easy_setopt(http->curl, CURLOPT_TIMEOUT, (long)http->timeout);
+	curl_easy_setopt(http->curl, CURLOPT_NOSIGNAL, 1L);
 	curl_easy_setopt(http->curl, CURLOPT_WRITEFUNCTION, write_func);
 	curl_easy_setopt(http->curl, CURLOPT_WRITEDATA, state);
 
