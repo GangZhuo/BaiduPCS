@@ -1048,15 +1048,16 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 		fflush(pf);
 		ds->noflush_size = 0;
 	}
-	tm = time(&tm);
-	if (tm != ds->time) {
+	//tm = time(&tm);
+	//if (tm != ds->time) {
 		ds->time = tm;
 		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
 		printf("/%s      ", pcs_utils_readable_size(contentlength + ds->resume_from, tmp, 63, NULL));
-		printf("%s/s      \r", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
+		//printf("%s/s      \r", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
+		printf("\r");
 		fflush(stdout);
 		ds->speed = 0;
-	}
+	//}
 	return i;
 }
 
@@ -1127,17 +1128,17 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 		fflush(pf);
 		ds->noflush_size = 0;
 	}
-
-	tm = time(&tm);
-	if (tm != ds->time) {
+	//tm = time(&tm);
+	//if (tm != ds->time) {
 		ds->time = tm;
 		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
 		printf("/%s      ", pcs_utils_readable_size(ds->file_size, tmp, 63, NULL));
-		printf("%s/s      \r", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
+		//printf("%s/s      ", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
+		printf("\r");
 		fflush(stdout);
 		ds->speed = 0;
-	}
-	
+	//}
+
 	unlock_for_download(ds);
 	return size;
 }
@@ -2899,10 +2900,10 @@ static void *download_thread(void *params)
 			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
 			(*(ds->pErrMsg)) = pcs_utils_sprintf("Error: Can't create pcs context. \n");
 		}
-		ds->status = DOWNLOAD_STATUS_FAIL;
+		//ds->status = DOWNLOAD_STATUS_FAIL;
 		ds->num_of_running_thread--;
-		unlock_for_download(ds);
 		ts->status = DOWNLOAD_STATUS_PENDDING;
+		unlock_for_download(ds);
 #ifdef _WIN32
 		return (DWORD)0;
 #else
@@ -2936,12 +2937,13 @@ static void *download_thread(void *params)
 			sleep(10); /*10秒后重试*/
 			continue;
 		}
+		lock_for_download(ds);
 		ts->status = DOWNLOAD_STATUS_OK;
+		unlock_for_download(ds);
 		ts = pop_download_threadstate(ds);
 	}
 
 	destroy_pcs(pcs);
-
 	lock_for_download(ds);
 	ds->num_of_running_thread--;
 	unlock_for_download(ds);
@@ -2986,7 +2988,7 @@ static void start_download_thread(struct DownloadState *ds)
 #endif
 }
 
-static int restore_download_state(struct DownloadState *ds, const char *tmp_local_path)
+static int restore_download_state(struct DownloadState *ds, const char *tmp_local_path, int *pendding_count)
 {
 	LocalFileInfo *tmpFileInfo;
 	size_t tmp_file_size = 0;
@@ -3016,6 +3018,7 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 			fclose(pf);
 			return -1;
 		}
+		if (pendding_count) (*pendding_count) = 0;
 		while(1) {
 			ts = (struct DownloadThreadState *) pcs_malloc(sizeof(struct DownloadThreadState));
 			if (fread(ts, sizeof(struct DownloadThreadState), 1, pf) != 1) {
@@ -3023,8 +3026,13 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 				break;
 			}
 			ts->ds = ds;
-			if (ts->status != DOWNLOAD_STATUS_OK)
+			//printf("%d: ", thread_count);
+			if (ts->status != DOWNLOAD_STATUS_OK) {
 				ts->status = DOWNLOAD_STATUS_PENDDING;
+				if (pendding_count) (*pendding_count)++;
+				//printf("*");
+			}
+			//printf("%d/%d\n", (int)ts->start, (int)ts->end);
 			left_size += (ts->end - ts->start);
 			if (tail == NULL) {
 				ds->threads = tail = ts;
@@ -3183,11 +3191,11 @@ static inline int do_download(ShellContext *context,
 		struct DownloadThreadState *ts, *tail = NULL;
 		size_t start = 0;
 		const char *mode = "rb+";
-		int slice_count, thread_count, i, is_success;
+		int slice_count, pendding_slice_count = 0, thread_count, i, is_success;
 		size_t slice_size;
 		slice_count = context->max_thread;
 		if (slice_count < 1) slice_count = 1;
-		if (restore_download_state(&ds, tmp_local_path)) {
+		if (restore_download_state(&ds, tmp_local_path, &pendding_slice_count)) {
 			//分片开始
 			mode = "wb";
 			ds.resume_from = 0;
@@ -3209,6 +3217,7 @@ static inline int do_download(ShellContext *context,
 				ts->end = start;
 				if (ts->end > fsize) ts->end = fsize;
 				ts->status = DOWNLOAD_STATUS_PENDDING;
+				pendding_slice_count++;
 				ts->tid = i + 1;
 				ts->next = NULL;
 				if (tail == NULL) {
@@ -3237,7 +3246,7 @@ static inline int do_download(ShellContext *context,
 			uninit_download_state(&ds);
 			return -1;
 		}
-		thread_count = ds.num_of_slice;
+		thread_count = pendding_slice_count;
 		if (thread_count > context->max_thread && context->max_thread > 0)
 			thread_count = context->max_thread;
 		ds.num_of_running_thread = thread_count;
