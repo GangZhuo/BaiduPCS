@@ -26,7 +26,7 @@ typedef struct ShellContext
 	int			secure_enable;  /*是否启用加密*/
 
 	int			timeout_retry;  /*是否启用超时后重试*/
-	int			thread_num; /*指定的线程数量*/
+	int			max_thread; /*指定最大线程数量*/
 } ShellContext;
 
 #endif
