@@ -1,5 +1,4 @@
-﻿#include <io.h>
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -1033,7 +1032,7 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	struct DownloadState *ds = (struct DownloadState *)userdata;
 	FILE *pf = ds->pf;
 	size_t i;
-	time_t tm;
+	//time_t tm;
 	char tmp[64];
 	tmp[63] = '\0';
 	i = fwrite(ptr, 1, size, pf);
@@ -1050,7 +1049,7 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	}
 	//tm = time(&tm);
 	//if (tm != ds->time) {
-		ds->time = tm;
+		//ds->time = tm;
 		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
 		printf("/%s      ", pcs_utils_readable_size(contentlength + ds->resume_from, tmp, 63, NULL));
 		//printf("%s/s      \r", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
@@ -1068,7 +1067,7 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	ShellContext *context = ts->ds->context;
 	struct DownloadState *ds = ts->ds;
 	FILE *pf = ds->pf;
-	time_t tm;
+	//time_t tm;
 	char tmp[64];
 	int rc;
 	tmp[63] = '\0';
@@ -1130,7 +1129,7 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	}
 	//tm = time(&tm);
 	//if (tm != ds->time) {
-		ds->time = tm;
+		//ds->time = tm;
 		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
 		printf("/%s      ", pcs_utils_readable_size(ds->file_size, tmp, 63, NULL));
 		//printf("%s/s      ", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
