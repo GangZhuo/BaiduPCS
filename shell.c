@@ -2933,6 +2933,7 @@ static void *download_thread(void *params)
 			}
 			//ds->status = DOWNLOAD_STATUS_FAIL;
 			unlock_for_download(ds);
+			printf("Download slice failed, retry delay 10 second\n");
 			sleep(10); /*10秒后重试*/
 			continue;
 		}
