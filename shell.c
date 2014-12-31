@@ -42,7 +42,9 @@
 #define TIMEOUT						60
 #define CONNECTTIMEOUT				10
 #define MAX_THREAD_NUM				100
-#define MIN_SLICE_SIZE				(1024 * 1024)
+#define MIN_SLICE_SIZE				(512 * 1024) /*最小分片大小*/
+#define MAX_SLICE_SIZE				(10 * 1024 * 1024) /*最大分片大小*/
+#define MAX_FFLUSH_SIZE				(10 * 1024 * 1024) /*最大缓存大小*/
 
 #define PCS_CONTEXT_ENV				"PCS_CONTEXT"
 #define PCS_COOKIE_ENV				"PCS_COOKIE"
@@ -122,9 +124,11 @@
 
 #define PCS_AES_MAGIC				(0x41455300)
 
-#define DOWNLOAD_STATUS_SUCC		1
-#define DOWNLOAD_STATUS_FAIL		2
-#define DOWNLOAD_STATUS_DOWNLOADING	3
+#define DOWNLOAD_STATUS_OK				0
+#define DOWNLOAD_STATUS_PENDDING		1
+#define DOWNLOAD_STATUS_WRITE_FILE_FAIL	2
+#define DOWNLOAD_STATUS_FAIL			3
+#define DOWNLOAD_STATUS_DOWNLOADING		4
 
 /* 文件元数据*/
 typedef struct MyMeta MyMeta;
@@ -164,7 +168,8 @@ struct DownloadState
 	size_t file_size; /*完整的文件的字节大小*/
 	ShellContext *context;
 	void *mutex;
-	int	thread_num;
+	int	num_of_running_thread; /*已经启动的线程数量*/
+	int num_of_slice; /*分片数量*/
 	char **pErrMsg;
 	int	status;
 	const char *remote_file;
@@ -178,6 +183,7 @@ struct DownloadThreadState
 	size_t	end;
 	int		status;
 	Pcs		*pcs;
+	int		tid;
 	struct DownloadThreadState *next;
 };
 
@@ -1031,10 +1037,14 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	char tmp[64];
 	tmp[63] = '\0';
 	i = fwrite(ptr, 1, size, pf);
+	if (i != size) {
+		unlock_for_download(ds);
+		return 0;
+	}
 	ds->downloaded_size += i;
 	ds->speed += i;
 	ds->noflush_size += i;
-	if (ds->noflush_size > 2 * 1024 * 1024) {
+	if (ds->noflush_size > MAX_FFLUSH_SIZE) {
 		fflush(pf);
 		ds->noflush_size = 0;
 	}
@@ -1064,27 +1074,56 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	lock_for_download(ds);
 	//lseek(fileno(pf), ts->start, SEEK_SET);
 	rc = fseek((pf), ts->start, SEEK_SET);
+	if (rc) {
+		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+		unlock_for_download(ds);
+		return 0;
+	}
 	if (ts->start + size > ts->end) {
 		size = ts->end - ts->start;
-		ts->status = DOWNLOAD_STATUS_SUCC;
+		ts->status = DOWNLOAD_STATUS_OK;
 	}
-	if (size > 0)
-		fwrite(ptr, 1, size, pf);
+	if (size > 0) {
+		rc = fwrite(ptr, 1, size, pf);
+		if (rc != size) {
+			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+			unlock_for_download(ds);
+			return 0;
+		}
+	}
 	ds->downloaded_size += size;
 	ts->start += size;
 	ds->speed += size;
 	ds->noflush_size += size;
+	if (ts->start == ts->end) {
+		ts->status = DOWNLOAD_STATUS_OK;
+		size = 0;
+	}
 
 	//lseek(fileno(pf), ds->file_size, SEEK_SET);
 	rc = fseek((pf), ds->file_size, SEEK_SET);
+	if (rc) {
+		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+		unlock_for_download(ds);
+		return 0;
+	}
 	rc = fwrite(&magic, 4, 1, pf);
+	if (rc != 1) {
+		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+		unlock_for_download(ds);
+		return 0;
+	}
 	pts = ds->threads;
 	while (pts) {
 		rc = fwrite(pts, sizeof(struct DownloadThreadState), 1, pf);
+		if (rc != 1) {
+			unlock_for_download(ds);
+			return 0;
+		}
 		pts = pts->next;
 	}
 
-	if (ds->noflush_size > 2 * 1024 * 1024) {
+	if (ds->noflush_size > MAX_FFLUSH_SIZE) {
 		fflush(pf);
 		ds->noflush_size = 0;
 	}
@@ -1393,9 +1432,9 @@ static char *context2str(ShellContext *context)
 	assert(item);
 	cJSON_AddItemToObject(root, "timeout_retry", item);
 
-	item = cJSON_CreateNumber(context->thread_num);
+	item = cJSON_CreateNumber(context->max_thread);
 	assert(item);
-	cJSON_AddItemToObject(root, "thread_num", item);
+	cJSON_AddItemToObject(root, "max_thread", item);
 
 	json = cJSON_Print(root);
 	assert(json);
@@ -1546,13 +1585,13 @@ static int restore_context(ShellContext *context, const char *filename)
 		context->timeout_retry = item->valueint ? 1 : 0;
 	}
 
-	item = cJSON_GetObjectItem(root, "thread_num");
+	item = cJSON_GetObjectItem(root, "max_thread");
 	if (item) {
 		if (((int)item->valueint) < 1) {
-			printf("warning: Invalid context.thread_num, the value should be great than 0, use default value: %d.\n", context->thread_num);
+			printf("warning: Invalid context.max_thread, the value should be great than 0, use default value: %d.\n", context->max_thread);
 		}
 		else {
-			context->thread_num = (int)item->valueint;
+			context->max_thread = (int)item->valueint;
 		}
 	}
 
@@ -1580,7 +1619,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->secure_enable = 0;
 
 	context->timeout_retry = 1;
-	context->thread_num = 1;
+	context->max_thread = 1;
 }
 
 /*释放上下文*/
@@ -1959,7 +1998,7 @@ static void usage_set()
 	printf("  -----------------------------------------------\n");
 	printf("  captcha_file         String     not null\n");
 	printf("  cookie_file          String     not null\n");
-	printf("  list_page_size       UInt       >0\n");
+	printf("  list_page_size       UInt       > 0\n");
 	printf("  list_sort_direction  Enum       asc|desc\n");
 	printf("  list_sort_name       Enum       name|time|size\n");
 	printf("  secure_enable        Boolean    true|false\n");
@@ -1967,7 +2006,7 @@ static void usage_set()
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("  timeout_retry        Boolean    true|false\n");
-	printf("  thread_num           UInt       >0 and <%d\n", MAX_THREAD_NUM);
+	printf("  max_thread           UInt       > 0 and < %d\n", MAX_THREAD_NUM);
 	printf("\nSamples:\n");
 	printf("  %s set -h\n", app_name);
 	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
@@ -2254,8 +2293,8 @@ static int set_timeout_retry(ShellContext *context, const char *val)
 	return 0;
 }
 
-/*设置上下文中的thread_num值*/
-static int set_thread_num(ShellContext *context, const char *val)
+/*设置上下文中的max_thread值*/
+static int set_max_thread(ShellContext *context, const char *val)
 {
 	const char *p = val;
 	int v;
@@ -2267,7 +2306,7 @@ static int set_thread_num(ShellContext *context, const char *val)
 	}
 	v = atoi(val);
 	if (v < 1 || v > MAX_THREAD_NUM) return -1;
-	context->thread_num = v;
+	context->max_thread = v;
 	return 0;
 }
 
@@ -2820,10 +2859,10 @@ static struct DownloadThreadState *pop_download_threadstate(struct DownloadState
 	struct DownloadThreadState *ts = NULL;
 	lock_for_download(ds);
 	ts = ds->threads;
-	while (ts && ts->status != 0) {
+	while (ts && ts->status != DOWNLOAD_STATUS_PENDDING) {
 		ts = ts->next;
 	}
-	if (ts && ts->status == 0)
+	if (ts && ts->status == DOWNLOAD_STATUS_PENDDING)
 		ts->status = DOWNLOAD_STATUS_DOWNLOADING;
 	else
 		ts = NULL;
@@ -2845,7 +2884,7 @@ static void *download_thread(void *params)
 	Pcs *pcs;
 	if (ts == NULL) {
 		lock_for_download(ds);
-		ds->thread_num--;
+		ds->num_of_running_thread--;
 		unlock_for_download(ds);
 #ifdef _WIN32
 		return (DWORD)0;
@@ -2861,9 +2900,9 @@ static void *download_thread(void *params)
 			(*(ds->pErrMsg)) = pcs_utils_sprintf("Error: Can't create pcs context. \n");
 		}
 		ds->status = DOWNLOAD_STATUS_FAIL;
-		ds->thread_num--;
+		ds->num_of_running_thread--;
 		unlock_for_download(ds);
-		ts->status = DOWNLOAD_STATUS_FAIL;
+		ts->status = DOWNLOAD_STATUS_PENDDING;
 #ifdef _WIN32
 		return (DWORD)0;
 #else
@@ -2875,9 +2914,9 @@ static void *download_thread(void *params)
 		lock_for_download(ds);
 		dsstatus = ds->status;
 		unlock_for_download(ds);
-		if (dsstatus == DOWNLOAD_STATUS_FAIL) {
+		if (dsstatus != DOWNLOAD_STATUS_OK) {
 			lock_for_download(ds);
-			ts->status = 0;
+			ts->status = DOWNLOAD_STATUS_PENDDING;
 			unlock_for_download(ds);
 			break;
 		}
@@ -2886,7 +2925,7 @@ static void *download_thread(void *params)
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, ts,
 			PCS_OPTION_END);
 		res = pcs_download(pcs, ds->remote_file, ts->start);
-		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_SUCC) {
+		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_OK) {
 			lock_for_download(ds);
 			if (ds->pErrMsg) {
 				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
@@ -2894,16 +2933,17 @@ static void *download_thread(void *params)
 			}
 			//ds->status = DOWNLOAD_STATUS_FAIL;
 			unlock_for_download(ds);
+			sleep(10); /*10秒后重试*/
 			continue;
 		}
-		ts->status = DOWNLOAD_STATUS_SUCC;
+		ts->status = DOWNLOAD_STATUS_OK;
 		ts = pop_download_threadstate(ds);
 	}
 
 	destroy_pcs(pcs);
 
 	lock_for_download(ds);
-	ds->thread_num--;
+	ds->num_of_running_thread--;
 	unlock_for_download(ds);
 #ifdef _WIN32
 	return (DWORD)0;
@@ -2930,8 +2970,7 @@ static void start_download_thread(struct DownloadState *ds)
 	if (!thandle) {
 		printf("Error: Can't create download thread.\n");
 		lock_for_download(ds);
-		ds->status = DOWNLOAD_STATUS_FAIL;
-		ds->thread_num--;
+		ds->num_of_running_thread--;
 		unlock_for_download(ds);
 	}
 #else
@@ -2941,8 +2980,7 @@ static void start_download_thread(struct DownloadState *ds)
 	if (err) {
 		printf("Error: Can't create download thread.\n");
 		lock_for_download(ds);
-		ds->status = DOWNLOAD_STATUS_FAIL;
-		ds->thread_num--;
+		ds->num_of_running_thread--;
 		unlock_for_download(ds);
 	}
 #endif
@@ -2985,8 +3023,8 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 				break;
 			}
 			ts->ds = ds;
-			if (ts->status == DOWNLOAD_STATUS_DOWNLOADING)
-				ts->status = 0;
+			if (ts->status != DOWNLOAD_STATUS_OK)
+				ts->status = DOWNLOAD_STATUS_PENDDING;
 			left_size += (ts->end - ts->start);
 			if (tail == NULL) {
 				ds->threads = tail = ts;
@@ -2996,6 +3034,7 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 				tail = ts;
 			}
 			thread_count++;
+			ts->tid = thread_count;
 			if (!ts->next) {
 				ts->next = NULL;
 				break;
@@ -3004,7 +3043,7 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 		}
 		fclose(pf);
 		ds->resume_from = ds->file_size - left_size;
-		ds->thread_num = thread_count;
+		ds->num_of_slice = thread_count;
 		return 0;
 	}
 	return -1;
@@ -3144,30 +3183,33 @@ static inline int do_download(ShellContext *context,
 		struct DownloadThreadState *ts, *tail = NULL;
 		size_t start = 0;
 		const char *mode = "rb+";
-		int thread_num, i;
+		int slice_count, thread_count, i, is_success;
 		size_t slice_size;
-		thread_num = context->thread_num;
-		if (thread_num < 1) thread_num = 1;
+		slice_count = context->max_thread;
+		if (slice_count < 1) slice_count = 1;
 		if (restore_download_state(&ds, tmp_local_path)) {
 			//分片开始
 			mode = "wb";
 			ds.resume_from = 0;
-			slice_size = fsize / thread_num;
-			if ((fsize % thread_num))
+			slice_size = fsize / slice_count;
+			if ((fsize % slice_count))
 				slice_size++;
 			if (slice_size <= MIN_SLICE_SIZE)
 				slice_size = MIN_SLICE_SIZE;
-			thread_num = fsize / slice_size;
-			if ((fsize % slice_size)) thread_num++;
+			if (slice_size > MAX_SLICE_SIZE)
+				slice_size = MAX_SLICE_SIZE;
+			slice_count = fsize / slice_size;
+			if ((fsize % slice_size)) slice_count++;
 
-			for (i = 0; i < thread_num; i++) {
+			for (i = 0; i < slice_count; i++) {
 				ts = (struct DownloadThreadState *) pcs_malloc(sizeof(struct DownloadThreadState));
 				ts->ds = &ds;
 				ts->start = start;
 				start += slice_size;
 				ts->end = start;
 				if (ts->end > fsize) ts->end = fsize;
-				ts->status = 0;
+				ts->status = DOWNLOAD_STATUS_PENDDING;
+				ts->tid = i + 1;
 				ts->next = NULL;
 				if (tail == NULL) {
 					ds.threads = tail = ts;
@@ -3177,7 +3219,7 @@ static inline int do_download(ShellContext *context,
 					tail = ts;
 				}
 			}
-			ds.thread_num = thread_num;
+			ds.num_of_slice = slice_count;
 			//分片结束
 		}
 		/*打开文件*/
@@ -3195,20 +3237,38 @@ static inline int do_download(ShellContext *context,
 			uninit_download_state(&ds);
 			return -1;
 		}
-		if (thread_num > context->thread_num && context->thread_num > 0)
-			thread_num = context->thread_num;
-		for (i = 0; i < thread_num; i++) {
+		thread_count = ds.num_of_slice;
+		if (thread_count > context->max_thread && context->max_thread > 0)
+			thread_count = context->max_thread;
+		ds.num_of_running_thread = thread_count;
+		//printf("\nthread: %d, slice: %d\n", thread_count, ds.num_of_slice);
+		for (i = 0; i < thread_count; i++) {
 			start_download_thread(&ds);
 		}
+
+		/*等待所有运行的线程退出*/
 		while (1) {
 			lock_for_download(&ds);
-			thread_num = ds.thread_num;
+			thread_count = ds.num_of_running_thread;
 			unlock_for_download(&ds);
-			if (thread_num < 1) break;
+			if (thread_count < 1) break;
 			sleep(1);
 		}
+
 		fclose(ds.pf);
-		if (ds.status == DOWNLOAD_STATUS_FAIL) {
+
+		/*判断是否所有分片都下载完成了*/
+		is_success = 1;
+		ts = ds.threads;
+		while (ts) {
+			if (ts->status != DOWNLOAD_STATUS_OK) {
+				is_success = 0;
+				break;
+			}
+			ts = ts->next;
+		}
+
+		if (!is_success) {
 			if (pErrMsg) {
 				if (!(*pErrMsg))
 					(*pErrMsg) = pcs_utils_sprintf("Error: Download fail.\n");
@@ -4841,7 +4901,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	if (test_arg(arg, 0, 0, 
 		"cookie_file", "captcha_file", 
 		"list_page_size", "list_sort_name", "list_sort_direction",
-		"secure_method", "secure_key", "secure_enable", "timeout_retry", "thread_num",
+		"secure_method", "secure_key", "secure_enable", "timeout_retry", "max_thread",
 		"h", "help", NULL) && arg->optc == 0) {
 		usage_set();
 		return -1;
@@ -4914,8 +4974,8 @@ static int cmd_set(ShellContext *context, struct args *arg)
 		}
 	}
 
-	if (has_optEx(arg, "thread_num", &val)) {
-		if (set_thread_num(context, val)) {
+	if (has_optEx(arg, "max_thread", &val)) {
+		if (set_max_thread(context, val)) {
 			usage_set();
 			return -1;
 		}
