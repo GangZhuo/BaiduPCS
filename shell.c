@@ -2954,7 +2954,7 @@ static void *download_thread(void *params)
 #endif
 }
 
-static void start_download_thread(struct DownloadState *ds)
+static void start_download_thread(struct DownloadState *ds, void **pHandle)
 {
 #ifdef _WIN32
 	DWORD tid;
@@ -2969,6 +2969,7 @@ static void start_download_thread(struct DownloadState *ds)
 	第六个参数是一个指针，指向接受执行绪ID值的变量
 	*/
 	thandle = CreateThread(NULL, 0, download_thread, (LPVOID)ds, 0, &tid); // 建立线程
+	if (pHandle) *pHandle = thandle;
 	if (!thandle) {
 		printf("Error: Can't create download thread.\n");
 		lock_for_download(ds);
@@ -3191,8 +3192,11 @@ static inline int do_download(ShellContext *context,
 		struct DownloadThreadState *ts, *tail = NULL;
 		size_t start = 0;
 		const char *mode = "rb+";
-		int slice_count, pendding_slice_count = 0, thread_count, i, is_success;
+		int slice_count, pendding_slice_count = 0, thread_count, running_thread_count, i, is_success;
 		size_t slice_size;
+#ifdef _WIN32
+		HANDLE *handles = NULL;
+#endif
 		slice_count = context->max_thread;
 		if (slice_count < 1) slice_count = 1;
 		if (restore_download_state(&ds, tmp_local_path, &pendding_slice_count)) {
@@ -3251,20 +3255,37 @@ static inline int do_download(ShellContext *context,
 			thread_count = context->max_thread;
 		ds.num_of_running_thread = thread_count;
 		//printf("\nthread: %d, slice: %d\n", thread_count, ds.num_of_slice);
+#ifdef _WIN32
+		handles = (HANDLE *)pcs_malloc(sizeof(HANDLE) * thread_count);
+		memset(handles, 0, sizeof(HANDLE) * thread_count);
+#endif
 		for (i = 0; i < thread_count; i++) {
-			start_download_thread(&ds);
+#ifdef _WIN32
+			start_download_thread(&ds, handles + i);
+#else
+			start_download_thread(&ds, NULL);
+#endif
 		}
 
 		/*等待所有运行的线程退出*/
 		while (1) {
 			lock_for_download(&ds);
-			thread_count = ds.num_of_running_thread;
+			running_thread_count = ds.num_of_running_thread;
 			unlock_for_download(&ds);
-			if (thread_count < 1) break;
+			if (running_thread_count < 1) break;
 			sleep(1);
 		}
 
 		fclose(ds.pf);
+
+#ifdef _WIN32
+		for (i = 0; i < thread_count; i++) {
+			if (handles[i]) {
+				CloseHandle(handles[i]);
+			}
+		}
+		pcs_free(handles);
+#endif
 
 		/*判断是否所有分片都下载完成了*/
 		is_success = 1;
