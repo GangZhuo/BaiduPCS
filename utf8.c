@@ -513,18 +513,20 @@ int u8_vprintf(const char *fmt, va_list ap)
     wchar_t *wcs;
 
     sz = 512;
-    buf = (char*)alloca(sz);
+    buf = (char*)malloc(sz);
  try_print:
     cnt = vsnprintf(buf, sz, fmt, ap);
     if (cnt >= sz) {
-        buf = (char*)alloca(cnt + 1);
+		buf = (char*)realloc(buf, cnt + 1);
         sz = cnt + 1;
         goto try_print;
     }
-    wcs = (wchar_t*)alloca((cnt+1) * sizeof(wchar_t));
+	wcs = (wchar_t*)malloc((cnt + 1) * sizeof(wchar_t));
     cnt = u8_toucs(wcs, cnt+1, buf, cnt);
     wprintf(L"%ls", (wchar_t*)wcs);
-    return cnt;
+	free(buf);
+	free(wcs);
+	return cnt;
 }
 
 int u8_printf(const char *fmt, ...)

@@ -190,7 +190,7 @@ PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, Pc
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
-PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location, curl_off_t resume_from);
+PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location, curl_off_t max_speed, curl_off_t resume_from);
 
 /*获取待下载文件的大小*/
 PCS_API uint64_t pcs_http_get_download_filesize(PcsHttp handle, const char *url, PcsBool follow_location);

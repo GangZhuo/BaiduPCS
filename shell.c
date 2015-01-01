@@ -1514,6 +1514,10 @@ static char *context2str(ShellContext *context)
 	assert(item);
 	cJSON_AddItemToObject(root, "max_thread", item);
 
+	item = cJSON_CreateNumber(context->max_speed_per_thread);
+	assert(item);
+	cJSON_AddItemToObject(root, "max_speed_per_thread", item);
+
 	json = cJSON_Print(root);
 	assert(json);
 
@@ -1673,6 +1677,16 @@ static int restore_context(ShellContext *context, const char *filename)
 		}
 	}
 
+	item = cJSON_GetObjectItem(root, "max_speed_per_thread");
+	if (item) {
+		if (((int)item->valueint) < 0) {
+			printf("warning: Invalid context.max_speed_per_thread, the value should be >= 0, use default value: %d.\n", context->max_speed_per_thread);
+		}
+		else {
+			context->max_speed_per_thread = (int)item->valueint;
+		}
+	}
+
 	cJSON_Delete(root);
 	pcs_free(filecontent);
 	if (context->contextfile) pcs_free(context->contextfile);
@@ -1698,6 +1712,7 @@ static void init_context(ShellContext *context, struct args *arg)
 
 	context->timeout_retry = 1;
 	context->max_thread = 1;
+	context->max_speed_per_thread = 0;
 }
 
 /*释放上下文*/
@@ -2085,6 +2100,7 @@ static void usage_set()
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("  timeout_retry        Boolean    true|false\n");
 	printf("  max_thread           UInt       > 0 and < %d\n", MAX_THREAD_NUM);
+	printf("  max_speed_per_thread Int        >= 0\n");
 	printf("\nSamples:\n");
 	printf("  %s set -h\n", app_name);
 	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
@@ -2208,33 +2224,32 @@ static void usage()
 		app_name, app_name, app_name);
 	printf("\nOptions:\n");
 	printf("  --context=<file path>  Specify context.\n");
-	printf("\nCommands:\n"
-		"  cat      Print the file content\n"
-		"  cd       Change the work directory\n"
-		"  copy     Copy the file|directory\n"
-		"  compare  Print the differents between local and net disk\n"
-		"  context  Print the context\n"
-		"  download Download the file\n"
-		"  echo     Write the text into net disk file\n"
-		"  encode   Encrypt/decrypt the file\n"
-		"  help     Print the usage\n"
-		"  list     List the directory\n"
-		"  login    Login\n"
-		"  logout   Logout\n"
-		"  meta     Print the file|directory meta information\n"
-		"  mkdir    Make a new directory\n"
-		"  move     Move the file|directory into other file|directory\n"
-		"  pwd      Print the current work directory\n"
-		"  quota    Print the quota\n"
-		"  remove   Remove the file|directory\n"
-		"  rename   Rename the file|directory\n"
-		"  set      Change the context, you can print the context by 'context' command\n"
-		"  search   Search the files in the specify directory\n"
-		"  synch    Synch between local and net disk. You can 'compare' first.\n"
-		"  upload   Upload the file\n"
-		"  version  Print the version\n"
-		"  who      Print the current user\n"
-		);
+	printf("\nCommands:\n");
+	printf("  cat      Print the file content\n");
+	printf("  cd       Change the work directory\n");
+	printf("  copy     Copy the file|directory\n");
+	printf("  compare  Print the differents between local and net disk\n");
+	printf("  context  Print the context\n");
+	printf("  download Download the file\n");
+	printf("  echo     Write the text into net disk file\n");
+	printf("  encode   Encrypt/decrypt the file\n");
+	printf("  help     Print the usage\n");
+	printf("  list     List the directory\n");
+	printf("  login    Login\n");
+	printf("  logout   Logout\n");
+	printf("  meta     Print the file|directory meta information\n");
+	printf("  mkdir    Make a new directory\n");
+	printf("  move     Move the file|directory into other file|directory\n");
+	printf("  pwd      Print the current work directory\n");
+	printf("  quota    Print the quota\n");
+	printf("  remove   Remove the file|directory\n");
+	printf("  rename   Rename the file|directory\n");
+	printf("  set      Change the context, you can print the context by 'context' command\n");
+	printf("  search   Search the files in the specify directory\n");
+	printf("  synch    Synch between local and net disk. You can 'compare' first.\n");
+	printf("  upload   Upload the file\n");
+	printf("  version  Print the version\n");
+	printf("  who      Print the current user\n");
 	printf("Use '%s <command> -h' to print the details of the command. \n", app_name);
 	printf("Sample: \n");
 	printf("  %s help\n", app_name);
@@ -2385,6 +2400,23 @@ static int set_max_thread(ShellContext *context, const char *val)
 	v = atoi(val);
 	if (v < 1 || v > MAX_THREAD_NUM) return -1;
 	context->max_thread = v;
+	return 0;
+}
+
+/*设置上下文中的max_speed_per_thread值*/
+static int set_max_speed_per_thread(ShellContext *context, const char *val)
+{
+	const char *p = val;
+	int v;
+	if (!val || !val[0]) return -1;
+	while (*p) {
+		if (*p < '0' || *p > '9')
+			return -1;
+		p++;
+	}
+	v = atoi(val);
+	if (v < 0) return -1;
+	context->max_speed_per_thread = v;
 	return 0;
 }
 
@@ -3002,7 +3034,7 @@ static void *download_thread(void *params)
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write_for_multy_thread,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, ts,
 			PCS_OPTION_END);
-		res = pcs_download(pcs, ds->remote_file, ts->start);
+		res = pcs_download(pcs, ds->remote_file, context->max_speed_per_thread, ts->start);
 		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_OK) {
 			lock_for_download(ds);
 			if (!ds->pErrMsg) {
@@ -3265,7 +3297,7 @@ static inline int do_download(ShellContext *context,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
 			PCS_OPTION_END);
-		res = pcs_download(context->pcs, remote_path, 0);
+		res = pcs_download(context->pcs, remote_path, context->max_speed_per_thread, 0);
 		fclose(ds.pf);
 		if (res != PCS_OK) {
 			if (pErrMsg) {
@@ -5072,10 +5104,11 @@ static int cmd_rename(ShellContext *context, struct args *arg)
 static int cmd_set(ShellContext *context, struct args *arg)
 {
 	char *val = NULL;
+	int count = 0;
 	if (test_arg(arg, 0, 0, 
 		"cookie_file", "captcha_file", 
 		"list_page_size", "list_sort_name", "list_sort_direction",
-		"secure_method", "secure_key", "secure_enable", "timeout_retry", "max_thread",
+		"secure_method", "secure_key", "secure_enable", "timeout_retry", "max_thread", "max_speed_per_thread",
 		"h", "help", NULL) && arg->optc == 0) {
 		usage_set();
 		return -1;
@@ -5086,6 +5119,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "cookie_file", &val)) {
+		count++;
 		if (set_cookiefile(context, val)) {
 			usage_set();
 			return -1;
@@ -5093,6 +5127,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "captcha_file", &val)) {
+		count++;
 		if (set_captchafile(context, val)) {
 			usage_set();
 			return -1;
@@ -5100,6 +5135,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "list_page_size", &val)) {
+		count++;
 		if (set_list_page_size(context, val)) {
 			usage_set();
 			return -1;
@@ -5107,6 +5143,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "list_sort_name", &val)) {
+		count++;
 		if (set_list_sort_name(context, val)) {
 			usage_set();
 			return -1;
@@ -5114,6 +5151,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "list_sort_direction", &val)) {
+		count++;
 		if (set_list_sort_direction(context, val)) {
 			usage_set();
 			return -1;
@@ -5121,6 +5159,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "secure_method", &val)) {
+		count++;
 		if (set_secure_method(context, val)) {
 			usage_set();
 			return -1;
@@ -5128,6 +5167,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "secure_key", &val)) {
+		count++;
 		if (set_secure_key(context, val)) {
 			usage_set();
 			return -1;
@@ -5135,6 +5175,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "secure_enable", &val)) {
+		count++;
 		if (set_secure_enable(context, val)) {
 			usage_set();
 			return -1;
@@ -5142,6 +5183,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "timeout_retry", &val)) {
+		count++;
 		if (set_timeout_retry(context, val)) {
 			usage_set();
 			return -1;
@@ -5149,10 +5191,24 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	}
 
 	if (has_optEx(arg, "max_thread", &val)) {
+		count++;
 		if (set_max_thread(context, val)) {
 			usage_set();
 			return -1;
 		}
+	}
+
+	if (has_optEx(arg, "max_speed_per_thread", &val)) {
+		count++;
+		if (set_max_speed_per_thread(context, val)) {
+			usage_set();
+			return -1;
+		}
+	}
+
+	if (!count) {
+		usage_set();
+		return -1;
 	}
 
 	printf("Success. You can view context by '%s context'\n", app_name);
