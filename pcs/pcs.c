@@ -842,7 +842,7 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 	PcsFileInfo *fi = pcs_fileinfo_create();
 	val = cJSON_GetObjectItem(item, "fs_id");
 	if ((val = cJSON_GetObjectItem(item, "fs_id")))
-		fi->fs_id = (UInt64)val->valuedouble;
+		fi->fs_id = (uint64_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "path");
 	if (val)
@@ -886,7 +886,7 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 
 	val = cJSON_GetObjectItem(item, "size");
 	if (val)
-		fi->size = (size_t)val->valuedouble;
+		fi->size = (uint64_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "dir_empty");
 	if (val)
@@ -2031,7 +2031,7 @@ PCS_API PcsRes pcs_logout(Pcs handle)
 	return PCS_FAIL;
 }
 
-PCS_API PcsRes pcs_quota(Pcs handle, size_t *quota, size_t *used)
+PCS_API PcsRes pcs_quota(Pcs handle, uint64_t *quota, uint64_t *used)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	cJSON *json, *item;
@@ -2081,7 +2081,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, size_t *quota, size_t *used)
 		return PCS_WRONG_RESPONSE;
 	}
 	if (quota)
-		*quota = (size_t)item->valuedouble;
+		*quota = (uint64_t)item->valuedouble;
 
 	item = cJSON_GetObjectItem(json, "used");
 	if (!item) {
@@ -2090,7 +2090,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, size_t *quota, size_t *used)
 		return PCS_WRONG_RESPONSE;
 	}
 	if (used)
-		*used = (size_t)item->valuedouble;
+		*used = (uint64_t)item->valuedouble;
 
 	cJSON_Delete(json);
 
@@ -2286,7 +2286,7 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 	return res;
 }
 
-static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state, size_t resume_from)
+static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state, curl_off_t resume_from)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url;
@@ -2323,18 +2323,18 @@ static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunc
 	return PCS_FAIL;
 }
 
-PCS_API PcsRes pcs_download(Pcs handle, const char *path, size_t resume_from)
+PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t resume_from)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data, resume_from);
 }
 
-PCS_API size_t pcs_get_download_filesize(Pcs handle, const char *path)
+PCS_API uint64_t pcs_get_download_filesize(Pcs handle, const char *path)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url;
 	const char *errmsg;
-	size_t size;
+	uint64_t size;
 
 	pcs_clear_errmsg(handle);
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,

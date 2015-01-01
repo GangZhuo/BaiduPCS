@@ -5,14 +5,14 @@
 
 /* 用于存储网盘中文件的元数据 */
 typedef struct PcsFileInfo {
-	UInt64		fs_id;
+	uint64_t		fs_id;
 	char		*path;
 	char		*server_filename;
 	time_t		server_ctime;
 	time_t		server_mtime;
 	time_t		local_ctime;
 	time_t		local_mtime;
-	size_t		size;
+	uint64_t		size;
 	int			category;
 	PcsBool		isdir;
 	PcsBool		dir_empty;

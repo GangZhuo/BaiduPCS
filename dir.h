@@ -19,7 +19,7 @@ struct LocalFileInfo
    const char		*filename;
    int				isdir;
    time_t			mtime;
-   size_t			size;
+   uint64_t			size;
    LocalFileInfo	*parent;
    LocalFileInfo	*next;
    int				filecount; /*当是目录时，存储目录下文件的数量。递归统计。*/

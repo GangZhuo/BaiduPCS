@@ -5,6 +5,7 @@
 #ifdef WIN32
 # include <malloc.h>
 # define snprintf _snprintf
+# define vsnprintf _vsnprintf
 #include "openssl_md5.h"
 #else
 # include <alloca.h>

@@ -186,7 +186,7 @@ PCS_API PcsRes pcs_logout(Pcs handle);
  *   used  用于接收已使用值
  * 成功后返回PCS_OK，失败则返回错误编号
 */
-PCS_API PcsRes pcs_quota(Pcs handle, size_t *quota, size_t *used);
+PCS_API PcsRes pcs_quota(Pcs handle, uint64_t *quota, uint64_t *used);
 
 /*
  * 创建一个目录
@@ -287,9 +287,9 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz);
  * 必须指定写入下载内容的函数，可通过PCS_OPTION_DOWNLOAD_WRITE_FUNCTION选项来指定
  * 成功后返回PCS_OK，失败则返回错误编号
  */
-PCS_API PcsRes pcs_download(Pcs handle, const char *path, size_t resume_from);
+PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t resume_from);
 
-PCS_API size_t pcs_get_download_filesize(Pcs handle, const char *path);
+PCS_API uint64_t pcs_get_download_filesize(Pcs handle, const char *path);
 
 /*
  * 把内存中的字节序上传到网盘

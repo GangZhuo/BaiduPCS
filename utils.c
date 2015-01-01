@@ -22,6 +22,7 @@
 
 #if defined(WIN32)
 # define snprintf _snprintf
+# define vsnprintf _vsnprintf
 #endif
 
 

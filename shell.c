@@ -1,4 +1,5 @@
-﻿#include <stdio.h>
+﻿#include <inttypes.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -14,7 +15,6 @@
 # include "pcs/openssl_md5.h"
 #else
 # include <unistd.h>
-# include <inttypes.h>
 # include <termios.h>
 # include <pthread.h>
 # include <openssl/aes.h>
@@ -34,6 +34,7 @@
 # include "utf8.h"
 # define lseek _lseek
 # define fileno _fileno
+# define fseeko _fseeki64
 #endif
 #include "shell.h"
 
@@ -159,12 +160,12 @@ struct DownloadThreadState;
 struct DownloadState
 {
 	FILE *pf;
-	size_t downloaded_size; /*已经下载的字节数*/
-	size_t resume_from; /*断点续传时，从这个位置开始续传*/
+	uint64_t downloaded_size; /*已经下载的字节数*/
+	curl_off_t resume_from; /*断点续传时，从这个位置开始续传*/
 	size_t noflush_size; /*未执行fflush()的字节大小*/
 	time_t time; /*最后一次在屏幕打印信息的时间*/
 	size_t speed; /*用于统计下载速度*/
-	size_t file_size; /*完整的文件的字节大小*/
+	uint64_t file_size; /*完整的文件的字节大小*/
 	ShellContext *context;
 	void *mutex;
 	int	num_of_running_thread; /*已经启动的线程数量*/
@@ -178,8 +179,8 @@ struct DownloadState
 struct DownloadThreadState
 {
 	struct DownloadState *ds;
-	size_t	start;
-	size_t	end;
+	curl_off_t	start;
+	curl_off_t	end;
 	int		status;
 	Pcs		*pcs;
 	int		tid;
@@ -346,15 +347,15 @@ int u8_tombs_size(const char *src, int srcsz)
 
 # define sleep(s) Sleep((s) * 1000)
 
-int truncate(const char *file, size_t size)
+int truncate(const char *file, uint64_t size)
 {
 	HANDLE hFile;
 	hFile = CreateFile(file, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile) {
-		SetFilePointer(hFile, size, NULL, FILE_BEGIN);
-
+		LARGE_INTEGER li = {0};
+		li.QuadPart = (LONGLONG)size;
+		SetFilePointer(hFile, li.LowPart, &li.HighPart, FILE_BEGIN);
 		SetEndOfFile(hFile);
-
 		CloseHandle(hFile);
 		return 0;
 	}
@@ -1050,9 +1051,9 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	//tm = time(&tm);
 	//if (tm != ds->time) {
 		//ds->time = tm;
-		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
-		printf("/%s      ", pcs_utils_readable_size(contentlength + ds->resume_from, tmp, 63, NULL));
-		//printf("%s/s      \r", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
+		printf("%s", pcs_utils_readable_size((double)ds->downloaded_size + (double)ds->resume_from, tmp, 63, NULL));
+		printf("/%s      ", pcs_utils_readable_size((double)contentlength + (double)ds->resume_from, tmp, 63, NULL));
+		//printf("%s/s      \r", pcs_utils_readable_size((double)ds->speed, tmp, 63, NULL));
 		printf("\r");
 		fflush(stdout);
 		ds->speed = 0;
@@ -1060,10 +1061,28 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	return i;
 }
 
-static int download_write_for_multy_thread(char *ptr, size_t size, size_t contentlength, void *userdata)
+static int save_thread_states_to_file(FILE *pf, off_t offset, struct DownloadThreadState *state_link)
 {
 	static int magic = THREAD_STATE_MAGIC;
-	struct DownloadThreadState *ts = (struct DownloadThreadState *)userdata, *pts;
+	int rc;
+	struct DownloadThreadState *pts;
+	//lseek(fileno(pf), ds->file_size, SEEK_SET);
+	rc = fseeko((pf), offset, SEEK_SET);
+	if (rc) return -1;
+	rc = fwrite(&magic, 4, 1, pf);
+	if (rc != 1) return -1;
+	pts = state_link;
+	while (pts) {
+		rc = fwrite(pts, sizeof(struct DownloadThreadState), 1, pf);
+		if (rc != 1) return -1;
+		pts = pts->next;
+	}
+	return 0;
+}
+
+static int download_write_for_multy_thread(char *ptr, size_t size, size_t contentlength, void *userdata)
+{
+	struct DownloadThreadState *ts = (struct DownloadThreadState *)userdata;
 	ShellContext *context = ts->ds->context;
 	struct DownloadState *ds = ts->ds;
 	FILE *pf = ds->pf;
@@ -1073,14 +1092,14 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	tmp[63] = '\0';
 	lock_for_download(ds);
 	//lseek(fileno(pf), ts->start, SEEK_SET);
-	rc = fseek((pf), ts->start, SEEK_SET);
+	rc = fseeko((pf), ts->start, SEEK_SET);
 	if (rc) {
 		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
 		unlock_for_download(ds);
 		return 0;
 	}
 	if (ts->start + size > ts->end) {
-		size = ts->end - ts->start;
+		size = (size_t)(ts->end - ts->start);
 		ts->status = DOWNLOAD_STATUS_OK;
 	}
 	if (size > 0) {
@@ -1100,27 +1119,10 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 		size = 0;
 	}
 
-	//lseek(fileno(pf), ds->file_size, SEEK_SET);
-	rc = fseek((pf), ds->file_size, SEEK_SET);
-	if (rc) {
+	if (save_thread_states_to_file(pf, (off_t)ds->file_size, ds->threads)) {
 		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
 		unlock_for_download(ds);
 		return 0;
-	}
-	rc = fwrite(&magic, 4, 1, pf);
-	if (rc != 1) {
-		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
-		unlock_for_download(ds);
-		return 0;
-	}
-	pts = ds->threads;
-	while (pts) {
-		rc = fwrite(pts, sizeof(struct DownloadThreadState), 1, pf);
-		if (rc != 1) {
-			unlock_for_download(ds);
-			return 0;
-		}
-		pts = pts->next;
 	}
 
 	if (ds->noflush_size > MAX_FFLUSH_SIZE) {
@@ -1130,9 +1132,9 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	//tm = time(&tm);
 	//if (tm != ds->time) {
 		//ds->time = tm;
-		printf("%s", pcs_utils_readable_size(ds->downloaded_size + ds->resume_from, tmp, 63, NULL));
-		printf("/%s      ", pcs_utils_readable_size(ds->file_size, tmp, 63, NULL));
-		//printf("%s/s      ", pcs_utils_readable_size(ds->speed, tmp, 63, NULL));
+		printf("%s", pcs_utils_readable_size((double)ds->downloaded_size + (double)ds->resume_from, tmp, 63, NULL));
+		printf("/%s      ", pcs_utils_readable_size((double)ds->file_size, tmp, 63, NULL));
+		//printf("%s/s      ", pcs_utils_readable_size((double)ds->speed, tmp, 63, NULL));
 		printf("\r");
 		fflush(stdout);
 		ds->speed = 0;
@@ -1227,6 +1229,54 @@ static const char *size_tostr(size_t size, int *fix_width, char ch)
 	return str;
 }
 
+static const char *uint64_tostr(uint64_t size, int *fix_width, char ch)
+{
+	static char str[128], *p;
+	int i;
+	int j, cn, mod;
+	uint64_t sz;
+
+	if (size == 0) {
+		i = 0;
+		if (*fix_width > 0) {
+			for (; i < *fix_width - 1; i++) {
+				str[i] = ch;
+			}
+		}
+		str[i] = '0';
+		str[i + 1] = '\0';
+		if (*fix_width < 0)
+			*fix_width = 1;
+		return str;
+	}
+
+	sz = size;
+	j = 127;
+	str[j] = '\0';
+	cn = 0;
+	while (sz != 0) {
+		mod = sz % 10;
+		sz = sz / 10;
+		str[--j] = (char)('0' + mod);
+		cn++;
+	}
+
+	i = 0;
+	if (*fix_width > 0) {
+		for (; i < *fix_width - cn; i++) {
+			str[i] = ch;
+		}
+	}
+	p = &str[j];
+	while (*p){
+		str[i++] = *p++;
+	}
+	str[i] = '\0';
+	if (*fix_width < 0)
+		*fix_width = (int)i;
+	return str;
+}
+
 /*打印文件时间*/
 static void print_time(const char *format, time_t time)
 {
@@ -1254,6 +1304,14 @@ static void print_time(const char *format, time_t time)
 
 /*打印可读的文件大小*/
 static void print_size(const char *format, size_t size)
+{
+	char tmp[64];
+	tmp[63] = '\0';
+	pcs_utils_readable_size((double)size, tmp, 63, NULL);
+	printf(format, tmp);
+}
+
+static void print_uint64(const char *format, uint64_t size)
 {
 	char tmp[64];
 	tmp[63] = '\0';
@@ -1290,7 +1348,7 @@ static void print_filelist_row(PcsFileInfo *f, int size_width)
 		putchar('-');
 	putchar(' ');
 
-	p = size_tostr(f->size, &size_width, ' ');
+	p = uint64_tostr(f->size, &size_width, ' ');
 	while (*p) {
 		putchar(*p++);
 	}
@@ -1301,7 +1359,7 @@ static void print_filelist_row(PcsFileInfo *f, int size_width)
 }
 
 /*打印文件列表*/
-static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCount, size_t *pTotalSize)
+static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCount, uint64_t *pTotalSize)
 {
 	char tmp[64] = { 0 };
 	int cnt_file = 0,
@@ -1309,17 +1367,17 @@ static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCoun
 		size_width = 1,
 		w;
 	PcsFileInfo *file = NULL;
-	size_t total = 0;
+	uint64_t total = 0;
 	PcsFileInfoListIterater iterater;
 
 	pcs_filist_iterater_init(list, &iterater, PcsFalse);
 	while (pcs_filist_iterater_next(&iterater)) {
 		file = iterater.current;
 		w = -1;
-		size_tostr(file->size, &w, ' ');
+		uint64_tostr(file->size, &w, ' ');
 		if (size_width < w)
 			size_width = w;
-		total += (size_t)file->size;
+		total += file->size;
 		if (file->isdir)
 			cnt_dir++;
 		else
@@ -1336,7 +1394,7 @@ static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCoun
 		print_filelist_row(file, size_width);
 	}
 	puts("------------------------------------------------------------------------------");
-	pcs_utils_readable_size(total, tmp, 63, NULL);
+	pcs_utils_readable_size((double)total, tmp, 63, NULL);
 	tmp[63] = '\0';
 	printf("Total: %s, File Count: %d, Directory Count: %d\n", tmp, cnt_file, cnt_dir);
 	putchar('\n');
@@ -1349,7 +1407,7 @@ static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCoun
 static void print_fileinfo(PcsFileInfo *f, const char *prex)
 {
 	if (!prex) prex = "";
-	printf("%sfs_id:\t%llu\n", prex, f->fs_id);
+	printf("%sfs_id:\t%"PRIu64"\n", prex, f->fs_id);
 	printf("%sCategory:\t%d\n", prex, f->category);
 	printf("%sPath:\t\t%s\n", prex, f->path);
 	printf("%sFilename:\t%s\n", prex, f->server_filename);
@@ -1360,7 +1418,7 @@ static void print_fileinfo(PcsFileInfo *f, const char *prex)
 	printf("%sIs Dir:\t%s\n", prex, f->isdir ? "Yes" : "No");
 	if (!f->isdir) {
 		printf("%s", prex);
-		print_size("Size:\t\t%s\n", f->size);
+		print_uint64("Size:\t\t%s\n", f->size);
 		printf("%smd5:\t\t%s\n", prex, f->md5);
 		printf("%sdlink:\t\t%s\n", prex, f->dlink);
 	}
@@ -2934,9 +2992,9 @@ static void *download_thread(void *params)
 			//ds->status = DOWNLOAD_STATUS_FAIL;
 			unlock_for_download(ds);
 #ifdef _WIN32
-			printf("Download slice failed, retry delay 10 second, tid: %d.\n", (int)GetCurrentThreadId());
+			printf("Download slice failed, retry delay 10 second, tid: %d. message: %s\n", (int)GetCurrentThreadId(), pcs_strerror(pcs));
 #else
-			printf("Download slice failed, retry delay 10 second, tid: %d.\n", pthread_self());
+			printf("Download slice failed, retry delay 10 second, tid: %d. message: %s\n", pthread_self(), pcs_strerror(pcs));
 #endif
 			sleep(10); /*10秒后重试*/
 			continue;
@@ -2996,7 +3054,7 @@ static void start_download_thread(struct DownloadState *ds, void **pHandle)
 static int restore_download_state(struct DownloadState *ds, const char *tmp_local_path, int *pendding_count)
 {
 	LocalFileInfo *tmpFileInfo;
-	size_t tmp_file_size = 0;
+	uint64_t tmp_file_size = 0;
 	tmpFileInfo = GetLocalFileInfo(tmp_local_path);
 	if (tmpFileInfo) {
 		tmp_file_size = tmpFileInfo->size;
@@ -3008,10 +3066,10 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 		int magic;
 		int thread_count = 0;
 		struct DownloadThreadState *ts, *tail = NULL;
-		size_t left_size = 0;
+		curl_off_t left_size = 0;
 		pf = fopen(tmp_local_path, "rb");
 		if (!pf) return -1;
-		if (fseek(pf, ds->file_size, SEEK_SET)) {
+		if (fseeko(pf, ds->file_size, SEEK_SET)) {
 			fclose(pf);
 			return -1;
 		}
@@ -3062,6 +3120,20 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 	return -1;
 }
 
+static int create_file(const char *file, uint64_t fsize)
+{
+	FILE *pf;
+	pf = fopen(file, "wb");
+	if (!pf) return -1;
+	fclose(pf);
+	if (fsize > 0) {
+		if (truncate(file, fsize)) {
+			return -1;
+		}
+	}
+	return 0;
+}
+
 /*
  * 执行下载操作
  *   context        - 上下文
@@ -3085,7 +3157,7 @@ static inline int do_download(ShellContext *context,
 	char *local_path, *remote_path, *dir,
 		*tmp_local_path;
 	int secure_method = 0;
-	size_t fsize = 0;
+	uint64_t fsize = 0;
 
 	init_download_state(&ds);
 
@@ -3194,10 +3266,10 @@ static inline int do_download(ShellContext *context,
 	}
 	else {
 		struct DownloadThreadState *ts, *tail = NULL;
-		size_t start = 0;
+		curl_off_t start = 0;
 		const char *mode = "rb+";
 		int slice_count, pendding_slice_count = 0, thread_count, running_thread_count, i, is_success;
-		size_t slice_size;
+		uint64_t slice_size;
 #ifdef _WIN32
 		HANDLE *handles = NULL;
 #endif
@@ -3214,7 +3286,7 @@ static inline int do_download(ShellContext *context,
 				slice_size = MIN_SLICE_SIZE;
 			if (slice_size > MAX_SLICE_SIZE)
 				slice_size = MAX_SLICE_SIZE;
-			slice_count = fsize / slice_size;
+			slice_count = (int)(fsize / slice_size);
 			if ((fsize % slice_size)) slice_count++;
 
 			for (i = 0; i < slice_count; i++) {
@@ -3223,7 +3295,7 @@ static inline int do_download(ShellContext *context,
 				ts->start = start;
 				start += slice_size;
 				ts->end = start;
-				if (ts->end > fsize) ts->end = fsize;
+				if (ts->end > ((curl_off_t)fsize)) ts->end = (curl_off_t)fsize;
 				ts->status = DOWNLOAD_STATUS_PENDDING;
 				pendding_slice_count++;
 				ts->tid = i + 1;
@@ -3238,6 +3310,21 @@ static inline int do_download(ShellContext *context,
 			}
 			ds.num_of_slice = slice_count;
 			//分片结束
+			//printf("fs: %" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %d\n", ds.file_size, ds.file_size + 4 + sizeof(struct DownloadThreadState) * slice_count, slice_size, slice_count);
+			if (create_file(tmp_local_path, ds.file_size + 4 + sizeof(struct DownloadThreadState) * slice_count)) {
+				if (pErrMsg) {
+					if (*pErrMsg) pcs_free(*pErrMsg);
+					(*pErrMsg) = pcs_utils_sprintf("Error: Can't create the temp file: %s, maybe have no disk space.\n", tmp_local_path);
+				}
+				if (op_st) (*op_st) = OP_ST_FAIL;
+				DeleteFileRecursive(tmp_local_path);
+				pcs_free(tmp_local_path);
+				pcs_free(local_path);
+				pcs_free(remote_path);
+				uninit_download_state(&ds);
+				return -1;
+			}
+			mode = "rb+";
 		}
 		/*打开文件*/
 		ds.pf = fopen(tmp_local_path, mode);
@@ -3254,6 +3341,28 @@ static inline int do_download(ShellContext *context,
 			uninit_download_state(&ds);
 			return -1;
 		}
+		//保存分片数据
+		printf("Saving slices...\r");
+		fflush(stdout);
+		if (save_thread_states_to_file(ds.pf, (off_t)ds.file_size, ds.threads)) {
+			if (pErrMsg) {
+				if (*pErrMsg) pcs_free(*pErrMsg);
+				(*pErrMsg) = pcs_utils_sprintf("Error: Can't save slices into temp file: %s\n", tmp_local_path);
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			fclose(ds.pf);
+			uninit_download_state(&ds);
+			return -1;
+		}
+		fflush(ds.pf);
+
+		printf("Starting threads...\r");
+		fflush(stdout);
+
 		thread_count = pendding_slice_count;
 		if (thread_count > context->max_thread && context->max_thread > 0)
 			thread_count = context->max_thread;
@@ -3315,7 +3424,19 @@ static inline int do_download(ShellContext *context,
 			uninit_download_state(&ds);
 			return -1;
 		}
-		truncate(tmp_local_path, ds.file_size);
+		if (truncate(tmp_local_path, ds.file_size)) {
+			if (pErrMsg) {
+				if (!(*pErrMsg))
+					(*pErrMsg) = pcs_utils_sprintf("Error: Can't truncate the temp file %s.\n", tmp_local_path);
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			DeleteFileRecursive(tmp_local_path);
+			pcs_free(tmp_local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			uninit_download_state(&ds);
+			return -1;
+		}
 	}
 
 	uninit_download_state(&ds);
@@ -4521,7 +4642,7 @@ static int cmd_list(ShellContext *context, struct args *arg)
 	int page_index = 1;
 	char tmp[64] = { 0 };
 	int fileCount = 0, dirCount = 0;
-	size_t totalSize = 0;
+	uint64_t totalSize = 0;
 
 	if (test_arg(arg, 0, 1, "h", "help", NULL)) {
 		usage_list();
@@ -4575,7 +4696,7 @@ static int cmd_list(ShellContext *context, struct args *arg)
 	}
 	if (page_index > 1) {
 		puts("\n------------------------------------------------------------------------------");
-		pcs_utils_readable_size(totalSize, tmp, 63, NULL);
+		pcs_utils_readable_size((double)totalSize, tmp, 63, NULL);
 		tmp[63] = '\0';
 		printf("Total Page: %d, Total Size: %s, File Count: %d, Directory Count: %d\n", page_index, tmp, fileCount, dirCount);
 	}
@@ -4794,7 +4915,7 @@ static int cmd_quota(ShellContext *context, struct args *arg)
 {
 	const char *opts[] = { "e", NULL };
 	PcsRes pcsres;
-	size_t quota, used;
+	uint64_t quota, used;
 	int is_exact = 0;
 	char str[32] = { 0 };
 	if (test_arg(arg, 0, 0, "e", "h", "help", NULL)) {
@@ -4814,9 +4935,9 @@ static int cmd_quota(ShellContext *context, struct args *arg)
 		return -1;
 	}
 	if (is_exact) {
-		printf("%llu Bytes", used);
+		printf("%"PRIu64" Bytes ", used);
 		putchar('/');
-		printf("%llu Bytes  ", quota);
+		printf("%" PRIu64 " Bytes  ", quota);
 	}
 	else {
 		pcs_utils_readable_size((double)used, str, 30, NULL);
