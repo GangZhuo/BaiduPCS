@@ -11,6 +11,7 @@
   with these routines reserved for higher performance on data known to be
   valid.
 */
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -20,6 +21,7 @@
 #include <stdint.h>
 typedef uint32_t u_int32_t;
 #define snprintf _snprintf
+#define vsnprintf _vsnprintf
 #else
 #include <alloca.h>
 #endif

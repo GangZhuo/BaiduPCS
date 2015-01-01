@@ -769,10 +769,10 @@ PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, Pc
 	return pcs_http_perform(http);
 }
 
-PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location, size_t resume_from)
+PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location, curl_off_t resume_from)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
-	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, (curl_off_t)resume_from);
+	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, resume_from);
 	http->res_type = PCS_HTTP_RES_TYPE_DOWNLOAD;
 	pcs_http_perform(http);
 	return http->strerror == NULL ? PcsTrue : PcsFalse;
@@ -783,7 +783,7 @@ size_t pcs_http_null_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 	return size * nmemb;
 }
 
-PCS_API size_t pcs_http_get_download_filesize(PcsHttp handle, const char *url, PcsBool follow_location)
+PCS_API uint64_t pcs_http_get_download_filesize(PcsHttp handle, const char *url, PcsBool follow_location)
 {
 	CURLcode res;
 	double downloadFileLenth = 0;
@@ -798,7 +798,7 @@ PCS_API size_t pcs_http_get_download_filesize(PcsHttp handle, const char *url, P
 		if (!http->strerror) http->strerror = pcs_utils_strdup(curl_easy_strerror(res));
 		downloadFileLenth = 0;
 	}
-	return (size_t)downloadFileLenth;
+	return (uint64_t)downloadFileLenth;
 }
 
 PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, 
