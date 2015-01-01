@@ -1644,7 +1644,12 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	html = pcs_http_get(pcs->http, URL_DISK_HOME, PcsFalse);
 	http_code = pcs_http_code(pcs->http);
 	if (http_code != 200) {
-		return PCS_NOT_LOGIN;
+		errmsg = pcs_http_strerror(pcs->http);
+		if (errmsg)
+			pcs_set_errmsg(handle, errmsg);
+		else
+			pcs_set_errmsg(handle, "The server response wrong http code.");
+		return PCS_NETWORK_ERROR;
 	}
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);

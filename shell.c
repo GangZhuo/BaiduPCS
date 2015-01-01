@@ -2961,8 +2961,11 @@ static PcsBool is_login(ShellContext *context, const char *msg)
 		if (msg[0])
 			printf("%s\n", msg);
 	}
-	else {
+	else if (pcsres == PCS_NOT_LOGIN) {
 		printf("You are not logon or your session is time out. You can login by 'login' command.\n");
+	}
+	else {
+		printf("Error: %s\n", pcs_strerror(context->pcs));
 	}
 	return PcsFalse;
 }
