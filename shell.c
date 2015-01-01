@@ -46,6 +46,8 @@
 #define MAX_SLICE_SIZE				(10 * 1024 * 1024) /*最大分片大小*/
 #define MAX_FFLUSH_SIZE				(10 * 1024 * 1024) /*最大缓存大小*/
 
+#define convert_to_real_speed(speed) ((speed) * 1024)
+
 #define PCS_CONTEXT_ENV				"PCS_CONTEXT"
 #define PCS_COOKIE_ENV				"PCS_COOKIE"
 #define PCS_CAPTCHA_ENV				"PCS_CAPTCHA"
@@ -2099,9 +2101,9 @@ static void usage_set()
 	printf("  secure_key           String     not null when 'secure_method' is not 'plaintext'\n");
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
-	printf("  timeout_retry        Boolean    true|false\n");
-	printf("  max_thread           UInt       > 0 and < %d\n", MAX_THREAD_NUM);
-	printf("  max_speed_per_thread Int        >= 0\n");
+	printf("  timeout_retry        Boolean    true|false. \n");
+	printf("  max_thread           UInt       > 0 and < %d. The max number of thread that allow create.\n", MAX_THREAD_NUM);
+	printf("  max_speed_per_thread Int        >= 0. The max speed in KiB per thread.\n");
 	printf("\nSamples:\n");
 	printf("  %s set -h\n", app_name);
 	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
@@ -3035,7 +3037,7 @@ static void *download_thread(void *params)
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write_for_multy_thread,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, ts,
 			PCS_OPTION_END);
-		res = pcs_download(pcs, ds->remote_file, context->max_speed_per_thread, ts->start);
+		res = pcs_download(pcs, ds->remote_file, convert_to_real_speed(context->max_speed_per_thread), ts->start);
 		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_OK) {
 			lock_for_download(ds);
 			if (!ds->pErrMsg) {
@@ -3298,7 +3300,7 @@ static inline int do_download(ShellContext *context,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
 			PCS_OPTION_END);
-		res = pcs_download(context->pcs, remote_path, context->max_speed_per_thread, 0);
+		res = pcs_download(context->pcs, remote_path, convert_to_real_speed(context->max_speed_per_thread), 0);
 		fclose(ds.pf);
 		if (res != PCS_OK) {
 			if (pErrMsg) {
