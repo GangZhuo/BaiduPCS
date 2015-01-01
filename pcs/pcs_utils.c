@@ -95,6 +95,25 @@ PCS_API char* pcs_utils_readable_size(double size/*in bytes*/, char *buf, int bu
 	return buf;
 }
 
+/* Human-readable left time */
+PCS_API char* pcs_utils_readable_left_time(uint64_t second, char *buf, int buf_size, char *sp)
+{
+	int i = 0;
+	const char* units[] = { "B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
+	int day = (int)(second / (24 * 60 * 60));
+	int hour = (int)((second % (24 * 60 * 60)) / (60 * 60));
+	int minute = (int)(((second % (24 * 60 * 60)) % (60 * 60)) / 60);
+	int sec = (int)(((second % (24 * 60 * 60)) % (60 * 60)) % 60);
+	memset(buf, 0, buf_size);
+	if (day > 0) {
+		snprintf(buf, buf_size, "%d days %.2d:%.2d:%.2d", day, hour, minute, sec);
+	}
+	else {
+		snprintf(buf, buf_size, "%.2d:%.2d:%.2d", hour, minute, sec);
+	}
+	return buf;
+}
+
 PCS_API char *pcs_utils_basedir(const char *path)
 {
 	char *dir, *p;

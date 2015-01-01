@@ -19,6 +19,7 @@ PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap);
 PCS_API char *pcs_utils_sprintf(const char *fmt, ...);
 /*格式化size为容易读写模式*/
 PCS_API char *pcs_utils_readable_size(double size/*in bytes*/, char *buf, int buf_size, char *sp);
+PCS_API char* pcs_utils_readable_left_time(uint64_t second, char *buf, int buf_size, char *sp);
 /*获取path的父目录*/
 PCS_API char *pcs_utils_basedir(const char *path);
 /*获取path中文件名部分*/

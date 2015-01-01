@@ -981,6 +981,27 @@ static void unlock_for_download(struct DownloadState *ds)
 
 #pragma region 三个回调： 输入验证码、显示上传进度、写下载文件
 
+static int save_thread_states_to_file(FILE *pf, int64_t offset, struct DownloadThreadState *state_link)
+{
+	static int magic = THREAD_STATE_MAGIC;
+	int rc;
+	struct DownloadThreadState *pts;
+	//lseek(fileno(pf), ds->file_size, SEEK_SET);
+	rc = fseeko((pf), offset, SEEK_SET);
+	if (rc) {
+		return -1;
+	}
+	rc = fwrite(&magic, 4, 1, pf);
+	if (rc != 1) return -1;
+	pts = state_link;
+	while (pts) {
+		rc = fwrite(pts, sizeof(struct DownloadThreadState), 1, pf);
+		if (rc != 1) return -1;
+		pts = pts->next;
+	}
+	return 0;
+}
+
 /*输出验证码图片，并等待用户输入识别结果*/
 static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
 {
@@ -1033,7 +1054,7 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	struct DownloadState *ds = (struct DownloadState *)userdata;
 	FILE *pf = ds->pf;
 	size_t i;
-	//time_t tm;
+	time_t tm;
 	char tmp[64];
 	tmp[63] = '\0';
 	i = fwrite(ptr, 1, size, pf);
@@ -1048,36 +1069,20 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 		fflush(pf);
 		ds->noflush_size = 0;
 	}
-	//tm = time(&tm);
-	//if (tm != ds->time) {
-		//ds->time = tm;
+	tm = time(&tm);
+	if (tm != ds->time) {
+		uint64_t left_size = ds->file_size - ds->downloaded_size;
+		uint64_t remain_tm = (ds->speed > 0) ? (left_size / ds->speed) : 0;
+		ds->time = tm;
 		printf("%s", pcs_utils_readable_size((double)ds->downloaded_size + (double)ds->resume_from, tmp, 63, NULL));
-		printf("/%s      ", pcs_utils_readable_size((double)contentlength + (double)ds->resume_from, tmp, 63, NULL));
-		//printf("%s/s      \r", pcs_utils_readable_size((double)ds->speed, tmp, 63, NULL));
+		printf("/%s \t", pcs_utils_readable_size((double)contentlength + (double)ds->resume_from, tmp, 63, NULL));
+		printf("%s/s \t", pcs_utils_readable_size((double)ds->speed, tmp, 63, NULL));
+		printf("%s            ", pcs_utils_readable_left_time(remain_tm, tmp, 63, NULL));
 		printf("\r");
 		fflush(stdout);
 		ds->speed = 0;
-	//}
-	return i;
-}
-
-static int save_thread_states_to_file(FILE *pf, off_t offset, struct DownloadThreadState *state_link)
-{
-	static int magic = THREAD_STATE_MAGIC;
-	int rc;
-	struct DownloadThreadState *pts;
-	//lseek(fileno(pf), ds->file_size, SEEK_SET);
-	rc = fseeko((pf), offset, SEEK_SET);
-	if (rc) return -1;
-	rc = fwrite(&magic, 4, 1, pf);
-	if (rc != 1) return -1;
-	pts = state_link;
-	while (pts) {
-		rc = fwrite(pts, sizeof(struct DownloadThreadState), 1, pf);
-		if (rc != 1) return -1;
-		pts = pts->next;
 	}
-	return 0;
+	return i;
 }
 
 static int download_write_for_multy_thread(char *ptr, size_t size, size_t contentlength, void *userdata)
@@ -1086,7 +1091,7 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	ShellContext *context = ts->ds->context;
 	struct DownloadState *ds = ts->ds;
 	FILE *pf = ds->pf;
-	//time_t tm;
+	time_t tm;
 	char tmp[64];
 	int rc;
 	tmp[63] = '\0';
@@ -1094,6 +1099,10 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	//lseek(fileno(pf), ts->start, SEEK_SET);
 	rc = fseeko((pf), ts->start, SEEK_SET);
 	if (rc) {
+		if (ds->pErrMsg) {
+			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+			(*(ds->pErrMsg)) = pcs_utils_sprintf("fseeko() error.");
+		}
 		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
 		unlock_for_download(ds);
 		return 0;
@@ -1105,6 +1114,10 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	if (size > 0) {
 		rc = fwrite(ptr, 1, size, pf);
 		if (rc != size) {
+			if (ds->pErrMsg) {
+				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+				(*(ds->pErrMsg)) = pcs_utils_sprintf("fwrite() error.");
+			}
 			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
 			unlock_for_download(ds);
 			return 0;
@@ -1119,26 +1132,33 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 		size = 0;
 	}
 
-	if (save_thread_states_to_file(pf, (off_t)ds->file_size, ds->threads)) {
+	if (save_thread_states_to_file(pf, ds->file_size, ds->threads)) {
+		if (ds->pErrMsg) {
+			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+			(*(ds->pErrMsg)) = pcs_utils_sprintf("save slices error.");
+		}
 		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
 		unlock_for_download(ds);
 		return 0;
 	}
 
-	if (ds->noflush_size > MAX_FFLUSH_SIZE) {
-		fflush(pf);
-		ds->noflush_size = 0;
-	}
-	//tm = time(&tm);
-	//if (tm != ds->time) {
-		//ds->time = tm;
+	//if (ds->noflush_size > MAX_FFLUSH_SIZE) {
+	//	fflush(pf);
+	//	ds->noflush_size = 0;
+	//}
+	tm = time(&tm);
+	if (tm != ds->time) {
+		uint64_t left_size = ds->file_size - ds->downloaded_size;
+		uint64_t remain_tm = (ds->speed > 0) ? (left_size / ds->speed) : 0;
+		ds->time = tm;
 		printf("%s", pcs_utils_readable_size((double)ds->downloaded_size + (double)ds->resume_from, tmp, 63, NULL));
-		printf("/%s      ", pcs_utils_readable_size((double)ds->file_size, tmp, 63, NULL));
-		//printf("%s/s      ", pcs_utils_readable_size((double)ds->speed, tmp, 63, NULL));
+		printf("/%s \t", pcs_utils_readable_size((double)ds->file_size, tmp, 63, NULL));
+		printf("%s/s \t", pcs_utils_readable_size((double)ds->speed, tmp, 63, NULL));
+		printf("%s            ", pcs_utils_readable_left_time(remain_tm, tmp, 63, NULL));
 		printf("\r");
 		fflush(stdout);
 		ds->speed = 0;
-	//}
+	}
 
 	unlock_for_download(ds);
 	return size;
@@ -2955,7 +2975,7 @@ static void *download_thread(void *params)
 		lock_for_download(ds);
 		if (ds->pErrMsg) {
 			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
-			(*(ds->pErrMsg)) = pcs_utils_sprintf("Error: Can't create pcs context. \n");
+			(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't create pcs context.");
 		}
 		//ds->status = DOWNLOAD_STATUS_FAIL;
 		ds->num_of_running_thread--;
@@ -2985,16 +3005,15 @@ static void *download_thread(void *params)
 		res = pcs_download(pcs, ds->remote_file, ts->start);
 		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_OK) {
 			lock_for_download(ds);
-			if (ds->pErrMsg) {
-				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
-				(*(ds->pErrMsg)) = pcs_utils_sprintf("Error: %s\n", pcs_strerror(pcs));
+			if (!ds->pErrMsg) {
+				(*(ds->pErrMsg)) = pcs_utils_sprintf("%s", pcs_strerror(pcs));
 			}
 			//ds->status = DOWNLOAD_STATUS_FAIL;
 			unlock_for_download(ds);
 #ifdef _WIN32
-			printf("Download slice failed, retry delay 10 second, tid: %d. message: %s\n", (int)GetCurrentThreadId(), pcs_strerror(pcs));
+			printf("Download slice failed, retry delay 10 second, tid: %x. message: %s\n", GetCurrentThreadId(), pcs_strerror(pcs));
 #else
-			printf("Download slice failed, retry delay 10 second, tid: %d. message: %s\n", pthread_self(), pcs_strerror(pcs));
+			printf("Download slice failed, retry delay 10 second, tid: %p. message: %s\n", pthread_self(), pcs_strerror(pcs));
 #endif
 			sleep(10); /*10秒后重试*/
 			continue;
@@ -3173,7 +3192,7 @@ static inline int do_download(ShellContext *context,
 		if (CreateDirectoryRecursive(dir) != MKDIR_OK) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
-				(*pErrMsg) = pcs_utils_sprintf("Error: Can't create the directory: %s", dir);
+				(*pErrMsg) = pcs_utils_sprintf("Can't create the directory: %s", dir);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			pcs_free(dir);
@@ -3196,7 +3215,7 @@ static inline int do_download(ShellContext *context,
 	if (!dir) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: Can't combin remote path\n");
+			(*pErrMsg) = pcs_utils_sprintf("Can't combin remote path\n");
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
 		DeleteFileRecursive(tmp_local_path);
@@ -3210,7 +3229,7 @@ static inline int do_download(ShellContext *context,
 	if (!remote_path) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: Can't combin remote path\n");
+			(*pErrMsg) = pcs_utils_sprintf("Can't combin remote path\n");
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
 		DeleteFileRecursive(tmp_local_path);
@@ -3232,7 +3251,7 @@ static inline int do_download(ShellContext *context,
 		if (!ds.pf) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
-				(*pErrMsg) = pcs_utils_sprintf("Error: Can't open or create the temp file: %s\n", tmp_local_path);
+				(*pErrMsg) = pcs_utils_sprintf("Can't open or create the temp file: %s\n", tmp_local_path);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			DeleteFileRecursive(tmp_local_path);
@@ -3251,7 +3270,7 @@ static inline int do_download(ShellContext *context,
 		if (res != PCS_OK) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
-				(*pErrMsg) = pcs_utils_sprintf("Error: %s. local_path=%s, remote_path=%s\n",
+				(*pErrMsg) = pcs_utils_sprintf("%s. local_path=%s, remote_path=%s\n",
 					pcs_strerror(context->pcs), tmp_local_path, remote_path);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
@@ -3314,7 +3333,7 @@ static inline int do_download(ShellContext *context,
 			if (create_file(tmp_local_path, ds.file_size + 4 + sizeof(struct DownloadThreadState) * slice_count)) {
 				if (pErrMsg) {
 					if (*pErrMsg) pcs_free(*pErrMsg);
-					(*pErrMsg) = pcs_utils_sprintf("Error: Can't create the temp file: %s, maybe have no disk space.\n", tmp_local_path);
+					(*pErrMsg) = pcs_utils_sprintf("Can't create the temp file: %s, maybe have no disk space.\n", tmp_local_path);
 				}
 				if (op_st) (*op_st) = OP_ST_FAIL;
 				DeleteFileRecursive(tmp_local_path);
@@ -3331,7 +3350,7 @@ static inline int do_download(ShellContext *context,
 		if (!ds.pf) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
-				(*pErrMsg) = pcs_utils_sprintf("Error: Can't open or create the temp file: %s\n", tmp_local_path);
+				(*pErrMsg) = pcs_utils_sprintf("Can't open or create the temp file: %s\n", tmp_local_path);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			DeleteFileRecursive(tmp_local_path);
@@ -3344,10 +3363,10 @@ static inline int do_download(ShellContext *context,
 		//保存分片数据
 		printf("Saving slices...\r");
 		fflush(stdout);
-		if (save_thread_states_to_file(ds.pf, (off_t)ds.file_size, ds.threads)) {
+		if (save_thread_states_to_file(ds.pf, ds.file_size, ds.threads)) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
-				(*pErrMsg) = pcs_utils_sprintf("Error: Can't save slices into temp file: %s\n", tmp_local_path);
+				(*pErrMsg) = pcs_utils_sprintf("Can't save slices into temp file: %s \n", tmp_local_path);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			DeleteFileRecursive(tmp_local_path);
@@ -3414,7 +3433,7 @@ static inline int do_download(ShellContext *context,
 		if (!is_success) {
 			if (pErrMsg) {
 				if (!(*pErrMsg))
-					(*pErrMsg) = pcs_utils_sprintf("Error: Download fail.\n");
+					(*pErrMsg) = pcs_utils_sprintf("Download fail.\n");
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			DeleteFileRecursive(tmp_local_path);
@@ -3427,7 +3446,7 @@ static inline int do_download(ShellContext *context,
 		if (truncate(tmp_local_path, ds.file_size)) {
 			if (pErrMsg) {
 				if (!(*pErrMsg))
-					(*pErrMsg) = pcs_utils_sprintf("Error: Can't truncate the temp file %s.\n", tmp_local_path);
+					(*pErrMsg) = pcs_utils_sprintf("Can't truncate the temp file %s.\n", tmp_local_path);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			DeleteFileRecursive(tmp_local_path);
@@ -3461,7 +3480,7 @@ static inline int do_download(ShellContext *context,
 			//}
 			if (pErrMsg) {
 				if (!(*pErrMsg))
-					(*pErrMsg) = pcs_utils_sprintf("Error: Can't decrypt the file.\n");
+					(*pErrMsg) = pcs_utils_sprintf("Can't decrypt the file.\n");
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			//DeleteFileRecursive(tmp_local_path);
@@ -3475,7 +3494,7 @@ static inline int do_download(ShellContext *context,
 	else if (rename(tmp_local_path, local_path)) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: The file have been download at %s, but can't rename to %s.\n"
+			(*pErrMsg) = pcs_utils_sprintf("The file have been download at %s, but can't rename to %s.\n"
 				" You should be rename manual.", tmp_local_path, local_path);
 		}
 		if (op_st) (*op_st) = OP_ST_FAIL;
