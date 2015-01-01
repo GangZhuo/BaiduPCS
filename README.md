@@ -2,6 +2,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
 这是通过分析网盘网站得到的直接接口，不需要创建应用。<br/>
 支持AES-CBC-128, AES-CBC-192, AES-CBC-256加密。<br/>
 <br/>
+从0.1.8-beta开始，支持下载超2GB文件，支持线程限速。具体查看'pcs set'和'pcs context'命令的说明。<br/>
+<br/>
 从0.1.8-alpha开始，支持多线程下载和下载时断点续传。<br/>
 到目前为止，不支持分片上传。<br/>
 <br/>
@@ -122,7 +124,14 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
 	    "secure_enable":	    true,                              /*指定是否启用加密解密*/
 	                                                              /*如果设置为false，*/
 	                                                              /*下载时即使检查到文件加密，也不会解密*/
-	    "max_thread":	    5                                 /*下载时允许的最大线程数*/
+	    "timeout_retry":	    true,                             /*当执行'synch'和'compare'命令时，
+	                                                                因为频繁调用api去获取目录下文件名称
+	                                                                将导致一些api调用超时，此选项用于控制超时时
+	                                                                是否重试。*/
+	    "max_thread":	    5,                                /*下载时允许的最大线程数*/
+	    "max_speed_per_thread": 0                                 /*设置的是单个线程的最大下载速度。0表示不限速。
+	                                                                单位为KiB。例，如果设置为100，共有5线程，
+	                                                                则总下载速度将在500KiB/s上下微浮动。*/
     }
     
 
@@ -252,7 +261,9 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
 	--secure_enable=[true|false]       设置上传下载时是否启用加密
 	--secure_key=<key string>          设置加密解密密钥
 	--secure_method=[plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256] 设置加密方式
+	--timeout_retry=[true|false]       设置执行synch和compare时，获取目录下文件超时时，是否允许重试
 	--max_thread=<num>                 设置下载时允许的最大线程数
+	--max_speed_per_thread=<num>       设置单线程的最大下载速度。单位为KiB。详细查看'pcs context'命令中对上下文文件的说明
 
     示例：
       pcs set -h
