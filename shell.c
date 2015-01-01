@@ -4780,6 +4780,10 @@ static int cmd_login(ShellContext *context, struct args *arg)
 			"You can logout by 'logout' command and then relogin.\n");
 		return -1;
 	}
+	else if (pcs_strerror(context->pcs)) {
+		printf("Error: %s\n", pcs_strerror(context->pcs));
+		return -1;
+	}
 	if (has_optEx(arg, "username", &p) && p && strlen(p) > 0) {
 		pcs_setopt(context->pcs, PCS_OPTION_USERNAME, p);
 	}
@@ -4819,6 +4823,10 @@ static int cmd_logout(ShellContext *context, struct args *arg)
 		return 0;
 	}
 	if (!is_login(context, "")) {
+		if (pcs_strerror(context->pcs)) {
+			printf("Error: %s\n", pcs_strerror(context->pcs));
+			return -1;
+		}
 		fprintf(stderr, "You are not login, you can use 'login' command to login.\n");
 		return -1;
 	}
