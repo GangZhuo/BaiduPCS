@@ -12,7 +12,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。 <br/>
 程序依赖于 libcurl。
 
 ### 1. 安装依赖
-    apt-get install libcurl4-openssl-dev
+    apt-get install build-essential libcurl4-openssl-dev
 ### 2. 获取源代码
     git clone https://github.com/GangZhuo/baidupcs.git
 ### 3. 编译源代码
