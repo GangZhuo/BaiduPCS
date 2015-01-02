@@ -113,7 +113,7 @@ static char *filename_dup(const char *filename, const char **pName)
 	return result;
 }
 
-static LocalFileInfo *CreateLocalFileInfo(const char *parentPath, const char *filename, int isdir, time_t mtime, uint64_t size, LocalFileInfo *parent)
+static LocalFileInfo *CreateLocalFileInfo(const char *parentPath, const char *filename, int isdir, time_t mtime, int64_t size, LocalFileInfo *parent)
 {
 	LocalFileInfo *info;
 	info = (LocalFileInfo *)pcs_malloc(sizeof(LocalFileInfo));
@@ -171,7 +171,7 @@ LocalFileInfo *GetLocalFileInfo(const char *file)
 		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) /*为目录*/
 			info = CreateLocalFileInfo(file, NULL, 1, FileTimeToTime_t(fd.ftLastWriteTime, NULL), 0, NULL);
 		else { /*为文件*/
-			uint64_t fsize = fd.nFileSizeHigh;
+			int64_t fsize = fd.nFileSizeHigh;
 			fsize <<= 32;
 			fsize |= fd.nFileSizeLow;
 			info = CreateLocalFileInfo(file, NULL, 0, FileTimeToTime_t(fd.ftLastWriteTime, NULL), fsize, NULL);

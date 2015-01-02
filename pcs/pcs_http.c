@@ -786,7 +786,7 @@ size_t pcs_http_null_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 	return size * nmemb;
 }
 
-PCS_API uint64_t pcs_http_get_download_filesize(PcsHttp handle, const char *url, PcsBool follow_location)
+PCS_API int64_t pcs_http_get_download_filesize(PcsHttp handle, const char *url, PcsBool follow_location)
 {
 	CURLcode res;
 	double downloadFileLenth = 0;
@@ -801,7 +801,7 @@ PCS_API uint64_t pcs_http_get_download_filesize(PcsHttp handle, const char *url,
 		if (!http->strerror) http->strerror = pcs_utils_strdup(curl_easy_strerror(res));
 		downloadFileLenth = 0;
 	}
-	return (uint64_t)downloadFileLenth;
+	return (int64_t)downloadFileLenth;
 }
 
 PCS_API PcsBool pcs_http_form_addfile(PcsHttp handle, PcsHttpForm *post, const char *param_name, 

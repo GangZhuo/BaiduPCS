@@ -11,6 +11,8 @@
 
 #define PCS_API_VERSION "v1.0.11"
 
+#define PCS_RAPIDUPLOAD_THRESHOLD (256 * 1024)
+
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
 	/* 值为以0结尾的C格式字符串 */
@@ -186,7 +188,7 @@ PCS_API PcsRes pcs_logout(Pcs handle);
  *   used  用于接收已使用值
  * 成功后返回PCS_OK，失败则返回错误编号
 */
-PCS_API PcsRes pcs_quota(Pcs handle, uint64_t *quota, uint64_t *used);
+PCS_API PcsRes pcs_quota(Pcs handle, int64_t *quota, int64_t *used);
 
 /*
  * 创建一个目录
@@ -289,7 +291,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz);
  */
 PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t max_speed, curl_off_t resume_from);
 
-PCS_API uint64_t pcs_get_download_filesize(Pcs handle, const char *path);
+PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path);
 
 /*
  * 把内存中的字节序上传到网盘
@@ -318,6 +320,28 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
  */
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
 									   const char *local_filename);
+
+/*
+ * 计算文件的MD5值
+ *   path		目标文件
+ *   md5        用于接收文件的md5值，长度必须大于等于32
+ */
+PCS_API PcsBool pcs_md5_file(Pcs handle, const char *path, char *md5);
+
+/*
+* 计算文件的MD5值，仅从文件offset偏移处开始计算，并仅计算 length 长度的数据。
+*   path		目标文件
+*   md5        用于接收文件的md5值，长度必须大于等于32
+*/
+PCS_API PcsBool pcs_md5_file_slice(Pcs handle, const char *path, int64_t offset, int64_t length, char *md5_buf);
+
+
+/*
+ * 快速上传
+ */
+PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool overwrite,
+	const char *local_filename);
+
 /*
  * 获取Cookie 数据。
  * 成功则返回Cookie数据，失败或没有返回NULL
