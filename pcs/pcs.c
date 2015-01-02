@@ -4,8 +4,10 @@
 #include <string.h>
 #ifdef WIN32
 # include <malloc.h>
+# include "openssl_md5.h"
 #else
 # include <alloca.h>
+# include <openssl/md5.h>
 #endif
 
 #include "pcs_defs.h"
@@ -14,6 +16,13 @@
 #include "pcs_http.h"
 #include "cJSON.h"
 #include "pcs.h"
+
+#ifdef WIN32
+# define lseek _lseek
+# define fileno _fileno
+# define fseeko _fseeki64
+# define ftello _ftelli64
+#endif
 
 #define PCS_MD5_SIZE	16 /*MD5的长度，固定为16。修改为其他值将导致校验错误*/
 
@@ -56,7 +65,7 @@ struct pcs {
 	size_t		buffer_size;
 };
 
-#define PCS_BUFFER_SIZE			(AES_BLOCK_SIZE * 1024)
+#define PCS_BUFFER_SIZE			(16 * 1024)
 #define PCS_ACTION_NONE			0
 #define PCS_ACTION_DOWNLOAD		1
 #define PCS_ACTION_UPLOAD		2
@@ -886,7 +895,7 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 
 	val = cJSON_GetObjectItem(item, "size");
 	if (val)
-		fi->size = (uint64_t)val->valuedouble;
+		fi->size = (int64_t)val->valuedouble;
 
 	val = cJSON_GetObjectItem(item, "dir_empty");
 	if (val)
@@ -2038,7 +2047,7 @@ PCS_API PcsRes pcs_logout(Pcs handle)
 	return PCS_FAIL;
 }
 
-PCS_API PcsRes pcs_quota(Pcs handle, uint64_t *quota, uint64_t *used)
+PCS_API PcsRes pcs_quota(Pcs handle, int64_t *quota, int64_t *used)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	cJSON *json, *item;
@@ -2088,7 +2097,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, uint64_t *quota, uint64_t *used)
 		return PCS_WRONG_RESPONSE;
 	}
 	if (quota)
-		*quota = (uint64_t)item->valuedouble;
+		*quota = (int64_t)item->valuedouble;
 
 	item = cJSON_GetObjectItem(json, "used");
 	if (!item) {
@@ -2097,7 +2106,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, uint64_t *quota, uint64_t *used)
 		return PCS_WRONG_RESPONSE;
 	}
 	if (used)
-		*used = (uint64_t)item->valuedouble;
+		*used = (int64_t)item->valuedouble;
 
 	cJSON_Delete(json);
 
@@ -2336,12 +2345,12 @@ PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t max_speed, 
 	return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data, max_speed, resume_from);
 }
 
-PCS_API uint64_t pcs_get_download_filesize(Pcs handle, const char *path)
+PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url;
 	const char *errmsg;
-	uint64_t size;
+	int64_t size;
 
 	pcs_clear_errmsg(handle);
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
@@ -2445,6 +2454,194 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 	pcs_http_form_destroy(pcs->http, form);
 	return meta;
 }
+
+PCS_API int64_t pcs_filesize(Pcs handle, const char *path)
+{
+	FILE *pf;
+	int64_t sz = 0;
+	pcs_clear_errmsg(handle);
+	pf = fopen(path, "rb");
+	if (!pf) {
+		pcs_set_errmsg(handle, "Can't open the file. %s", path);
+		return -1;
+	}
+	if (fseeko(pf, 0, SEEK_END)) {
+		pcs_set_errmsg(handle, "fseeko() error. %s", path);
+		fclose(pf);
+		return -1;
+	}
+	sz = ftello(pf);
+	fclose(pf);
+	if (sz < 0) {
+		pcs_set_errmsg(handle, "ftello() error. %s", path);
+		return -1;
+	}
+	return sz;
+}
+
+PCS_API PcsBool pcs_md5_file(Pcs handle, const char *path, char *md5_buf)
+{
+	MD5_CTX md5;
+	FILE *pf;
+	size_t sz;
+	unsigned char buf[PCS_BUFFER_SIZE];
+	unsigned char md5_value[16];
+	int i;
+
+	pcs_clear_errmsg(handle);
+	pf = fopen(path, "rb");
+	if (!pf) {
+		pcs_set_errmsg(handle, "Can't open the file. %s", path);
+		return PcsFalse;
+	}
+
+	MD5_Init(&md5);
+	while ((sz = fread(buf, 1, PCS_BUFFER_SIZE, pf)) > 0) {
+		MD5_Update(&md5, buf, sz);
+	}
+	MD5_Final(md5_value, &md5);
+	fclose(pf);
+	for (i = 0; i < 16; i++) {
+		sprintf(&md5_buf[i * 2], "%02x", md5_value[i]);
+	}
+	return PcsTrue;
+}
+
+PCS_API PcsBool pcs_md5_file_slice(Pcs handle, const char *path, int64_t offset, int64_t length, char *md5_buf)
+{
+	MD5_CTX md5;
+	FILE *pf;
+	size_t sz;
+	int64_t hashed_sz = 0;
+	unsigned char buf[PCS_BUFFER_SIZE];
+	unsigned char md5_value[16];
+	int i;
+
+	pcs_clear_errmsg(handle);
+	pf = fopen(path, "rb");
+	if (!pf) {
+		pcs_set_errmsg(handle, "Can't open the file. %s", path);
+		return PcsFalse;
+	}
+
+	if (fseeko(pf, offset, SEEK_SET)) {
+		pcs_set_errmsg(handle, "fseeko() error. %s", path);
+		fclose(pf);
+		return PcsFalse;
+	}
+
+	MD5_Init(&md5);
+	while ((hashed_sz < length) && ((sz = fread(buf, 1, PCS_BUFFER_SIZE, pf)) > 0)) {
+		if (hashed_sz + sz > length) {
+			MD5_Update(&md5, buf, (size_t)(length - hashed_sz));
+			hashed_sz += (length - hashed_sz);
+		}
+		else {
+			MD5_Update(&md5, buf, sz);
+			hashed_sz += sz;
+		}
+	}
+	MD5_Final(md5_value, &md5);
+	fclose(pf);
+	for (i = 0; i < 16; i++) {
+		sprintf(&md5_buf[i * 2], "%02x", md5_value[i]);
+	}
+	return PcsTrue;
+}
+
+PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool overwrite,
+	const char *local_filename)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	int64_t content_length;
+	char content_md5[33] = { 0 }, slice_md5[33] = { 0 }, *content_length_str, *dir, *filename;
+	char *url, *html;
+	const char *errmsg;
+	cJSON *json, *item;
+	PcsFileInfo *meta;
+
+	pcs_clear_errmsg(handle);
+	content_length = pcs_filesize(handle, local_filename);
+	if (content_length < 0) {
+		return NULL;
+	}
+	if (content_length <= PCS_RAPIDUPLOAD_THRESHOLD) {
+		pcs_set_errmsg(handle, "The file size is not satisfied, the file must be great than %d.", PCS_RAPIDUPLOAD_THRESHOLD);
+		return NULL;
+	}
+
+	if (!pcs_md5_file(handle, local_filename, content_md5)) {
+		return NULL;
+	}
+
+	if (!pcs_md5_file_slice(handle, local_filename, 0, PCS_RAPIDUPLOAD_THRESHOLD, slice_md5)) {
+		return NULL;
+	}
+
+	dir = pcs_utils_basedir(path);
+	filename = pcs_utils_filename(path);
+	content_length_str = pcs_utils_sprintf("%"PRId64, content_length);
+	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
+		"method", "rapidupload",
+		"app_id", "250528",
+		"ondup", overwrite ? "overwrite" : "newcopy",
+		"dir", dir,
+		"filename", filename,
+		"content-length", content_length_str,
+		"content-md5", content_md5,
+		"slice-md5", slice_md5,
+		"path", path,
+		"BDUSS", pcs->bduss,
+		"bdstoken", pcs->bdstoken,
+		NULL);
+	if (!url) {
+		pcs_set_errmsg(handle, "Can't build the url.");
+		pcs_free(content_length_str);
+		pcs_free(dir);
+		pcs_free(filename);
+		return NULL;
+	}
+	pcs_free(content_length_str);
+	pcs_free(dir);
+	pcs_free(filename);
+
+	html = pcs_http_get(pcs->http, url, PcsTrue);
+	pcs_free(url);
+	if (!html) {
+		errmsg = pcs_http_strerror(pcs->http);
+		if (errmsg)
+			pcs_set_errmsg(handle, errmsg);
+		else
+			pcs_set_errmsg(handle, "Can't get response from the remote server.");
+		return NULL;
+	}
+	json = cJSON_Parse(html);
+	if (!json) {
+		pcs_set_errmsg(handle, "Can't parse the response as json: %s", html);
+		return NULL;
+	}
+	//"{\"error_code\":31062,\"error_msg\":\"file name is invalid\",\"request_id\":3071564675}
+	item = cJSON_GetObjectItem(json, "error_code");
+	if (item) {
+		int error_code = item->valueint;
+		const char *error_msg = NULL;
+		item = cJSON_GetObjectItem(json, "error_msg");
+		if (item)
+			error_msg = item->valuestring;
+		pcs_set_errmsg(handle, "Can't upload file. error_code: %d. error_msg: %s. raw response: %s", error_code, error_msg, html);
+		cJSON_Delete(json);
+		return NULL;
+	}
+
+	meta = pcs_parse_fileinfo(json);
+	cJSON_Delete(json);
+	if (!meta) {
+		pcs_set_errmsg(handle, "Can't parse the response as meta");
+		return NULL;
+	}
+	return meta;
+}
+
 
 PCS_API char *pcs_cookie_data(Pcs handle)
 {

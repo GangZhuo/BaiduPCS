@@ -96,7 +96,7 @@ PCS_API char* pcs_utils_readable_size(double size/*in bytes*/, char *buf, int bu
 }
 
 /* Human-readable left time */
-PCS_API char* pcs_utils_readable_left_time(uint64_t second, char *buf, int buf_size, char *sp)
+PCS_API char* pcs_utils_readable_left_time(int64_t second, char *buf, int buf_size, char *sp)
 {
 	int i = 0;
 	const char* units[] = { "B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };

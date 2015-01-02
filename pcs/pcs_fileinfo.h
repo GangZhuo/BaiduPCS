@@ -12,7 +12,7 @@ typedef struct PcsFileInfo {
 	time_t		server_mtime;
 	time_t		local_ctime;
 	time_t		local_mtime;
-	uint64_t		size;
+	int64_t		size;
 	int			category;
 	PcsBool		isdir;
 	PcsBool		dir_empty;

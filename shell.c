@@ -163,12 +163,12 @@ struct DownloadThreadState;
 struct DownloadState
 {
 	FILE *pf;
-	uint64_t downloaded_size; /*已经下载的字节数*/
+	int64_t downloaded_size; /*已经下载的字节数*/
 	curl_off_t resume_from; /*断点续传时，从这个位置开始续传*/
 	size_t noflush_size; /*未执行fflush()的字节大小*/
 	time_t time; /*最后一次在屏幕打印信息的时间*/
 	size_t speed; /*用于统计下载速度*/
-	uint64_t file_size; /*完整的文件的字节大小*/
+	int64_t file_size; /*完整的文件的字节大小*/
 	ShellContext *context;
 	void *mutex;
 	int	num_of_running_thread; /*已经启动的线程数量*/
@@ -350,7 +350,7 @@ int u8_tombs_size(const char *src, int srcsz)
 
 # define sleep(s) Sleep((s) * 1000)
 
-int truncate(const char *file, uint64_t size)
+int truncate(const char *file, int64_t size)
 {
 	HANDLE hFile;
 	hFile = CreateFile(file, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -389,7 +389,7 @@ static inline void readToAesHead(const char *buf, struct PcsAesHead *head)
 static int get_file_secure_method(const char *src)
 {
 	FILE *srcFile;
-	uint64_t file_sz;
+	int64_t file_sz;
 	size_t sz;
 	unsigned char buf[PCS_BUFFER_SIZE];
 	struct PcsAesHead head = { 0 };
@@ -435,7 +435,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	unsigned char md5_value[16], buf[PCS_BUFFER_SIZE], out_buf[PCS_BUFFER_SIZE];
 	FILE *srcFile, *dstFile;
 	char *tmp_local_path;
-	uint64_t file_sz;
+	int64_t file_sz;
 	size_t buf_sz, sz;
 	int polish;
 	AES_KEY				aes = { 0 };
@@ -541,7 +541,7 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 	unsigned char md5_value[16], buf[PCS_BUFFER_SIZE], out_buf[PCS_BUFFER_SIZE];
 	char *tmp_local_path;
 	FILE *srcFile, *dstFile;
-	uint64_t file_sz;
+	int64_t file_sz;
 	size_t sz, buf_sz;
 	AES_KEY				aes = { 0 };
 	unsigned char		key[AES_BLOCK_SIZE] = { 0 };
@@ -644,9 +644,9 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 			return -1;
 		}
 		AES_cbc_encrypt(buf, out_buf, buf_sz, &aes, iv, AES_DECRYPT);
-		if (file_sz == (uint64_t)buf_sz) {
+		if (file_sz == (int64_t)buf_sz) {
 			buf_sz -= head.polish;
-			file_sz = (uint64_t)buf_sz;
+			file_sz = (int64_t)buf_sz;
 		}
 		MD5_Update(&md5, out_buf, buf_sz);
 		sz = fwrite(out_buf, 1, buf_sz, dstFile);
@@ -661,7 +661,7 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 			pcs_free(tmp_local_path);
 			return -1;
 		}
-		file_sz -= (uint64_t)buf_sz;
+		file_sz -= (int64_t)buf_sz;
 		if (file_sz == 0) break;
 		if (file_sz < PCS_BUFFER_SIZE) {
 			buf_sz = (size_t)file_sz;
@@ -1077,8 +1077,8 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	}
 	tm = time(&tm);
 	if (tm != ds->time) {
-		uint64_t left_size = ds->file_size - ds->downloaded_size;
-		uint64_t remain_tm = (ds->speed > 0) ? (left_size / ds->speed) : 0;
+		int64_t left_size = ds->file_size - ds->downloaded_size;
+		int64_t remain_tm = (ds->speed > 0) ? (left_size / ds->speed) : 0;
 		ds->time = tm;
 		printf("%s", pcs_utils_readable_size((double)ds->downloaded_size + (double)ds->resume_from, tmp, 63, NULL));
 		printf("/%s \t", pcs_utils_readable_size((double)contentlength + (double)ds->resume_from, tmp, 63, NULL));
@@ -1154,8 +1154,8 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	//}
 	tm = time(&tm);
 	if (tm != ds->time) {
-		uint64_t left_size = ds->file_size - ds->downloaded_size;
-		uint64_t remain_tm = (ds->speed > 0) ? (left_size / ds->speed) : 0;
+		int64_t left_size = ds->file_size - ds->downloaded_size;
+		int64_t remain_tm = (ds->speed > 0) ? (left_size / ds->speed) : 0;
 		ds->time = tm;
 		printf("\r                                                \r");
 		printf("%s", pcs_utils_readable_size((double)ds->downloaded_size + (double)ds->resume_from, tmp, 63, NULL));
@@ -1256,12 +1256,12 @@ static const char *size_tostr(size_t size, int *fix_width, char ch)
 	return str;
 }
 
-static const char *uint64_tostr(uint64_t size, int *fix_width, char ch)
+static const char *uint64_tostr(int64_t size, int *fix_width, char ch)
 {
 	static char str[128], *p;
 	int i;
 	int j, cn, mod;
-	uint64_t sz;
+	int64_t sz;
 
 	if (size == 0) {
 		i = 0;
@@ -1338,7 +1338,7 @@ static void print_size(const char *format, size_t size)
 	printf(format, tmp);
 }
 
-static void print_uint64(const char *format, uint64_t size)
+static void print_uint64(const char *format, int64_t size)
 {
 	char tmp[64];
 	tmp[63] = '\0';
@@ -1386,7 +1386,7 @@ static void print_filelist_row(PcsFileInfo *f, int size_width)
 }
 
 /*打印文件列表*/
-static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCount, uint64_t *pTotalSize)
+static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCount, int64_t *pTotalSize)
 {
 	char tmp[64] = { 0 };
 	int cnt_file = 0,
@@ -1394,7 +1394,7 @@ static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCoun
 		size_width = 1,
 		w;
 	PcsFileInfo *file = NULL;
-	uint64_t total = 0;
+	int64_t total = 0;
 	PcsFileInfoListIterater iterater;
 
 	pcs_filist_iterater_init(list, &iterater, PcsFalse);
@@ -3115,7 +3115,7 @@ static void start_download_thread(struct DownloadState *ds, void **pHandle)
 static int restore_download_state(struct DownloadState *ds, const char *tmp_local_path, int *pendding_count)
 {
 	LocalFileInfo *tmpFileInfo;
-	uint64_t tmp_file_size = 0;
+	int64_t tmp_file_size = 0;
 	tmpFileInfo = GetLocalFileInfo(tmp_local_path);
 	if (tmpFileInfo) {
 		tmp_file_size = tmpFileInfo->size;
@@ -3181,7 +3181,7 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 	return -1;
 }
 
-static int create_file(const char *file, uint64_t fsize)
+static int create_file(const char *file, int64_t fsize)
 {
 	FILE *pf;
 	pf = fopen(file, "wb");
@@ -3218,7 +3218,7 @@ static inline int do_download(ShellContext *context,
 	char *local_path, *remote_path, *dir,
 		*tmp_local_path;
 	int secure_method = 0;
-	uint64_t fsize = 0;
+	int64_t fsize = 0;
 
 	init_download_state(&ds);
 
@@ -3330,7 +3330,7 @@ static inline int do_download(ShellContext *context,
 		curl_off_t start = 0;
 		const char *mode = "rb+";
 		int slice_count, pendding_slice_count = 0, thread_count, running_thread_count, i, is_success;
-		uint64_t slice_size;
+		int64_t slice_size;
 #ifdef _WIN32
 		HANDLE *handles = NULL;
 #endif
@@ -3603,29 +3603,33 @@ static inline int do_upload(ShellContext *context,
 		}
 	}
 
-	pcs_setopts(context->pcs,
-		PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
-		PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
-		PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
-		//PCS_OPTION_TIMEOUT, (void *)0L,
-		PCS_OPTION_END);
-	res = pcs_upload(context->pcs, remote_path, is_force, local_path);
-	//pcs_setopts(context->pcs,
-	//	PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
-	//	PCS_OPTION_END);
-	if (!res || !res->path || !res->path[0]) {
-		if (pErrMsg) {
-			if (*pErrMsg) pcs_free(*pErrMsg);
-			(*pErrMsg) = pcs_utils_sprintf("Error: %s. local_path=%s, remote_path=%s\n", 
-				pcs_strerror(context->pcs), local_path, remote_path);
+	res = pcs_rapid_upload(context->pcs, remote_path, is_force, local_path);
+	if (!res) {
+		pcs_setopts(context->pcs,
+			PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
+			PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
+			PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
+			//PCS_OPTION_TIMEOUT, (void *)0L,
+			PCS_OPTION_END);
+		res = pcs_upload(context->pcs, remote_path, is_force, local_path);
+		//pcs_setopts(context->pcs,
+		//	PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
+		//	PCS_OPTION_END);
+		if (!res || !res->path || !res->path[0]) {
+			if (pErrMsg) {
+				if (*pErrMsg) pcs_free(*pErrMsg);
+				(*pErrMsg) = pcs_utils_sprintf("Error: %s. local_path=%s, remote_path=%s\n",
+					pcs_strerror(context->pcs), local_path, remote_path);
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			if (res) pcs_fileinfo_destroy(res);
+			if (del_local_file) DeleteFileRecursive(local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			return -1;
 		}
-		if (op_st) (*op_st) = OP_ST_FAIL;
-		if (res) pcs_fileinfo_destroy(res);
-		if (del_local_file) DeleteFileRecursive(local_path);
-		pcs_free(local_path);
-		pcs_free(remote_path);
-		return -1;
 	}
+
 	/*当文件名以.(点号)开头的话，则网盘会自动去除第一个点。以下if语句的目的就是把网盘文件重命名为以点号开头。*/
 	if (res) {
 		char *diskName = pcs_utils_filename(res->path),
@@ -4703,7 +4707,7 @@ static int cmd_list(ShellContext *context, struct args *arg)
 	int page_index = 1;
 	char tmp[64] = { 0 };
 	int fileCount = 0, dirCount = 0;
-	uint64_t totalSize = 0;
+	int64_t totalSize = 0;
 
 	if (test_arg(arg, 0, 1, "h", "help", NULL)) {
 		usage_list();
@@ -4984,7 +4988,7 @@ static int cmd_quota(ShellContext *context, struct args *arg)
 {
 	const char *opts[] = { "e", NULL };
 	PcsRes pcsres;
-	uint64_t quota, used;
+	int64_t quota, used;
 	int is_exact = 0;
 	char str[32] = { 0 };
 	if (test_arg(arg, 0, 0, "e", "h", "help", NULL)) {
