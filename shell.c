@@ -35,6 +35,7 @@
 # define lseek _lseek
 # define fileno _fileno
 # define fseeko _fseeki64
+# define ftello _ftelli64
 #endif
 #include "shell.h"
 
@@ -388,7 +389,7 @@ static inline void readToAesHead(const char *buf, struct PcsAesHead *head)
 static int get_file_secure_method(const char *src)
 {
 	FILE *srcFile;
-	long file_sz;
+	uint64_t file_sz;
 	size_t sz;
 	unsigned char buf[PCS_BUFFER_SIZE];
 	struct PcsAesHead head = { 0 };
@@ -398,9 +399,9 @@ static int get_file_secure_method(const char *src)
 		//fprintf(stderr, "Error: Can't open the source file: %s\n", src);
 		return -1;
 	}
-	fseek(srcFile, 0L, SEEK_END);
-	file_sz = ftell(srcFile);
-	fseek(srcFile, 0L, SEEK_SET);
+	fseeko(srcFile, 0, SEEK_END);
+	file_sz = ftello(srcFile);
+	fseeko(srcFile, 0, SEEK_SET);
 
 	if (file_sz < 32) {
 		fclose(srcFile);
@@ -434,7 +435,9 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	unsigned char md5_value[16], buf[PCS_BUFFER_SIZE], out_buf[PCS_BUFFER_SIZE];
 	FILE *srcFile, *dstFile;
 	char *tmp_local_path;
-	long file_sz, sz, buf_sz;
+	uint64_t file_sz;
+	size_t buf_sz, sz;
+	int polish;
 	AES_KEY				aes = { 0 };
 	unsigned char		key[AES_BLOCK_SIZE] = { 0 };
 	unsigned char		iv[AES_BLOCK_SIZE] = { 0 };
@@ -461,20 +464,20 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 		return -1;
 	}
 
-	fseek(srcFile, 0L, SEEK_END);
-	file_sz = ftell(srcFile);
-	fseek(srcFile, 0L, SEEK_SET);
+	fseeko(srcFile, 0, SEEK_END);
+	file_sz = ftello(srcFile);
+	fseeko(srcFile, 0, SEEK_SET);
 
-	sz = 0;
+	polish = 0;
 	if (file_sz % AES_BLOCK_SIZE == 0) {
-		sz = file_sz;
+		polish = 0;
 	}
 	else {
-		sz = (file_sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+		polish = (int)((file_sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE - file_sz);
 	}
 	int2Buffer(PCS_AES_MAGIC, buf);
 	int2Buffer(secure_method, &buf[4]);
-	int2Buffer((int)(sz - file_sz), &buf[8]);
+	int2Buffer(polish, &buf[8]);
 	int2Buffer(0, &buf[12]);
 	sz = fwrite(buf, 1, 16, dstFile);
 	if (sz != 16) {
@@ -489,7 +492,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	while ((sz = fread(buf, 1, PCS_BUFFER_SIZE, srcFile)) > 0) {
 		MD5_Update(&md5, buf, sz);
 		if ((sz % AES_BLOCK_SIZE) != 0) {
-			buf_sz = (sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+			buf_sz = (size_t)((sz / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE);
 			memset(&buf[sz], 0, buf_sz - sz);
 		}
 		else {
@@ -538,7 +541,8 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 	unsigned char md5_value[16], buf[PCS_BUFFER_SIZE], out_buf[PCS_BUFFER_SIZE];
 	char *tmp_local_path;
 	FILE *srcFile, *dstFile;
-	long file_sz, sz, buf_sz;
+	uint64_t file_sz;
+	size_t sz, buf_sz;
 	AES_KEY				aes = { 0 };
 	unsigned char		key[AES_BLOCK_SIZE] = { 0 };
 	unsigned char		iv[AES_BLOCK_SIZE] = { 0 };
@@ -566,9 +570,9 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 		return -1;
 	}
 
-	fseek(srcFile, 0L, SEEK_END);
-	file_sz = ftell(srcFile);
-	fseek(srcFile, 0L, SEEK_SET);
+	fseeko(srcFile, 0, SEEK_END);
+	file_sz = ftello(srcFile);
+	fseeko(srcFile, 0, SEEK_SET);
 
 	if (file_sz < 32 || ((file_sz - 32) % AES_BLOCK_SIZE) != 0) {
 		if (pErrMsg) {
@@ -622,7 +626,7 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 	}
 	file_sz -= 32;
 	if (file_sz < PCS_BUFFER_SIZE) {
-		buf_sz = file_sz;
+		buf_sz = (size_t)file_sz;
 	}
 	else {
 		buf_sz = PCS_BUFFER_SIZE;
@@ -640,9 +644,9 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 			return -1;
 		}
 		AES_cbc_encrypt(buf, out_buf, buf_sz, &aes, iv, AES_DECRYPT);
-		if (file_sz == buf_sz) {
+		if (file_sz == (uint64_t)buf_sz) {
 			buf_sz -= head.polish;
-			file_sz = buf_sz;
+			file_sz = (uint64_t)buf_sz;
 		}
 		MD5_Update(&md5, out_buf, buf_sz);
 		sz = fwrite(out_buf, 1, buf_sz, dstFile);
@@ -657,10 +661,10 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 			pcs_free(tmp_local_path);
 			return -1;
 		}
-		file_sz -= buf_sz;
+		file_sz -= (uint64_t)buf_sz;
 		if (file_sz == 0) break;
 		if (file_sz < PCS_BUFFER_SIZE) {
-			buf_sz = file_sz;
+			buf_sz = (size_t)file_sz;
 		}
 		else {
 			buf_sz = PCS_BUFFER_SIZE;
