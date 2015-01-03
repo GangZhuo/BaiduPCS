@@ -921,9 +921,9 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 	if (list) {
 		int i, cnt = cJSON_GetArraySize(list);
 		if (cnt > 0) {
-			fi->block_list = (char **) pcs_malloc((cnt + 1) + sizeof(char *));
+			fi->block_list = (char **) pcs_malloc((cnt + 1) * sizeof(char *));
 			if (!fi->block_list) return fi;
-			memset(fi->block_list, 0, (cnt + 1) + sizeof(char *));
+			memset(fi->block_list, 0, (cnt + 1) * sizeof(char *));
 			for (i = 0; i < cnt; i++) {
 				val = cJSON_GetArrayItem(list, i);
 				fi->block_list[i] = pcs_utils_strdup(val->valuestring);
@@ -1355,7 +1355,7 @@ static int pcs_get_errno_from_api_res(Pcs handle, const char *html)
 	return res;
 }
 
-static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwrite, PcsHttpForm form)
+static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsHttpForm form, const char *ondup)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url, *html,
@@ -1367,10 +1367,10 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
 		"method", "upload",
 		"app_id", "250528",
-		"ondup", overwrite ? "overwrite" : "newcopy",
+		"ondup", ondup,
 		"dir", dir,
 		"filename", filename,
-		"BDUSS", pcs->bduss, 
+		"BDUSS", pcs->bduss,
 		NULL);
 	pcs_free(dir);
 	pcs_free(filename);
@@ -1394,6 +1394,69 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsBool overwr
 		return NULL;
 	}
 	//"{\"error_code\":31062,\"error_msg\":\"file name is invalid\",\"request_id\":3071564675}
+	item = cJSON_GetObjectItem(json, "error_code");
+	if (item) {
+		int error_code = item->valueint;
+		const char *error_msg = NULL;
+		item = cJSON_GetObjectItem(json, "error_msg");
+		if (item)
+			error_msg = item->valuestring;
+		pcs_set_errmsg(handle, "Can't upload file. error_code: %d. error_msg: %s. raw response: %s", error_code, error_msg, html);
+		cJSON_Delete(json);
+		return NULL;
+	}
+
+	meta = pcs_parse_fileinfo(json);
+	cJSON_Delete(json);
+	if (!meta) {
+		pcs_set_errmsg(handle, "Can't parse the response as meta");
+		return NULL;
+	}
+	return meta;
+}
+
+static PcsFileInfo *pcs_upload_slice_form(Pcs handle, PcsHttpForm form)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	char *url, *html;
+	cJSON *json, *item;
+	PcsFileInfo *meta;
+
+	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
+		"method", "upload",
+		"type", "tmpfile",
+		"app_id", "250528",
+		"BDUSS", pcs->bduss,
+		NULL);
+	if (!url) {
+		pcs_set_errmsg(handle, "Can't build the url.");
+		return NULL;
+	}
+	html = pcs_post_httpform(pcs->http, url, form, PcsTrue);
+	pcs_free(url);
+	if (!html) {
+		const char *errmsg = pcs_http_strerror(pcs->http);
+		if (errmsg)
+			pcs_set_errmsg(handle, errmsg);
+		else
+			pcs_set_errmsg(handle, "Can't get response from the remote server.");
+		return NULL;
+	}
+	json = cJSON_Parse(html);
+	if (!json) {
+		pcs_set_errmsg(handle, "Can't parse the response as json: %s", html);
+		return NULL;
+	}
+	/*{
+		"path": "\/temp\/putty-0.63-installer.exe",
+		"size": 1869122,
+		"ctime": 1420193926,
+		"mtime": 1420193926,
+		"md5": "18bd0948d254894441dd6f818d9b3811",
+		"fs_id": 919365701714983,
+		"isdir": 0,
+		"request_id": 2401283243
+	}*/
 	item = cJSON_GetObjectItem(json, "error_code");
 	if (item) {
 		int error_code = item->valueint;
@@ -1552,6 +1615,66 @@ PCS_API void pcs_destroy(Pcs handle)
 	if (pcs->buffer)
 		pcs_free(pcs->buffer);
 	pcs_free(pcs);
+}
+
+PCS_API void pcs_clone_userinfo(Pcs dst, Pcs src)
+{
+	struct pcs *pcs_dst = (struct pcs *)dst;
+	struct pcs *pcs_src = (struct pcs *)src;
+	if (pcs_dst->username) {
+		pcs_free(pcs_dst->username);
+		pcs_dst->username = NULL;
+	}
+	if (pcs_src->username)
+		pcs_dst->username = pcs_utils_strdup(pcs_src->username);
+
+	if (pcs_dst->password) {
+		pcs_free(pcs_dst->password);
+		pcs_dst->password = NULL;
+	}
+	if (pcs_src->password)
+		pcs_dst->password = pcs_utils_strdup(pcs_src->password);
+
+	if (pcs_dst->bdstoken) {
+		pcs_free(pcs_dst->bdstoken);
+		pcs_dst->bdstoken = NULL;
+	}
+	if (pcs_src->bdstoken)
+		pcs_dst->bdstoken = pcs_utils_strdup(pcs_src->bdstoken);
+
+	if (pcs_dst->bduss) {
+		pcs_free(pcs_dst->bduss);
+		pcs_dst->bduss = NULL;
+	}
+	if (pcs_src->bduss)
+		pcs_dst->bduss = pcs_utils_strdup(pcs_src->bduss);
+
+	if (pcs_dst->sysUID) {
+		pcs_free(pcs_dst->sysUID);
+	}
+	if (pcs_src->sysUID)
+		pcs_dst->sysUID = pcs_utils_strdup(pcs_src->sysUID);
+
+	//if (pcs_dst->errmsg) {
+	//	pcs_free(pcs_dst->errmsg);
+	//	pcs_dst->errmsg = NULL;
+	//}
+	//if (pcs_src->errmsg)
+	//	pcs_dst->errmsg = pcs_utils_strdup(pcs_src->errmsg);
+
+	if (pcs_dst->public_key) {
+		pcs_free(pcs_dst->public_key);
+		pcs_dst->public_key = NULL;
+	}
+	if (pcs_src->public_key)
+		pcs_dst->public_key = pcs_utils_strdup(pcs_src->public_key);
+
+	if (pcs_dst->key) {
+		pcs_free(pcs_dst->key);
+		pcs_dst->key = NULL;
+	}
+	if (pcs_src->key)
+		pcs_dst->key = pcs_utils_strdup(pcs_src->key);
 }
 
 PCS_API const char *pcs_sysUID(Pcs handle)
@@ -2409,8 +2532,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 	return pcs->buffer;
 }
 
-PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, 
-									   const char *buffer, size_t buffer_size)
+PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, const char *buffer, size_t buffer_size)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *filename;
@@ -2428,9 +2550,117 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 		return NULL;
 	}
 	pcs_free(filename);
-	meta = pcs_upload_form(handle, path, overwrite, form);
+	meta = pcs_upload_form(handle, path, form, overwrite ? "overwrite" : "newcopy");
 	pcs_http_form_destroy(pcs->http, form);
 	if (buf != buffer) pcs_free(buf);
+	return meta;
+}
+
+PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buffer_size)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	PcsHttpForm form = NULL;
+	PcsFileInfo *meta;
+	size_t sz = buffer_size;
+	char *buf = (char *)buffer;
+
+	pcs_clear_errmsg(handle);
+	if (pcs_http_form_addbuffer(pcs->http, &form, "file", buf, (long)sz, NULL) != PcsTrue) {
+		pcs_set_errmsg(handle, "Can't build the post data.");
+		if (buf != buffer) pcs_free(buf);
+		return NULL;
+	}
+	meta = pcs_upload_slice_form(handle, form);
+	pcs_http_form_destroy(pcs->http, form);
+	if (buf != buffer) pcs_free(buf);
+	return meta;
+}
+
+PCS_API PcsFileInfo *pcs_create_superfile(Pcs handle, const char *path, PcsBool overwrite, PcsSList *block_list)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	char *url, *postdata, *block_list_data, *html;
+	const char *errmsg;
+	cJSON *json, *item;
+	PcsFileInfo *meta;
+
+	url = pcs_http_build_url(pcs->http, URL_PCS_REST,
+		"method", "createsuperfile",
+		"app_id", "250528",
+		"path", path,
+		"ondup", overwrite ? "overwrite" : "newcopy",
+		"BDUSS", pcs->bduss,
+		NULL);
+	if (!url) {
+		pcs_set_errmsg(handle, "Can't build the url.");
+		return NULL;
+	}
+	block_list_data = pcs_build_filelist_1(handle, block_list, NULL);
+	if (!block_list_data) {
+		pcs_set_errmsg(handle, "Can't build the block list.");
+		pcs_free(url);
+		return NULL;
+	}
+	postdata = (char *)pcs_malloc(strlen(block_list_data) + 32);
+	strcpy(postdata, "{\"block_list\":");
+	strcat(postdata, block_list_data);
+	strcat(postdata, "}");
+	pcs_free(block_list_data);
+	block_list_data = postdata;
+
+	postdata = pcs_http_build_post_data(pcs->http, "param", block_list_data, NULL);
+	pcs_free(block_list_data);
+	if (!postdata) {
+		pcs_set_errmsg(handle, "Can't build the post data.");
+		pcs_free(url);
+		return NULL;
+	}
+	html = pcs_http_post(pcs->http, url, postdata, PcsTrue);
+	pcs_free(postdata);
+	pcs_free(url);
+	if (!html) {
+		errmsg = pcs_http_strerror(pcs->http);
+		if (errmsg)
+			pcs_set_errmsg(handle, errmsg);
+		else
+			pcs_set_errmsg(handle, "Can't get response from the remote server.");
+		return NULL;
+	}
+	json = cJSON_Parse(html);
+	if (!json) {
+		pcs_set_errmsg(handle, "Can't parse the response as json: %s", html);
+		return NULL;
+	}
+	/*{
+		"path": "\/temp\/88.zip",
+		"size": "1982432",
+		"ctime": 1420209233,
+		"mtime": 1420209233,
+		"md5": "3058b1325c93ba9f24cb7a7ebbc03181",
+		"fs_id": 214609865781387,
+		"isdir": 0,
+		"block_list": ["3058b1325c93ba9f24cb7a7ebbc03181"],
+		"s3_handle": "3058b1325c93ba9f24cb7a7ebbc03181",
+		"request_id": 1835246947
+	}*/
+	item = cJSON_GetObjectItem(json, "error_code");
+	if (item) {
+		int error_code = item->valueint;
+		const char *error_msg = NULL;
+		item = cJSON_GetObjectItem(json, "error_msg");
+		if (item)
+			error_msg = item->valuestring;
+		pcs_set_errmsg(handle, "Can't upload file. error_code: %d. error_msg: %s. raw response: %s", error_code, error_msg, html);
+		cJSON_Delete(json);
+		return NULL;
+	}
+
+	meta = pcs_parse_fileinfo(json);
+	cJSON_Delete(json);
+	if (!meta) {
+		pcs_set_errmsg(handle, "Can't parse the response as meta");
+		return NULL;
+	}
 	return meta;
 }
 
@@ -2450,12 +2680,12 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 		return NULL;
 	}
 	pcs_free(filename);
-	meta = pcs_upload_form(handle, path, overwrite, form);
+	meta = pcs_upload_form(handle, path, form, overwrite ? "overwrite" : "newcopy");
 	pcs_http_form_destroy(pcs->http, form);
 	return meta;
 }
 
-PCS_API int64_t pcs_filesize(Pcs handle, const char *path)
+PCS_API int64_t pcs_local_filesize(Pcs handle, const char *path)
 {
 	FILE *pf;
 	int64_t sz = 0;
@@ -2549,19 +2779,19 @@ PCS_API PcsBool pcs_md5_file_slice(Pcs handle, const char *path, int64_t offset,
 	return PcsTrue;
 }
 
-PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool overwrite,
-	const char *local_filename)
+PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool overwrite, const char *local_filename, char *out_content_md5, char *out_slice_md5)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	int64_t content_length;
 	char content_md5[33] = { 0 }, slice_md5[33] = { 0 }, *content_length_str, *dir, *filename;
 	char *url, *html;
+	int http_code;
 	const char *errmsg;
 	cJSON *json, *item;
 	PcsFileInfo *meta;
 
 	pcs_clear_errmsg(handle);
-	content_length = pcs_filesize(handle, local_filename);
+	content_length = pcs_local_filesize(handle, local_filename);
 	if (content_length < 0) {
 		return NULL;
 	}
@@ -2573,10 +2803,12 @@ PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool over
 	if (!pcs_md5_file(handle, local_filename, content_md5)) {
 		return NULL;
 	}
+	if (out_content_md5) strcpy(out_content_md5, content_md5);
 
 	if (!pcs_md5_file_slice(handle, local_filename, 0, PCS_RAPIDUPLOAD_THRESHOLD, slice_md5)) {
 		return NULL;
 	}
+	if (out_slice_md5) strcpy(out_slice_md5, slice_md5);
 
 	dir = pcs_utils_basedir(path);
 	filename = pcs_utils_filename(path);
@@ -2607,6 +2839,9 @@ PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool over
 
 	html = pcs_http_get(pcs->http, url, PcsTrue);
 	pcs_free(url);
+	http_code = pcs_http_code(pcs->http);
+	if (http_code == 404)
+		return NULL;
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
@@ -2620,7 +2855,16 @@ PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool over
 		pcs_set_errmsg(handle, "Can't parse the response as json: %s", html);
 		return NULL;
 	}
-	//"{\"error_code\":31062,\"error_msg\":\"file name is invalid\",\"request_id\":3071564675}
+	/*{
+		"path": "\/temp\/putty-0.63-installer.exe",
+		"size": 1869122,
+		"ctime": 1420193926,
+		"mtime": 1420193926,
+		"md5": "18bd0948d254894441dd6f818d9b3811",
+		"fs_id": 919365701714983,
+		"isdir": 0,
+		"request_id": 2401283243
+	}*/
 	item = cJSON_GetObjectItem(json, "error_code");
 	if (item) {
 		int error_code = item->valueint;
@@ -2641,7 +2885,6 @@ PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool over
 	}
 	return meta;
 }
-
 
 PCS_API char *pcs_cookie_data(Pcs handle)
 {

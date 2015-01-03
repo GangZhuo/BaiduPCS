@@ -878,16 +878,16 @@ PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const
 		(*post) = (PcsHttpForm)formpost;
 	}
 	escape_param_name = curl_easy_escape(http->curl, param_name, 0);//pcs_http_escape(handle, param_name);
-	escape_simulate_filename = curl_easy_escape(http->curl, simulate_filename, 0);//pcs_http_escape(handle, simulate_filename);
+	escape_simulate_filename = simulate_filename ? curl_easy_escape(http->curl, simulate_filename, 0) : NULL;//pcs_http_escape(handle, simulate_filename);
 	if (curl_formadd(&(formpost->formpost), &(formpost->lastptr), 
 		CURLFORM_COPYNAME, escape_param_name,
-		CURLFORM_BUFFER, escape_simulate_filename,
+		CURLFORM_BUFFER, escape_simulate_filename ? escape_simulate_filename : " ",
 		CURLFORM_BUFFERPTR, buffer,
 		CURLFORM_BUFFERLENGTH, buffer_size,
 		CURLFORM_END))
 		res = PcsFalse;
 	curl_free((void *)escape_param_name);//pcs_free(escape_param_name);
-	curl_free((void *)escape_simulate_filename);//pcs_free(escape_simulate_filename);
+	if (escape_simulate_filename) curl_free((void *)escape_simulate_filename);//pcs_free(escape_simulate_filename);
 	return res;
 }
 

@@ -12,13 +12,13 @@ typedef unsigned __int64 uint64_t;
 #  ifndef PRIu64
 #    define PRIu64 "llu"
 #  endif
-#  define UINT64_CONST(n) n
-//#else
-//typedef long long int Int64;
-//typedef unsigned long long int UInt64;
-//#define PRInt64 PRId64
-//#define PRUInt64 PRIu64
-//#define UINT64_CONST(n) n ## ULL
+#else
+#  ifndef PRId64
+#    define PRId64 "lld"
+#  endif
+#  ifndef PRIu64
+#    define PRIu64 "llu"
+#  endif
 #endif
 
 #ifdef WIN32

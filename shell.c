@@ -46,6 +46,9 @@
 #define MIN_SLICE_SIZE				(512 * 1024) /*最小分片大小*/
 #define MAX_SLICE_SIZE				(10 * 1024 * 1024) /*最大分片大小*/
 #define MAX_FFLUSH_SIZE				(10 * 1024 * 1024) /*最大缓存大小*/
+#define MIN_UPLOAD_SLICE_SIZE		(512 * 1024) /*最小分片大小*/
+#define MAX_UPLOAD_SLICE_SIZE		(10 * 1024 * 1024) /*最大分片大小*/
+#define MAX_UPLOAD_SLICE_COUNT		1024
 
 #define convert_to_real_speed(speed) ((speed) * 1024)
 
@@ -55,6 +58,7 @@
 #define TEMP_FILE_SUFFIX			".pcs_temp"
 #define DECRYPT_FILE_SUFFIX			".decrypt"
 #define ENCRYPT_FILE_SUFFIX			".encrypt"
+#define SLICE_FILE_SUFFIX			".slice"
 //#define PCS_DEFAULT_CONTEXT_FILE	"/tmp/pcs_context.json"
 
 #define THREAD_STATE_MAGIC			(((int)'T' << 24) | ((int)'S' << 16) | ((int)'H' << 8) | ((int)'T'))
@@ -132,6 +136,12 @@
 #define DOWNLOAD_STATUS_WRITE_FILE_FAIL	2
 #define DOWNLOAD_STATUS_FAIL			3
 #define DOWNLOAD_STATUS_DOWNLOADING		4
+
+#define UPLOAD_STATUS_OK				0
+#define UPLOAD_STATUS_PENDDING			1
+#define UPLOAD_STATUS_WRITE_FILE_FAIL	2
+#define UPLOAD_STATUS_FAIL				3
+#define UPLOAD_STATUS_UPLOADING			4
 
 /* 文件元数据*/
 typedef struct MyMeta MyMeta;
@@ -246,6 +256,37 @@ struct ScanLocalFileState
 {
 	rb_red_blk_tree *rb;
 	int				total;
+};
+
+struct UploadThreadState;
+struct UploadState {
+	FILE *pf;
+	char *path;
+	char *slice_file;
+	int64_t uploaded_size; /*已经下载的字节数*/
+	time_t time; /*最后一次在屏幕打印信息的时间*/
+	size_t speed; /*用于统计下载速度*/
+	int64_t file_size; /*完整的文件的字节大小*/
+	ShellContext *context;
+	void *mutex;
+	int	num_of_running_thread; /*已经启动的线程数量*/
+	int num_of_slice; /*分片数量*/
+	char **pErrMsg;
+	int	status;
+	struct UploadThreadState *threads;
+};
+
+struct UploadThreadState {
+	struct UploadState *us;
+	curl_off_t	start;
+	curl_off_t	end;
+	int		status;
+	size_t  uploaded_size;
+	Pcs		*pcs;
+	char	md5[33]; /*上传成功后的分片MD5值*/
+	char	*slice_data;
+	int		tid;
+	struct UploadThreadState *next;
 };
 
 static char *app_name = NULL;
@@ -936,7 +977,7 @@ static const char *captchafile()
 
 #pragma endregion
 
-#pragma region DownloadState 相关
+#pragma region 线程 State 相关
 
 static void init_download_state(struct DownloadState *ds)
 {
@@ -983,6 +1024,52 @@ static void unlock_for_download(struct DownloadState *ds)
 #endif
 }
 
+static void init_upload_state(struct UploadState *us)
+{
+	memset(us, 0, sizeof(struct UploadState));
+#ifdef _WIN32
+	us->mutex = CreateMutex(NULL, FALSE, NULL);
+#else
+	us->mutex = (pthread_mutex_t *)pcs_malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init((pthread_mutex_t *)us->mutex, NULL);
+#endif
+}
+
+static void uninit_upload_state(struct UploadState *us)
+{
+	struct UploadThreadState *ts = us->threads, *ps = NULL;
+#ifdef _WIN32
+	CloseHandle(us->mutex);
+#else
+	pthread_mutex_destroy((pthread_mutex_t *)us->mutex);
+	pcs_free(us->mutex);
+#endif
+	while (ts) {
+		ps = ts;
+		ts = ts->next;
+		if (ps->slice_data) pcs_free(ps->slice_data);
+		pcs_free(ps);
+	}
+}
+
+static void lock_for_upload(struct UploadState *us)
+{
+#ifdef _WIN32
+	WaitForSingleObject(us->mutex, INFINITE);
+#else
+	pthread_mutex_lock((pthread_mutex_t *)us->mutex);
+#endif
+}
+
+static void unlock_for_upload(struct UploadState *us)
+{
+#ifdef _WIN32
+	ReleaseMutex(us->mutex);
+#else
+	pthread_mutex_unlock((pthread_mutex_t *)us->mutex);
+#endif
+}
+
 #pragma endregion
 
 #pragma region 三个回调： 输入验证码、显示上传进度、写下载文件
@@ -1005,6 +1092,32 @@ static int save_thread_states_to_file(FILE *pf, int64_t offset, struct DownloadT
 		if (rc != 1) return -1;
 		pts = pts->next;
 	}
+	return 0;
+}
+
+static int save_upload_thread_states_to_file(const char *filename, struct UploadThreadState *state_link)
+{
+	static int magic = THREAD_STATE_MAGIC;
+	FILE *pf;
+	int rc;
+	struct UploadThreadState *pts;
+	pf = fopen(filename, "wb");
+	if (!pf) return -1;
+	rc = fwrite(&magic, 4, 1, pf);
+	if (rc != 1) {
+		fclose(pf);
+		return -1;
+	}
+	pts = state_link;
+	while (pts) {
+		rc = fwrite(pts, sizeof(struct UploadThreadState), 1, pf);
+		if (rc != 1) {
+			fclose(pf);
+			return -1;
+		}
+		pts = pts->next;
+	}
+	fclose(pf);
 	return 0;
 }
 
@@ -1169,6 +1282,42 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 
 	unlock_for_download(ds);
 	return size;
+}
+
+/*显示上传进度*/
+static int upload_progress_for_multy_thread(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
+{
+	static char tmp[64];
+	struct UploadThreadState *ts = (struct UploadThreadState*)clientp;
+	struct UploadState *us = ts->us;
+	time_t tm;
+
+	lock_for_upload(us);
+
+	tmp[63] = '\0';
+	if ((((size_t)ulnow) > 0) && (((size_t)ulnow) > ts->uploaded_size)) {
+		us->speed += ((size_t)ulnow - ts->uploaded_size);
+		us->uploaded_size += ((size_t)ulnow - ts->uploaded_size);
+		ts->uploaded_size = (size_t)ulnow;
+	}
+
+	tm = time(&tm);
+	if (tm != us->time) {
+		int64_t left_size = us->file_size - us->uploaded_size;
+		int64_t remain_tm = (us->speed > 0) ? (left_size / us->speed) : 0;
+		us->time = tm;
+		printf("\r                                                \r");
+		printf("%s", pcs_utils_readable_size((double)us->uploaded_size, tmp, 63, NULL));
+		printf("/%s \t", pcs_utils_readable_size((double)us->file_size, tmp, 63, NULL));
+		printf("%s/s \t", pcs_utils_readable_size((double)us->speed, tmp, 63, NULL));
+		printf(" %s        ", pcs_utils_readable_left_time(remain_tm, tmp, 63, NULL));
+		printf("\r");
+		fflush(stdout);
+		us->speed = 0;
+	}
+
+	unlock_for_upload(us);
+	return 0;
 }
 
 #pragma endregion
@@ -3029,6 +3178,7 @@ static void *download_thread(void *params)
 		return NULL;
 #endif
 	}
+	pcs_clone_userinfo(pcs, context->pcs);
 	while (ts) {
 		ts->pcs = pcs;
 		lock_for_download(ds);
@@ -3556,6 +3706,250 @@ static inline int do_download(ShellContext *context,
 	return 0;
 }
 
+
+static struct UploadThreadState *pop_upload_threadstate(struct UploadState *us)
+{
+	struct UploadThreadState *ts = NULL;
+	lock_for_upload(us);
+	ts = us->threads;
+	while (ts && ts->status != UPLOAD_STATUS_PENDDING) {
+		ts = ts->next;
+	}
+	if (ts && ts->status == UPLOAD_STATUS_PENDDING)
+		ts->status = UPLOAD_STATUS_UPLOADING;
+	else
+		ts = NULL;
+	unlock_for_upload(us);
+	return ts;
+}
+
+#ifdef _WIN32
+static DWORD WINAPI upload_thread(LPVOID params)
+#else
+static void *upload_thread(void *params)
+#endif
+{
+	PcsFileInfo *res;
+	int dsstatus;
+	struct UploadState *ds = (struct UploadState *)params;
+	ShellContext *context = ds->context;
+	struct UploadThreadState *ts = pop_upload_threadstate(ds);
+	Pcs *pcs;
+	size_t sz;
+	if (ts == NULL) {
+		lock_for_upload(ds);
+		ds->num_of_running_thread--;
+		unlock_for_upload(ds);
+#ifdef _WIN32
+		return (DWORD)0;
+#else
+		return NULL;
+#endif
+	}
+	pcs = create_pcs(context);
+	if (!pcs) {
+		lock_for_upload(ds);
+		if (ds->pErrMsg) {
+			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+			(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't create pcs context.");
+		}
+		//ds->status = DOWNLOAD_STATUS_FAIL;
+		ds->num_of_running_thread--;
+		ts->status = UPLOAD_STATUS_PENDDING;
+		unlock_for_upload(ds);
+#ifdef _WIN32
+		return (DWORD)0;
+#else
+		return NULL;
+#endif
+	}
+	pcs_clone_userinfo(pcs, context->pcs);
+	while (ts) {
+		ts->pcs = pcs;
+		lock_for_upload(ds);
+		dsstatus = ds->status;
+		unlock_for_upload(ds);
+		if (dsstatus != UPLOAD_STATUS_OK) {
+			lock_for_upload(ds);
+			ts->status = UPLOAD_STATUS_PENDDING;
+			unlock_for_upload(ds);
+			break;
+		}
+		if (!ts->slice_data) {
+			ts->slice_data = (char *)pcs_malloc((size_t)(ts->end - ts->start));
+			if (!ts->slice_data) {
+				lock_for_upload(ds);
+				if (!ds->pErrMsg) {
+					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't alloc memory.");
+				}
+				ds->status = UPLOAD_STATUS_FAIL;
+				unlock_for_upload(ds);
+				break;
+			}
+			if (fseeko(ds->pf, ts->start, SEEK_SET)) {
+				lock_for_upload(ds);
+				if (!ds->pErrMsg) {
+					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't fseeko().");
+				}
+				ds->status = UPLOAD_STATUS_FAIL;
+				unlock_for_upload(ds);
+				break;
+			}
+			sz = fread(ts->slice_data, 1, (size_t)(ts->end - ts->start), ds->pf);
+			if (sz != (size_t)(ts->end - ts->start)) {
+				lock_for_upload(ds);
+				if (!ds->pErrMsg) {
+					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't read the file.");
+				}
+				ds->status = UPLOAD_STATUS_FAIL;
+				unlock_for_upload(ds);
+				break;
+			}
+		}
+		pcs_setopts(pcs,
+			PCS_OPTION_PROGRESS_FUNCTION, &upload_progress_for_multy_thread,
+			PCS_OPTION_PROGRESS_FUNCTION_DATE, ts,
+			PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
+			//PCS_OPTION_TIMEOUT, (void *)0L,
+			PCS_OPTION_END);
+		res = pcs_upload_slice(pcs, ts->slice_data, (size_t)(ts->end - ts->start));
+		if (!res) {
+			lock_for_upload(ds);
+			if (!ds->pErrMsg) {
+				(*(ds->pErrMsg)) = pcs_utils_sprintf("%s", pcs_strerror(pcs));
+			}
+			//ds->status = UPLOAD_STATUS_FAIL;
+			unlock_for_upload(ds);
+#ifdef _WIN32
+			printf("Upload slice failed, retry delay 10 second, tid: %x. message: %s\n", GetCurrentThreadId(), pcs_strerror(pcs));
+#else
+			printf("Upload slice failed, retry delay 10 second, tid: %p. message: %s\n", pthread_self(), pcs_strerror(pcs));
+#endif
+			sleep(10); /*10秒后重试*/
+			continue;
+		}
+		lock_for_upload(ds);
+		ts->status = UPLOAD_STATUS_OK;
+		pcs_free(ts->slice_data);
+		ts->slice_data = NULL;
+		strcpy(ts->md5, res->md5);
+		pcs_fileinfo_destroy(res);
+		save_upload_thread_states_to_file(ds->slice_file, ds->threads);
+		unlock_for_upload(ds);
+		ts = pop_upload_threadstate(ds);
+	}
+
+	destroy_pcs(pcs);
+	lock_for_upload(ds);
+	ds->num_of_running_thread--;
+	unlock_for_upload(ds);
+#ifdef _WIN32
+	return (DWORD)0;
+#else
+	return NULL;
+#endif
+}
+
+static void start_upload_thread(struct UploadState *us, void **pHandle)
+{
+#ifdef _WIN32
+	DWORD tid;
+	HANDLE thandle;
+	/* hThread = CreateThread (&security_attributes, dwStackSize, ThreadProc, pParam, dwFlags, &idThread)
+	WINBASEAPI HANDLE WINAPI CreateThread(LPSECURITY_ATTRIBUTES,DWORD,LPTHREAD_START_ROUTINE,PVOID,DWORD,PDWORD);
+	第一个参数是指向SECURITY_ATTRIBUTES型态的结构的指针。在Windows 98中忽略该参数。在Windows NT中，它被设为NULL。
+	第二个参数是用于新线程的初始堆栈大小，默认值为0。在任何情况下，Windows根据需要动态延长堆栈的大小。
+	第三个参数是指向线程函数的指标。函数名称没有限制，但是必须以下列形式声明:DWORD WINAPI ThreadProc (PVOID pParam) ;
+	第四个参数为传递给ThreadProc的参数。这样主线程和从属线程就可以共享数据。
+	第五个参数通常为0，但当建立的线程不马上执行时为旗标
+	第六个参数是一个指针，指向接受执行绪ID值的变量
+	*/
+	thandle = CreateThread(NULL, 0, upload_thread, (LPVOID)us, 0, &tid); // 建立线程
+	if (pHandle) *pHandle = thandle;
+	if (!thandle) {
+		printf("Error: Can't create download thread.\n");
+		lock_for_upload(us);
+		us->num_of_running_thread--;
+		unlock_for_upload(us);
+	}
+#else
+	int err;
+	pthread_t main_tid;
+	err = pthread_create(&main_tid, NULL, upload_thread, us);
+	if (err) {
+		printf("Error: Can't create download thread.\n");
+		lock_for_upload(us);
+		us->num_of_running_thread--;
+		unlock_for_upload(us);
+	}
+#endif
+}
+
+static int restore_upload_state(struct UploadState *us, const char *slice_local_path, int *pendding_count)
+{
+	LocalFileInfo *tmpFileInfo;
+	int64_t slice_file_size = 0;
+	FILE *pf;
+	int magic;
+	int thread_count = 0;
+	struct UploadThreadState *ts, *tail = NULL;
+
+	tmpFileInfo = GetLocalFileInfo(slice_local_path);
+	if (!tmpFileInfo) {
+		return -1;
+	}
+	slice_file_size = tmpFileInfo->size;
+	DestroyLocalFileInfo(tmpFileInfo);
+
+	pf = fopen(slice_local_path, "rb");
+	if (!pf) return -1;
+	if (fread(&magic, 4, 1, pf) != 1) {
+		fclose(pf);
+		return -1;
+	}
+	if (magic != THREAD_STATE_MAGIC) {
+		fclose(pf);
+		return -1;
+	}
+	if (pendding_count) (*pendding_count) = 0;
+	us->uploaded_size = 0;
+	while (1) {
+		ts = (struct UploadThreadState *) pcs_malloc(sizeof(struct UploadThreadState));
+		if (fread(ts, sizeof(struct UploadThreadState), 1, pf) != 1) {
+			pcs_free(ts);
+			break;
+		}
+		ts->us = us;
+		//printf("%d: ", thread_count);
+		if (ts->status != UPLOAD_STATUS_OK) {
+			ts->status = UPLOAD_STATUS_PENDDING;
+			if (pendding_count) (*pendding_count)++;
+			ts->uploaded_size = 0;
+			//printf("*");
+		}
+		us->uploaded_size += ts->uploaded_size;
+		ts->slice_data = NULL;
+		//printf("%d/%d\n", (int)ts->start, (int)ts->end);
+		if (tail == NULL) {
+			us->threads = tail = ts;
+		}
+		else {
+			tail->next = ts;
+			tail = ts;
+		}
+		thread_count++;
+		ts->tid = thread_count;
+		if (!ts->next) {
+			ts->next = NULL;
+			break;
+		}
+		ts->next = NULL;
+	}
+	fclose(pf);
+	us->num_of_slice = thread_count;
+	return 0;
+}
+
 static inline int do_upload(ShellContext *context, 
 	const char *local_file, const char *remote_file, PcsBool is_force,
 	const char *local_basedir, const char *remote_basedir,
@@ -3564,6 +3958,8 @@ static inline int do_upload(ShellContext *context,
 	PcsFileInfo *res = NULL;
 	char *local_path, *remote_path, *dir;
 	int del_local_file = 0;
+	int64_t content_length;
+	char content_md5[33] = { 0 };
 
 	local_path = combin_path(local_basedir, -1, local_file);
 	dir = combin_net_disk_path(context->workdir, remote_basedir);
@@ -3603,8 +3999,23 @@ static inline int do_upload(ShellContext *context,
 		}
 	}
 
-	res = pcs_rapid_upload(context->pcs, remote_path, is_force, local_path);
-	if (!res) {
+	content_length = pcs_local_filesize(context->pcs, local_path);
+	if (content_length < 0) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("%s. local_path=%s, remote_path=%s\n",
+				pcs_strerror(context->pcs), local_path, remote_path);
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		if (del_local_file) DeleteFileRecursive(local_path);
+		pcs_free(local_path);
+		pcs_free(remote_path);
+		return -1;
+	}
+
+	if (content_length > PCS_RAPIDUPLOAD_THRESHOLD)
+		res = pcs_rapid_upload(context->pcs, remote_path, is_force, local_path, content_md5, NULL);
+	if (!res && content_length <= MIN_UPLOAD_SLICE_SIZE) {
 		pcs_setopts(context->pcs,
 			PCS_OPTION_PROGRESS_FUNCTION, &upload_progress,
 			PCS_OPTION_PROGRESS_FUNCTION_DATE, NULL,
@@ -3618,7 +4029,7 @@ static inline int do_upload(ShellContext *context,
 		if (!res || !res->path || !res->path[0]) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
-				(*pErrMsg) = pcs_utils_sprintf("Error: %s. local_path=%s, remote_path=%s\n",
+				(*pErrMsg) = pcs_utils_sprintf("%s. local_path=%s, remote_path=%s\n",
 					pcs_strerror(context->pcs), local_path, remote_path);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
@@ -3628,6 +4039,230 @@ static inline int do_upload(ShellContext *context,
 			pcs_free(remote_path);
 			return -1;
 		}
+	}
+	else if (!res) {
+		struct UploadState us = { 0 };
+		struct UploadThreadState *ts, *tail = NULL;
+		curl_off_t start = 0;
+		int slice_count, pendding_slice_count = 0, thread_count, running_thread_count, i, is_success;
+		int64_t slice_size;
+#ifdef _WIN32
+		HANDLE *handles = NULL;
+#endif
+		char *slice_file;
+
+		init_upload_state(&us);
+		us.context = context;
+
+		if (!(content_md5[0])) {
+			if (!pcs_md5_file(context->pcs, local_path, content_md5)) {
+				if (pErrMsg) {
+					if (*pErrMsg) pcs_free(*pErrMsg);
+					(*pErrMsg) = pcs_utils_sprintf("%s. local_path=%s, remote_path=%s\n",
+						pcs_strerror(context->pcs), local_path, remote_path);
+				}
+				if (op_st) (*op_st) = OP_ST_FAIL;
+				if (del_local_file) DeleteFileRecursive(local_path);
+				pcs_free(local_path);
+				pcs_free(remote_path);
+				uninit_upload_state(&us);
+				return -1;
+			}
+		}
+
+		/*打开文件*/
+		us.pf = fopen(local_path, "rb");
+		if (!us.pf) {
+			if (pErrMsg) {
+				if (*pErrMsg) pcs_free(*pErrMsg);
+				(*pErrMsg) = pcs_utils_sprintf("Can't open the file: %s\n", local_path);
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			if (del_local_file) DeleteFileRecursive(local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			uninit_upload_state(&us);
+			return -1;
+		}
+
+		slice_file = (char *)pcs_malloc(strlen(local_path) + 33 + strlen(SLICE_FILE_SUFFIX) + 1);
+		strcpy(slice_file, local_path);
+		strcat(slice_file, ".");
+		strcat(slice_file, content_md5);
+		strcat(slice_file, SLICE_FILE_SUFFIX);
+
+		us.slice_file = slice_file;
+		us.pErrMsg = pErrMsg;
+		us.file_size = content_length;
+		slice_count = context->max_thread;
+		if (slice_count < 1) slice_count = 1;
+		if (restore_upload_state(&us, slice_file, &pendding_slice_count)) {
+			//分片开始
+			us.uploaded_size = 0;
+			slice_size = content_length / slice_count;
+			if ((content_length % slice_count))
+				slice_size++;
+			if (slice_size <= MIN_UPLOAD_SLICE_SIZE)
+				slice_size = MIN_UPLOAD_SLICE_SIZE;
+			if (slice_size > MAX_UPLOAD_SLICE_SIZE)
+				slice_size = MAX_UPLOAD_SLICE_SIZE;
+			slice_count = (int)(content_length / slice_size);
+			if ((content_length % slice_size)) slice_count++;
+			if (slice_count > MAX_UPLOAD_SLICE_COUNT) {
+				slice_count = MAX_UPLOAD_SLICE_COUNT;
+				slice_size = content_length / slice_count;
+				if ((content_length % slice_count))
+					slice_size++;
+				slice_count = (int)(content_length / slice_size);
+				if ((content_length % slice_size)) slice_count++;
+			}
+
+			for (i = 0; i < slice_count; i++) {
+				ts = (struct UploadThreadState *) pcs_malloc(sizeof(struct UploadThreadState));
+				memset(ts, 0, sizeof(struct UploadThreadState));
+				ts->us = &us;
+				ts->start = start;
+				start += slice_size;
+				ts->end = start;
+				if (ts->end >((curl_off_t)content_length)) ts->end = (curl_off_t)content_length;
+				ts->status = UPLOAD_STATUS_PENDDING;
+				pendding_slice_count++;
+				ts->tid = i + 1;
+				ts->next = NULL;
+				if (tail == NULL) {
+					us.threads = tail = ts;
+				}
+				else {
+					tail->next = ts;
+					tail = ts;
+				}
+			}
+			us.num_of_slice = slice_count;
+			//分片结束
+		}
+		//保存分片数据
+		printf("Saving slices...\r");
+		fflush(stdout);
+		if (save_upload_thread_states_to_file(slice_file, us.threads)) {
+			if (pErrMsg) {
+				if (*pErrMsg) pcs_free(*pErrMsg);
+				(*pErrMsg) = pcs_utils_sprintf("Can't save slices into file: %s \n", slice_file);
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			if (del_local_file) DeleteFileRecursive(local_path);
+			DeleteFileRecursive(slice_file);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			pcs_free(slice_file);
+			uninit_upload_state(&us);
+			return -1;
+		}
+
+		printf("Starting threads...\r");
+		fflush(stdout);
+
+		thread_count = pendding_slice_count;
+		if (thread_count > context->max_thread && context->max_thread > 0)
+			thread_count = context->max_thread;
+		us.num_of_running_thread = thread_count;
+		//printf("\nthread: %d, slice: %d\n", thread_count, ds.num_of_slice);
+#ifdef _WIN32
+		handles = (HANDLE *)pcs_malloc(sizeof(HANDLE) * thread_count);
+		memset(handles, 0, sizeof(HANDLE) * thread_count);
+#endif
+		for (i = 0; i < thread_count; i++) {
+#ifdef _WIN32
+			start_upload_thread(&us, handles + i);
+#else
+			start_upload_thread(&us, NULL);
+#endif
+		}
+
+		/*等待所有运行的线程退出*/
+		while (1) {
+			lock_for_upload(&us);
+			running_thread_count = us.num_of_running_thread;
+			unlock_for_upload(&us);
+			if (running_thread_count < 1) break;
+			sleep(1);
+		}
+		fclose(us.pf);
+
+#ifdef _WIN32
+		for (i = 0; i < thread_count; i++) {
+			if (handles[i]) {
+				CloseHandle(handles[i]);
+			}
+		}
+		pcs_free(handles);
+#endif
+
+		/*判断是否所有分片都下载完成了*/
+		is_success = 1;
+		ts = us.threads;
+		while (ts) {
+			if (ts->status != UPLOAD_STATUS_OK) {
+				is_success = 0;
+				break;
+			}
+			ts = ts->next;
+		}
+
+		if (!is_success) {
+			if (pErrMsg) {
+				if (!(*pErrMsg))
+					(*pErrMsg) = pcs_utils_sprintf("Upload fail.\n");
+			}
+			if (op_st) (*op_st) = OP_ST_FAIL;
+			if (del_local_file) DeleteFileRecursive(local_path);
+			pcs_free(local_path);
+			pcs_free(remote_path);
+			pcs_free(slice_file);
+			uninit_upload_state(&us);
+			return -1;
+		}
+		else {
+			//合并文件
+			PcsSList *slist = NULL, *si, *si_tail;
+			ts = us.threads;
+			while (ts) {
+				si = (PcsSList *)pcs_malloc(sizeof(PcsSList));
+				si->string = ts->md5;
+				si->next = NULL;
+				if (slist == NULL) {
+					slist = si_tail = si;
+				}
+				else {
+					si_tail->next = si;
+					si_tail = si;
+				}
+				ts = ts->next;
+			}
+			res = pcs_create_superfile(context->pcs, remote_path, is_force, slist);
+			si = slist;
+			while (si) {
+				si_tail = si;
+				si = si->next;
+				pcs_free(si_tail);
+			}
+			if (!res) {
+				if (pErrMsg) {
+					if ((*pErrMsg)) pcs_free(*pErrMsg);
+					(*pErrMsg) = pcs_utils_sprintf("%s", pcs_strerror(context->pcs));
+				}
+				if (op_st) (*op_st) = OP_ST_FAIL;
+				if (del_local_file) DeleteFileRecursive(local_path);
+				pcs_free(local_path);
+				pcs_free(remote_path);
+				pcs_free(slice_file);
+				uninit_upload_state(&us);
+				return -1;
+			}
+			uninit_upload_state(&us);
+			DeleteFileRecursive(slice_file);
+			pcs_free(slice_file);
+		}
+
 	}
 
 	/*当文件名以.(点号)开头的话，则网盘会自动去除第一个点。以下if语句的目的就是把网盘文件重命名为以点号开头。*/
