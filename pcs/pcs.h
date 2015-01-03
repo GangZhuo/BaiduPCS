@@ -104,6 +104,9 @@ PCS_API Pcs pcs_create(const char *cookie_file);
 */
 PCS_API void pcs_destroy(Pcs handle);
 
+/*克隆一份用户的 bdstoken, BDUSS 等信息*/
+PCS_API void pcs_clone_userinfo(Pcs dst, Pcs src);
+
 /*
  * 如果已经登录，
  * 则返回用户的UID，否则返回NULL
@@ -304,8 +307,20 @@ PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path);
  * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
  * 失败则返回 NULL。
  */
-PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, 
-									   const char *buffer, size_t buffer_size);
+PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, const char *buffer, size_t buffer_size);
+
+/*
+* 上传分片数据
+*   buffer     待上传的字节序
+*   buffer_size 字节序的字节大小
+* 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
+* 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
+* 失败则返回 NULL。
+*/
+PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buffer_size);
+
+/*合并分片*/
+PCS_API PcsFileInfo *pcs_create_superfile(Pcs handle, const char *path, PcsBool overwrite, PcsSList *block_list);
 
 /*
  * 上传文件到网盘
@@ -320,6 +335,9 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
  */
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
 									   const char *local_filename);
+
+/*获取本地文件的大小*/
+PCS_API int64_t pcs_local_filesize(Pcs handle, const char *path);
 
 /*
  * 计算文件的MD5值
@@ -338,9 +356,15 @@ PCS_API PcsBool pcs_md5_file_slice(Pcs handle, const char *path, int64_t offset,
 
 /*
  * 快速上传
+ *   path		目标文件
+ *   overwrite  指定是否覆盖原文件，传入PcsTrue则覆盖，传入PcsFalse，则会使用当前日期重命名。
+ *              例，如果文件file.txt以存在，则上传后新的文件自动变更为file20140117.txt
+ *   local_filename 待上传的本地文件
+ *   content_md5    用于接收文件的md5值，长度必须大于等于32。可传入NULL。
+ *   slice_md5      用于接收验证文件的分片的md5值，长度必须大于等于32。可传入NULL。
  */
 PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool overwrite,
-	const char *local_filename);
+	const char *local_filename, char *content_md5, char *slice_md5);
 
 /*
  * 获取Cookie 数据。
