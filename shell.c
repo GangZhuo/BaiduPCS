@@ -571,7 +571,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 		return -1;
 	}
 	pcs_free(tmp_local_path);
-	printf("Success\n");
+	//printf("Success\n");
 	return 0;
 }
 
@@ -1299,6 +1299,10 @@ static int upload_progress_for_multy_thread(void *clientp, double dltotal, doubl
 		us->speed += ((size_t)ulnow - ts->uploaded_size);
 		us->uploaded_size += ((size_t)ulnow - ts->uploaded_size);
 		ts->uploaded_size = (size_t)ulnow;
+	}
+	else {
+		unlock_for_upload(us);
+		return 0;
 	}
 
 	tm = time(&tm);
