@@ -243,8 +243,14 @@ PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm dat
 /*以字符串形式返回所有Cookie数据。*/
 PCS_API char *pcs_http_cookie_data(PcsHttp handle);
 
+/*返回最后一次请求的服务器回应内容。
+ *  size   - 用于接收服务器返回值的字节大小
+ *  encode - 用于接收服务器返回值的编码
+ *返回缓存中的服务器返回内容。
+ */
 PCS_API const char *pcs_http_rawdata(PcsHttp handle, int *size, const char **encode);
 
+/*返回下载速度。通过curl_easy_getinfo(http->curl, CURLINFO_SPEED_DOWNLOAD, &downloadSpeed)来获取。*/
 PCS_API double pcs_http_speed_download(PcsHttp handle);
 
 #endif
