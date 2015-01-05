@@ -2,6 +2,7 @@
 #define _PCS_DEFS_H
 
 #include <curl/curl.h>
+#include <stdint.h>
 
 #if defined(_MSC_VER) || defined(__BORLANDC__)
 typedef __int64 int64_t;
