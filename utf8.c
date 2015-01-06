@@ -511,19 +511,24 @@ int u8_vprintf(const char *fmt, va_list ap)
     int cnt, sz=0;
     char *buf;
     wchar_t *wcs;
+	va_list ap_try;
 
     sz = 512;
     buf = (char*)malloc(sz);
  try_print:
-    cnt = vsnprintf(buf, sz, fmt, ap);
-    if (cnt >= sz) {
-		buf = (char*)realloc(buf, cnt + 1);
-        sz = cnt + 1;
+	va_copy(ap_try, ap);
+	cnt = vsnprintf(buf, sz - 1, fmt, ap_try);
+	va_end(ap_try);
+	if (cnt < 0) {
+        sz *= 2;
+		buf = (char*)realloc(buf, sz);
         goto try_print;
     }
+	buf[cnt] = '\0';
 	wcs = (wchar_t*)malloc((cnt + 1) * sizeof(wchar_t));
     cnt = u8_toucs(wcs, cnt+1, buf, cnt);
-    wprintf(L"%ls", (wchar_t*)wcs);
+	wcs[cnt] = '\0';
+	wprintf(L"%ls", (wchar_t*)wcs);
 	free(buf);
 	free(wcs);
 	return cnt;

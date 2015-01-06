@@ -402,7 +402,7 @@ size_t pcs_http_write(char *ptr, size_t size, size_t nmemb, void *userdata)
 	return size * nmemb;
 }
 
-static inline char *pcs_http_perform(struct pcs_http *http)
+static inline char *pcs_http_perform(struct pcs_http *http, const char *url)
 {
 	CURLcode res;
 	long httpcode;
@@ -411,7 +411,7 @@ static inline char *pcs_http_perform(struct pcs_http *http)
 	curl_easy_getinfo(http->curl, CURLINFO_RESPONSE_CODE, &httpcode);
 	http->res_code = httpcode;
 	if(res != CURLE_OK) {
-		if (!http->strerror) http->strerror = pcs_utils_strdup(curl_easy_strerror(res));
+		if (!http->strerror) http->strerror = pcs_utils_sprintf("%s: %s", curl_easy_strerror(res), url);//pcs_utils_strdup(curl_easy_strerror(res));
 		return NULL;
 	}
 	if (httpcode != 200 && httpcode != 206) { /*206 部分请求成功的返回码*/
@@ -747,7 +747,7 @@ PCS_API char *pcs_http_get(PcsHttp handle, const char *url, PcsBool follow_locat
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
 	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, 0, 0);
-	return pcs_http_perform(http);
+	return pcs_http_perform(http, url);
 }
 
 PCS_API char *pcs_http_get_raw(PcsHttp handle, const char *url, PcsBool follow_location, size_t *sz)
@@ -756,7 +756,7 @@ PCS_API char *pcs_http_get_raw(PcsHttp handle, const char *url, PcsBool follow_l
 	char *data;
 	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, 0, 0);
 	http->res_type = PCS_HTTP_RES_TYPE_RAW;
-	data = pcs_http_perform(http);
+	data = pcs_http_perform(http, url);
 	if (sz) *sz = http->res_body_size;
 	return data;
 }
@@ -769,7 +769,7 @@ PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, Pc
 		curl_easy_setopt(http->curl, CURLOPT_POSTFIELDS, post_data);  
 	else
 		curl_easy_setopt(http->curl, CURLOPT_POSTFIELDS, "");  
-	return pcs_http_perform(http);
+	return pcs_http_perform(http, url);
 }
 
 PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location, curl_off_t max_speed, curl_off_t resume_from)
@@ -777,7 +777,7 @@ PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool f
 	struct pcs_http *http = (struct pcs_http *)handle;
 	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, max_speed, resume_from);
 	http->res_type = PCS_HTTP_RES_TYPE_DOWNLOAD;
-	pcs_http_perform(http);
+	pcs_http_perform(http, url);
 	return http->strerror == NULL ? PcsTrue : PcsFalse;
 }
 
@@ -915,7 +915,7 @@ PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm dat
 	}
 	else
 		curl_easy_setopt(http->curl, CURLOPT_POSTFIELDS, "");  
-	rc = pcs_http_perform(http);
+	rc = pcs_http_perform(http, url);
 	if (data && formpost->read_func) {
 		curl_easy_setopt(http->curl, CURLOPT_READFUNCTION, NULL);
 		curl_easy_setopt(http->curl, CURLOPT_READDATA, NULL);
