@@ -59,12 +59,13 @@ try_print:
 	va_copy(ap_try, ap);
 	cnt = vsnprintf(buf, sz - 1, fmt, ap_try);
 	va_end(ap_try);
-    if (cnt < 0) {
+	if (cnt > sz) {
 		pcs_free(buf);
         sz *= 2;
 		buf = (char*)pcs_malloc(sz);
 		goto try_print;
     }
+	if (cnt < 0) return NULL;
 	buf[cnt] = '\0';
 	return buf;
 }
