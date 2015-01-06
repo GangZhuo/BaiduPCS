@@ -53,7 +53,7 @@ PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap)
     char *buf;
 	va_list ap_try;
 
-    sz = 128;
+    sz = 512;
     buf = (char*)pcs_malloc(sz);
 try_print:
 	va_copy(ap_try, ap);
