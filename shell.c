@@ -2388,11 +2388,12 @@ static void usage()
 	version();
 	printf("\nUsage: %s command [options] [arg1|arg2...]\n", app_name);
 	printf("\nDescription:\n");
-	printf("  The %s is client of baidu net disk. It supplied many functions, \n"
-		"  which can manage baidu net disk on terminal, such as ls, cp, rm, \n"
-		"  mv, rename, download, upload, search and so on. \n"
-		"  The %s provided AES encryption, which can protected your data.\n", 
-		app_name, app_name, app_name);
+	printf("  The %s is client of baidu net disk. It supplied many functions, \n", app_name);
+	printf("  which can manage baidu net disk on terminal, such as ls, cp, rm, \n");
+	printf("  mv, rename, download, upload, search and so on. \n");
+	printf("  The %s provided AES encryption, which can protected your data.\n", app_name);
+	printf("  The %s is open source, and published on MIT. \n", app_name);
+	printf("  Please see https://github.com/GangZhuo/baidupcs. \n");
 	printf("\nOptions:\n");
 	printf("  --context=<file path>  Specify context.\n");
 	printf("\nCommands:\n");
