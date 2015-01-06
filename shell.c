@@ -1149,7 +1149,10 @@ static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t
 		savedfile = filename;
 
 	pf = fopen(savedfile, "wb");
-	if (!pf) return PcsFalse;
+	if (!pf) {
+		printf("Can't save the captcha image to %s.\n", savedfile);
+		return PcsFalse;
+	}
 	fwrite(ptr, 1, size, pf);
 	fclose(pf);
 
