@@ -1125,7 +1125,7 @@ static int save_upload_thread_states_to_file(const char *filename, struct Upload
 static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
 {
 	static char filename[1024] = { 0 };
-	ShellContext *context = (ShellContext *)ptr;
+	ShellContext *context = (ShellContext *)state;
 	const char *savedfile;
 	FILE *pf;
 
