@@ -55,14 +55,15 @@ PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap)
 
     sz = 128;
     buf = (char*)pcs_malloc(sz);
+try_print:
 	va_copy(ap_try, ap);
-	cnt = vsnprintf(buf, sz, fmt, ap_try);
+	cnt = vsnprintf(buf, sz - 1, fmt, ap_try);
 	va_end(ap_try);
-    if (cnt >= sz) {
+    if (cnt < 0) {
 		pcs_free(buf);
-        buf = (char*)pcs_malloc(cnt + 1);
-        sz = cnt + 1;
-		cnt = vsnprintf(buf, sz, fmt, ap);
+        sz *= 2;
+		buf = (char*)pcs_malloc(sz);
+		goto try_print;
     }
 	buf[cnt] = '\0';
 	return buf;
