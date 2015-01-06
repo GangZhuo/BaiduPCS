@@ -524,7 +524,7 @@ int u8_vprintf(const char *fmt, va_list ap)
 		buf = (char*)realloc(buf, sz);
         goto try_print;
     }
-	if (cnt < 0) return NULL;
+	if (cnt < 0) return cnt;
 	buf[cnt] = '\0';
 	wcs = (wchar_t*)malloc((cnt + 1) * sizeof(wchar_t));
     cnt = u8_toucs(wcs, cnt+1, buf, cnt);
