@@ -1125,6 +1125,8 @@ static int save_upload_thread_states_to_file(const char *filename, struct Upload
 static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
 {
 	static char filename[1024] = { 0 };
+	ShellContext *context = (ShellContext *)ptr;
+	const char *savedfile;
 	FILE *pf;
 
 	if (!filename[0]) {
@@ -1141,12 +1143,17 @@ static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t
 #endif
 	}
 
-	pf = fopen(filename, "wb");
+	if (context->captchafile)
+		savedfile = context->captchafile;
+	else
+		savedfile = filename;
+
+	pf = fopen(savedfile, "wb");
 	if (!pf) return PcsFalse;
 	fwrite(ptr, 1, size, pf);
 	fclose(pf);
 
-	printf("The captcha image at %s.\nPlease input the captcha code: ", filename);
+	printf("The captcha image at %s.\nPlease input the captcha code: ", savedfile);
 	std_string(captcha, captchaSize);
 	return PcsTrue;
 }
@@ -1895,6 +1902,7 @@ static Pcs *create_pcs(ShellContext *context)
 	Pcs *pcs = pcs_create(context->cookiefile);
 	if (!pcs) return NULL;
 	pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, (void *)&verifycode);
+	pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION_DATA, (void *)context);
 	pcs_setopts(pcs,
 		PCS_OPTION_PROGRESS_FUNCTION, (void *)&upload_progress,
 		PCS_OPTION_PROGRESS, (void *)((long)PcsFalse),
