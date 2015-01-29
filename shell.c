@@ -6172,36 +6172,45 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 		DestroyLocalFileInfo(local);
 		return -1;
 	}
-	DestroyLocalFileInfo(local);
 	/*检查本地文件 - 结束*/
 
 	//检查是否已经登录
 	if (!is_login(context, NULL)) {
+		DestroyLocalFileInfo(local);
 		return -1;
 	}
 
 	path = combin_net_disk_path(context->workdir, relPath);
 	if (!path) {
 		assert(path);
+		DestroyLocalFileInfo(local);
 		return -1;
 	}
 
 	if (strcmp(path, "/") == 0) {
-		fprintf(stderr, "Error: Can't specify root directory, you should specify the file name.\n");
+		char *tmp = combin_net_disk_path(path, local->filename);
 		pcs_free(path);
-		return -1;
+		path = tmp;
 	}
 
 	/*检查网盘文件 - 开始*/
 	meta = pcs_meta(context->pcs, path);
 	if (meta && meta->isdir) {
-		fprintf(stderr, "Error: The remote file exist, and it is directory. \n");
+		char *tmp = combin_net_disk_path(path, local->filename);
+		pcs_free(path);
+		path = tmp;
+		pcs_fileinfo_destroy(meta);
+		meta = pcs_meta(context->pcs, path);
+	}
+	DestroyLocalFileInfo(local);
+	if (meta && meta->isdir) {
+		fprintf(stderr, "Error: The remote file exist, and it is directory. %s\n", path);
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
 	}
 	else if (meta && !is_force){
-		fprintf(stderr, "Error: The remote file exist. You can specify '-f' to force override.\n");
+		fprintf(stderr, "Error: The remote file exist. You can specify '-f' to force override. %s\n", path);
 		pcs_fileinfo_destroy(meta);
 		pcs_free(path);
 		return -1;
