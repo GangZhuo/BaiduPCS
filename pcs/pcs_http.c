@@ -441,8 +441,8 @@ PCS_API PcsHttp pcs_http_create(const char *cookie_file)
 	}
 	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYPEER, 0L);
 	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYHOST, 0L);
-	curl_easy_setopt(http->curl, CURLOPT_LOW_SPEED_LIMIT, 1024L);
-	curl_easy_setopt(http->curl, CURLOPT_LOW_SPEED_TIME, 10L);
+	curl_easy_setopt(http->curl, CURLOPT_LOW_SPEED_LIMIT, 10240L);
+	curl_easy_setopt(http->curl, CURLOPT_LOW_SPEED_TIME, 60L);
 	curl_easy_setopt(http->curl, CURLOPT_SSL_VERIFYHOST, 0L);
 	curl_easy_setopt(http->curl, CURLOPT_USERAGENT, USAGE);
 	curl_easy_setopt(http->curl, CURLOPT_FOLLOWLOCATION, 1L);
