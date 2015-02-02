@@ -319,6 +319,20 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 */
 PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buffer_size);
 
+/*
+* 上传分片文件
+*   read_func     读取分片文件的方法
+*   userdata	  程序本身不使用该参数，仅原样传递到 read_func 函数中
+*   content_size  待上传分片文件的大小
+* 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
+* 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
+* 失败则返回 NULL。
+*/
+PCS_API PcsFileInfo *pcs_upload_slicefile(Pcs handle,
+	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata),
+	void *userdata,
+	size_t content_size);
+
 /*合并分片*/
 PCS_API PcsFileInfo *pcs_create_superfile(Pcs handle, const char *path, PcsBool overwrite, PcsSList *block_list);
 
