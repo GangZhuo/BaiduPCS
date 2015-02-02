@@ -145,7 +145,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\config.json" />
     <None Include="..\makefile" />
   </ItemGroup>
 </Project>

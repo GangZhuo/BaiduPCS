@@ -126,7 +126,6 @@
     <ClInclude Include="pcs_utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\config.json" />
     <None Include="..\makefile" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
