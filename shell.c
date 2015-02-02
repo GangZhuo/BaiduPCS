@@ -3765,7 +3765,8 @@ static size_t read_slice(void *ptr, size_t size, size_t nmemb, void *userdata)
 	if (ts->start + ts->uploaded_size + sz > ts->end) {
 		sz = (size_t)(ts->end - ts->start - ts->uploaded_size);
 	}
-	if (sz != fread(ptr, 1, sz, us->pf)) {
+	sz = fread(ptr, 1, sz, us->pf);
+	if (sz == 0) {
 		if (us->pErrMsg && !(*us->pErrMsg)) {
 			(*(us->pErrMsg)) = pcs_utils_sprintf("Can't read the file.");
 		}

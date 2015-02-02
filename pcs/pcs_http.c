@@ -852,7 +852,7 @@ PCS_API PcsBool pcs_http_form_addbufferfile(PcsHttp handle, PcsHttpForm *post, c
 		CURLFORM_COPYNAME, escape_param_name,
 		CURLFORM_STREAM, userdata,
 		CURLFORM_CONTENTSLENGTH, (long) content_size,
-		CURLFORM_FILENAME, escape_simulate_filename ? escape_simulate_filename : " ",
+		CURLFORM_FILENAME, escape_simulate_filename ? escape_simulate_filename : "part",
 		CURLFORM_END)) {
 		res = PcsFalse;
 	}
@@ -881,7 +881,7 @@ PCS_API PcsBool pcs_http_form_addbuffer(PcsHttp handle, PcsHttpForm *post, const
 	escape_simulate_filename = simulate_filename ? curl_easy_escape(http->curl, simulate_filename, 0) : NULL;
 	if (curl_formadd(&(formpost->formpost), &(formpost->lastptr), 
 		CURLFORM_COPYNAME, escape_param_name,
-		CURLFORM_BUFFER, escape_simulate_filename ? escape_simulate_filename : " ",
+		CURLFORM_BUFFER, escape_simulate_filename ? escape_simulate_filename : "part",
 		CURLFORM_BUFFERPTR, buffer,
 		CURLFORM_BUFFERLENGTH, buffer_size,
 		CURLFORM_END))
