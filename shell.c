@@ -284,7 +284,6 @@ struct UploadThreadState {
 	size_t  uploaded_size;
 	Pcs		*pcs;
 	char	md5[33]; /*上传成功后的分片MD5值*/
-	char	*slice_data;
 	int		tid;
 	struct UploadThreadState *next;
 };
@@ -1047,7 +1046,6 @@ static void uninit_upload_state(struct UploadState *us)
 	while (ts) {
 		ps = ts;
 		ts = ts->next;
-		if (ps->slice_data) pcs_free(ps->slice_data);
 		pcs_free(ps);
 	}
 }
@@ -3739,6 +3737,68 @@ static struct UploadThreadState *pop_upload_threadstate(struct UploadState *us)
 	return ts;
 }
 
+/*see http://curl.haxx.se/libcurl/c/CURLOPT_READFUNCTION.html */
+static size_t read_slice(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	static char tmp[64];
+	struct UploadThreadState *ts = (struct UploadThreadState*)userdata;
+	struct UploadState *us = ts->us;
+	time_t tm;
+	size_t sz;
+
+	lock_for_upload(us);
+
+	if (ts->start + ts->uploaded_size >= ts->end) {
+		unlock_for_upload(us);
+		return 0;
+	}
+
+	if (fseeko(us->pf, ts->start + ts->uploaded_size, SEEK_SET)) {
+		if (us->pErrMsg && !(*us->pErrMsg)) {
+			(*(us->pErrMsg)) = pcs_utils_sprintf("Can't fseeko().");
+		}
+		us->status = UPLOAD_STATUS_FAIL;
+		unlock_for_upload(us);
+		return CURL_READFUNC_ABORT;
+	}
+	sz = size * nmemb;
+	if (ts->start + ts->uploaded_size + sz > ts->end) {
+		sz = (size_t)(ts->end - ts->start - ts->uploaded_size);
+	}
+	if (sz != fread(ptr, 1, sz, us->pf)) {
+		if (us->pErrMsg && !(*us->pErrMsg)) {
+			(*(us->pErrMsg)) = pcs_utils_sprintf("Can't read the file.");
+		}
+		us->status = UPLOAD_STATUS_FAIL;
+		unlock_for_upload(us);
+		return CURL_READFUNC_ABORT;
+	}
+	//printf("%llu - %llu (%llu) \n", (long long)ts->start + ts->uploaded_size, (long long)ts->start + ts->uploaded_size + sz, (long long)sz);
+	us->speed += sz;
+	us->uploaded_size += sz;
+	ts->uploaded_size += sz;
+
+
+	tm = time(&tm);
+	if (tm != us->time) {
+		int64_t left_size = us->file_size - us->uploaded_size;
+		int64_t remain_tm = (us->speed > 0) ? (left_size / us->speed) : 0;
+		us->time = tm;
+		tmp[63] = '\0';
+		printf("\r                                                \r");
+		printf("%s", pcs_utils_readable_size((double)us->uploaded_size, tmp, 63, NULL));
+		printf("/%s \t", pcs_utils_readable_size((double)us->file_size, tmp, 63, NULL));
+		printf("%s/s \t", pcs_utils_readable_size((double)us->speed, tmp, 63, NULL));
+		printf(" %s        ", pcs_utils_readable_left_time(remain_tm, tmp, 63, NULL));
+		printf("\r");
+		fflush(stdout);
+		us->speed = 0;
+	}
+
+	unlock_for_upload(us);
+	return sz;
+}
+
 #ifdef _WIN32
 static DWORD WINAPI upload_thread(LPVOID params)
 #else
@@ -3751,7 +3811,7 @@ static void *upload_thread(void *params)
 	ShellContext *context = ds->context;
 	struct UploadThreadState *ts = pop_upload_threadstate(ds);
 	Pcs *pcs;
-	size_t sz;
+
 	if (ts == NULL) {
 		lock_for_upload(ds);
 		ds->num_of_running_thread--;
@@ -3791,46 +3851,13 @@ static void *upload_thread(void *params)
 			unlock_for_upload(ds);
 			break;
 		}
-		if (!ts->slice_data) {
-			lock_for_upload(ds);
-			ts->slice_data = (char *)pcs_malloc((size_t)(ts->end - ts->start));
-			if (!ts->slice_data) {
-				if (!ds->pErrMsg) {
-					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't alloc memory.");
-				}
-				ds->status = UPLOAD_STATUS_FAIL;
-				unlock_for_upload(ds);
-				break;
-			}
-			if (fseeko(ds->pf, ts->start, SEEK_SET)) {
-				if (!ds->pErrMsg) {
-					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't fseeko().");
-				}
-				ds->status = UPLOAD_STATUS_FAIL;
-				unlock_for_upload(ds);
-				break;
-			}
-			sz = fread(ts->slice_data, 1, (size_t)(ts->end - ts->start), ds->pf);
-			if (sz != (size_t)(ts->end - ts->start)) {
-				if (!ds->pErrMsg) {
-					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't read the file.");
-				}
-				ds->status = UPLOAD_STATUS_FAIL;
-				unlock_for_upload(ds);
-				break;
-			}
-			unlock_for_upload(ds);
-		}
-		pcs_setopts(pcs,
-			PCS_OPTION_PROGRESS_FUNCTION, &upload_progress_for_multy_thread,
-			PCS_OPTION_PROGRESS_FUNCTION_DATE, ts,
-			PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
-			//PCS_OPTION_TIMEOUT, (void *)0L,
-			PCS_OPTION_END);
-		res = pcs_upload_slice(pcs, ts->slice_data, (size_t)(ts->end - ts->start));
+		ds->uploaded_size -= ts->uploaded_size;
+		ts->uploaded_size = 0;
+
+		res = pcs_upload_slicefile(pcs, &read_slice, ts, (size_t)(ts->end - ts->start));
 		if (!res) {
 			lock_for_upload(ds);
-			if (!ds->pErrMsg) {
+			if (ds->pErrMsg && !(*ds->pErrMsg)) {
 				(*(ds->pErrMsg)) = pcs_utils_sprintf("%s", pcs_strerror(pcs));
 			}
 			//ds->status = UPLOAD_STATUS_FAIL;
@@ -3845,8 +3872,6 @@ static void *upload_thread(void *params)
 		}
 		lock_for_upload(ds);
 		ts->status = UPLOAD_STATUS_OK;
-		pcs_free(ts->slice_data);
-		ts->slice_data = NULL;
 		strcpy(ts->md5, res->md5);
 		pcs_fileinfo_destroy(res);
 		save_upload_thread_states_to_file(ds->slice_file, ds->threads);
@@ -3943,7 +3968,6 @@ static int restore_upload_state(struct UploadState *us, const char *slice_local_
 			//printf("*");
 		}
 		us->uploaded_size += ts->uploaded_size;
-		ts->slice_data = NULL;
 		//printf("%d/%d\n", (int)ts->start, (int)ts->end);
 		if (tail == NULL) {
 			us->threads = tail = ts;
