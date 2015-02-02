@@ -3792,9 +3792,9 @@ static void *upload_thread(void *params)
 			break;
 		}
 		if (!ts->slice_data) {
+			lock_for_upload(ds);
 			ts->slice_data = (char *)pcs_malloc((size_t)(ts->end - ts->start));
 			if (!ts->slice_data) {
-				lock_for_upload(ds);
 				if (!ds->pErrMsg) {
 					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't alloc memory.");
 				}
@@ -3803,7 +3803,6 @@ static void *upload_thread(void *params)
 				break;
 			}
 			if (fseeko(ds->pf, ts->start, SEEK_SET)) {
-				lock_for_upload(ds);
 				if (!ds->pErrMsg) {
 					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't fseeko().");
 				}
@@ -3813,7 +3812,6 @@ static void *upload_thread(void *params)
 			}
 			sz = fread(ts->slice_data, 1, (size_t)(ts->end - ts->start), ds->pf);
 			if (sz != (size_t)(ts->end - ts->start)) {
-				lock_for_upload(ds);
 				if (!ds->pErrMsg) {
 					(*(ds->pErrMsg)) = pcs_utils_sprintf("Can't read the file.");
 				}
@@ -3821,6 +3819,7 @@ static void *upload_thread(void *params)
 				unlock_for_upload(ds);
 				break;
 			}
+			unlock_for_upload(ds);
 		}
 		pcs_setopts(pcs,
 			PCS_OPTION_PROGRESS_FUNCTION, &upload_progress_for_multy_thread,
