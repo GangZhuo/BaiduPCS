@@ -2,7 +2,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 这是通过分析网盘网站得到的直接接口，不需要创建应用。
 支持AES-CBC-128, AES-CBC-192, AES-CBC-256加密。
 
-* 从0.1.9-alpha开始，支持多线程分片上传。
+* 从0.1.9-alpha开始，支持快速上传和多线程分片上传。
 * 从0.1.8-beta开始，支持下载超2GB文件，支持线程限速。具体查看'pcs set'和'pcs context'命令的说明。
 * 从0.1.8-alpha开始，支持多线程下载和下载时断点续传。到目前为止，不支持分片上传。
 
@@ -141,6 +141,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 ### 下载文件
     pcs download [-f] <remote file> <local file>
+	pcs d [-f] <remote file> <local file>
     
     只能下载文件，如果需要下载目录，请使用 'pcs synch -d <remote dir> <local dir>'。
     
@@ -159,6 +160,20 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     示例：
       pcs echo data.txt "The text that saved by pcs."
 
+### 编码本地文件
+    pcs encode [-def] <src> <dst>
+	
+    选项：
+      -d  使用上下文中的密钥来解密<src>文件并输出结果到<dst>中。
+	      程序会读取<src>文件并检测其加密方法。
+	  -e  使用上下文中的密钥和加密方法来加密<src>文件并输出结果到<dst>中。
+	  -f  强制覆盖<dst>文件。
+      
+    示例：
+      pcs encode -e data.txt data-sec.txt
+	  pcs encode -d data-sec.txt data-plain.txt
+	  pcs encode -h
+
 ### 查看帮助
     pcs help [command name]
     
@@ -171,7 +186,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 ### 列出网盘根目录下的文件或目录
     pcs list [dir]
-
+    pcs ls [dir]
+	
     输出格式为：
         * 第一列指示是否是目录，如果是目录则输出 d，否则输出 -
         * 第二列是文件或目录的最后修改时间
@@ -218,6 +234,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 ### 移动网盘文件或目录
     pcs move <src> <dst>
+    pcs mv <src> <dst>
     
     示例：
       pcs move /data_20140118.txt /subdir/data.txt
@@ -241,12 +258,14 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 ### 删除文件或目录
     pcs remove <path>
+	pcs rm <path>
     
     示例：
       pcs remove /subdir/data_20140118.txt
 
 ### 重命名网盘文件或目录
     pcs rename <src> <new name>
+	pcs ren <src> <new name>
     
     注意：<new name>是新的文件名字，而不是文件路径。如果需要移动文件到另一个目录，请使用 'pcs move'。
     
@@ -287,6 +306,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 ### 同步目录
     pcs synch [-cdenru] <local path> <remote path>
+	pcs s [-cdenru] <local path> <remote path>
     
     同步本地文件和远端文件、本地目录和远端目录。
     默认选项是'-cdu'，即上传需要上传的文件、下载需要下载的文件和打印无法确定上传下载的文件。
@@ -324,6 +344,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 ### 上传文件
     pcs upload [-f] <local file> <remote file>
+	pcs u [-f] <local file> <remote file>
     
     只能上传文件，如果需要上传目录，请使用 'pcs synch' 命令。
     
