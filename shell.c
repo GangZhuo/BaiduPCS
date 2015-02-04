@@ -1728,17 +1728,30 @@ static int restore_context(ShellContext *context, const char *filename)
 	}
 	else {
 		if (context->contextfile) pcs_free(context->contextfile);
+#ifdef WIN32
 		context->contextfile = pcs_utils_strdup(filename);
+#else
+		/* Can't open the path that start with '~/'. why? It's not good, but work. */
+		if (filename[0] == '~' && filename[1] == '/') {
+			static char tmp[1024] = { 0 };
+			strcpy(tmp, getenv("HOME"));
+			strcat(tmp, filename + 1);
+			context->contextfile = pcs_utils_strdup(tmp);
+		}
+		else {
+			context->contextfile = pcs_utils_strdup(filename);
+		}
+#endif
 	}
-	filesize = read_file(filename, &filecontent);
+	filesize = read_file(context->contextfile, &filecontent);
 	if (filesize <= 0) {
-		fprintf(stderr, "Error: Can't read the context file (%s).\n", filename, app_name);
+		fprintf(stderr, "Error: Can't read the context file (%s).\n", context->contextfile, app_name);
 		if (filecontent) pcs_free(filecontent);
 		return -1;
 	}
 	root = cJSON_Parse(filecontent);
 	if (!root) {
-		fprintf(stderr, "Error: Broken context file (%s).\n", filename, app_name);
+		fprintf(stderr, "Error: Broken context file (%s).\n", context->contextfile, app_name);
 		pcs_free(filecontent);
 		return -1;
 	}
