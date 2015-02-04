@@ -2063,7 +2063,7 @@ static void usage_echo()
 static void usage_encode()
 {
 	version();
-	printf("\nUsage: %s encode [-deh] <src> <dst>\n", app_name);
+	printf("\nUsage: %s encode [-defh] <src> <dst>\n", app_name);
 	printf("\nDescription:\n");
 	printf("  Encrypt/decrypt the file. Default option is '-d'\n");
 	printf("\nOptions:\n");
