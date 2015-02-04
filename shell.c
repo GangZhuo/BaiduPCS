@@ -1703,7 +1703,7 @@ static void save_context(ShellContext *context)
 	json = context2str(context);
 	assert(json);
 
-	filename = contextfile();
+	filename = context->contextfile;
 	pf = fopen(filename, "wb");
 	if (!pf) {
 		fprintf(stderr, "Error: Can't open the file: %s\n", filename);
