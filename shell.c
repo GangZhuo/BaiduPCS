@@ -1857,8 +1857,6 @@ static int restore_context(ShellContext *context, const char *filename)
 
 	cJSON_Delete(root);
 	pcs_free(filecontent);
-	if (context->contextfile) pcs_free(context->contextfile);
-	context->contextfile = pcs_utils_strdup(filename);
 	return 0;
 }
 
