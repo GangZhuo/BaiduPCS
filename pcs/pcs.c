@@ -682,7 +682,7 @@ PcsRes pcs_get_captcha(Pcs handle, const char *code_string, char *captcha, int c
 	char *url, *img;
 	size_t imgsz;
 
-	captcha[0] = '\0';
+    memset(captcha, 0, captchaSize);
 	if (!pcs->captcha_func) {
 		pcs_set_errmsg(handle, "No captch function, please regist the function by call pcs_setopt(handle, PCS_OPTION_CAPTCHA_FUNCTION, pFun).");
 		return PCS_NO_CAPTCHA_FUNC;

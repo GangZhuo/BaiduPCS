@@ -62,6 +62,7 @@ PCS_API void *pcs_mem_malloc_arg1(size_t sz)
 
 PCS_API void pcs_mem_free(void *ptr)
 {
+    if (!ptr) return;
 	struct pcs_mem *ent;
 	ent = (struct pcs_mem *)(((char *)ptr) - sizeof(struct pcs_mem));
 	remove_mem_ent(ent);
