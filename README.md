@@ -20,7 +20,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 2. 下载大文件时，程序会在磁盘上预分配文件空间，此过程耗时较久。
 * 3. 上传大文件后，通过 'pcs meta'获取到的md5值与本地文件计算出的md5不匹配，这个应是百度网盘的bug。（测试时，把上传的文件下载到本地后，对比md5匹配）
 
-编译安装：
+编译（Debian）：
 ===================================
 程序依赖于 libcurl。
 
@@ -37,6 +37,17 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     cp ./bin/pcs /usr/bin/
     chmod a+x /usr/bin/pcs (此行命令非必须执行)
 
+编译（Windows）：
+===================================
+### 1. 获取源代码
+    git clone https://github.com/GangZhuo/baidupcs.git
+### 2. 安装依赖
+     * a) 载依赖包 [baidupcs-dependencies.zip](http://sourceforge.net/projects/baidupcs/files/)。
+	 * b) 解压，把 dependencies 目录复制到 baidupcs 源码根目录下。
+### 3. 编译源代码
+    使用 Microsoft Visual Studio 2013 打开源码根目录下的 baidupcs.sln，并执行编译操作，
+	将在 Debug 或 Release 目录下产生 pcs.exe 文件。
+	
 命令：
 ===================================
     如果出现中文乱码，请检查操作系统的当前编码是否为UTF8。
