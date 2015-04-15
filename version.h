@@ -1,7 +1,11 @@
 #ifndef _VERSION_H
 #define _VERSION_H
 
-#define program_version "$GIT_VERSION"
+#ifdef PRG_VER
+#  define program_version PRG_VER
+#else
+#  define program_version "v0.1.9-alpha2"
+#endif
 
 #define program_name	"pcs"
 #ifdef PCS_API_VERSION

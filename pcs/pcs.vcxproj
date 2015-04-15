@@ -112,6 +112,7 @@
     <ClInclude Include="..\shell.h" />
     <ClInclude Include="..\utf8.h" />
     <ClInclude Include="..\utils.h" />
+    <ClInclude Include="..\version.h" />
     <ClInclude Include="cJSON.h" />
     <ClInclude Include="openssl_aes.h" />
     <ClInclude Include="openssl_md5.h" />
