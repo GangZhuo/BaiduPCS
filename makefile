@@ -28,11 +28,9 @@ endif
 
 all: bin/libpcs.a bin/pcs
 
-bin/pcs : version pre bin/libpcs.a $(SHELL_OBJS)
+bin/pcs : pre bin/libpcs.a $(SHELL_OBJS)
 	$(CC) -o $@ $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto -lpthread
 
-version.h:
-	bash ver.sh
 bin/shell_arg.o: arg.c arg.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) arg.c
 bin/shell.o: shell.c shell.h version.h dir.h
@@ -76,12 +74,8 @@ install:
 
 .PHONY : clean
 clean :
-	-rm ./bin/*.o ./bin/libpcs.a ./bin/pcs ./version.h
+	-rm ./bin/*.o ./bin/libpcs.a ./bin/pcs
 
 .PHONY : pre
 pre :
 	mkdir -p bin/
-
-.PHONY : version
-version:
-	bash ver.sh
