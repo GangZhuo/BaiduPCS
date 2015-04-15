@@ -42,7 +42,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 ### 1. 获取源代码
     git clone https://github.com/GangZhuo/baidupcs.git
 ### 2. 安装依赖
-     * a) 载依赖包 [baidupcs-dependencies.zip](http://sourceforge.net/projects/baidupcs/files/)。
+     * a) 下载依赖包 [baidupcs-dependencies.zip](http://sourceforge.net/projects/baidupcs/files/)。
 	 * b) 解压，把 dependencies 目录复制到 baidupcs 源码根目录下。
 ### 3. 编译源代码
     使用 Microsoft Visual Studio 2013 打开源码根目录下的 baidupcs.sln，并执行编译操作，
