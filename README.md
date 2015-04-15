@@ -45,7 +45,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
      * a) 下载依赖包 [baidupcs-dependencies.zip](http://sourceforge.net/projects/baidupcs/files/)。
 	 * b) 解压，把 dependencies 目录复制到 baidupcs 源码根目录下。
 ### 3. 编译源代码
-    使用 Microsoft Visual Studio 2013 打开源码根目录下的 baidupcs.sln，并执行编译操作，
+    使用 Microsoft Visual Studio Community 2013 打开源码根目录下的 baidupcs.sln，并执行编译操作，
 	将在 Debug 或 Release 目录下产生 pcs.exe 文件。
 	
 命令：
