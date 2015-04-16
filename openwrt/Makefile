@@ -7,7 +7,7 @@ PKG_RELEASE:=$(PKG_SOURCE_VERSION)
 PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE_URL:=https://github.com/GangZhuo/BaiduPCS/archive
 PKG_SOURCE:=$(PKG_VERSION).tar.gz
-PKG_BUILD_DEPENDS:=libopenssl curl
+PKG_BUILD_DEPENDS:=libopenssl libcurl
 
 PKG_INSTALL:=1
 
@@ -19,7 +19,7 @@ define Package/BaiduPCS
     TITLE:=BaiduPCS
     URL:=https://github.com/GangZhuo/BaiduPCS
 	MAINTAINER:=Gang Zhuo <gang.zhuo@gmail.com>
-	DEPENDS:=libopenssl curl
+	DEPENDS:=+libopenssl +libcurl
 endef
 
 define Package/BaiduPCS/description
