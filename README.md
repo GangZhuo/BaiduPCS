@@ -5,16 +5,16 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 支持线程限速。具体查看'pcs set'和'pcs context'命令的说明。
 * 支持AES-CBC-128, AES-CBC-192, AES-CBC-256加密。
 
-编译（Debian）：
+编译 (Debian)：
 ===================================
 程序依赖于 libcurl。
 
 ### 1. 安装依赖
     apt-get install build-essential libcurl4-openssl-dev
 ### 2. 获取源代码
-    git clone https://github.com/GangZhuo/baidupcs.git
+    git clone https://github.com/GangZhuo/BaiduPCS.git
 ### 3. 编译源代码
-    cd baidupcs
+    cd BaiduPCS
     make clean
     make
     make install #将安装到/usr/local/bin下
@@ -22,13 +22,13 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     cp ./bin/pcs /usr/bin/
     chmod a+x /usr/bin/pcs (此行命令非必须执行)
 
-编译（Windows）：
+编译 (Windows)：
 ===================================
 ### 1. 获取源代码
-    git clone https://github.com/GangZhuo/baidupcs.git
+    git clone https://github.com/GangZhuo/BaiduPCS.git
 ### 2. 安装依赖
      * a) 下载依赖包 [baidupcs-dependencies.zip](http://sourceforge.net/projects/baidupcs/files/)。
-	 * b) 解压，把 dependencies 目录复制到 baidupcs 源码根目录下。
+	 * b) 解压，把 dependencies 目录复制到 BaiduPCS 源码根目录下。
 ### 3. 编译源代码
     使用 Microsoft Visual Studio Community 2013 打开源码根目录下的 baidupcs.sln，并执行编译操作，
 	将在 Debug 或 Release 目录下产生 pcs.exe 文件。
