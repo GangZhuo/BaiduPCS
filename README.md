@@ -26,8 +26,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 ===================================
 ### 1. 获取源代码
     git clone https://github.com/GangZhuo/BaiduPCS.git
-### 2. 安装依赖
-    下载 [依赖包] (baidupcs-dependencies.zip)，解压后，把 dependencies 目录复制到 BaiduPCS 源码根目录下。
+### 2. 安装依赖 [baidupcs-dependencies.zip]
+    下载依赖包 baidupcs-dependencies.zip，解压后，把 dependencies 目录复制到 BaiduPCS 源码根目录下。
 ### 3. 编译源代码
     使用 Microsoft Visual Studio Community 2013 打开源码根目录下的 baidupcs.sln，并执行编译操作，
 	将在 Debug 或 Release 目录下产生 pcs.exe 文件。
@@ -387,6 +387,6 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 2. 下载大文件时，程序会在磁盘上预分配文件空间，此过程耗时较久。
 * 3. 上传大文件后，通过 'pcs meta'获取到的md5值与本地文件计算出的md5不匹配，这个应是百度网盘的bug。（测试时，把上传的文件下载到本地后，对比md5匹配）
 
-[依赖包]:                  http://sourceforge.net/projects/baidupcs/files/
-[适用Windows的预编译版本]: http://sourceforge.net/projects/baidupcs/files/
-[Openwrt SDK]:             http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
+[baidupcs-dependencies.zip]: http://sourceforge.net/projects/baidupcs/files/
+[适用Windows的预编译版本]:   http://sourceforge.net/projects/baidupcs/files/
+[Openwrt SDK]:               http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
