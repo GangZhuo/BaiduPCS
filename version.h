@@ -4,7 +4,7 @@
 #ifdef PRG_VER
 #  define program_version PRG_VER
 #else
-#  define program_version "v0.1.9-alpha2"
+#  define program_version "v0.2"
 #endif
 
 #define program_name	"pcs"
