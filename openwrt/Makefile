@@ -14,21 +14,21 @@ PKG_BUILD_DEPENDS:=libopenssl libcurl
 include $(INCLUDE_DIR)/package.mk
 
 define Package/BaiduPCS
-    SECTION:=utils
-    CATEGORY:=Utilities
-    TITLE:=BaiduPCS
-    URL:=https://github.com/GangZhuo/BaiduPCS
-    MAINTAINER:=Gang Zhuo <gang.zhuo@gmail.com>
-    DEPENDS:=+libopenssl +libcurl
+	SECTION:=utils
+	CATEGORY:=Utilities
+	TITLE:=BaiduPCS
+	URL:=https://github.com/GangZhuo/BaiduPCS
+	MAINTAINER:=Gang Zhuo <gang.zhuo@gmail.com>
+	DEPENDS:=+libopenssl +libcurl
 endef
 
 define Package/BaiduPCS/description
-    The client for baidu net disk.
+The client for baidu net disk.
 endef
 
 define Package/BaiduPCS/install
-    $(INSTALL_DIR) $(1)/usr/bin
-    $(INSTALL_BIN) $(PKG_BUILD_DIR)/bin/pcs $(1)/usr/bin
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/bin/pcs $(1)/usr/bin
 endef
 
 $(eval $(call BuildPackage,BaiduPCS))
