@@ -21,9 +21,9 @@ endif
 
 ifneq ($(ver), debug)
 $(warning "Use 'make ver=debug' to build for gdb debug.")
-CC = gcc -D_FILE_OFFSET_BITS=64
+CCFLAGS:=-D_FILE_OFFSET_BITS=64
 else
-CC = gcc -g -D_FILE_OFFSET_BITS=64 -DDEBUG -D_DEBUG
+CCFLAGS:=-g -D_FILE_OFFSET_BITS=64 -DDEBUG -D_DEBUG
 endif
 
 all: bin/libpcs.a bin/pcs
