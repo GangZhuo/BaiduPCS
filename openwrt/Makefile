@@ -9,6 +9,8 @@ PKG_SOURCE_URL:=https://github.com/GangZhuo/BaiduPCS/archive
 PKG_SOURCE:=$(PKG_VERSION).tar.gz
 PKG_BUILD_DEPENDS:=libopenssl curl
 
+PKG_INSTALL:=1
+
 include $(INCLUDE_DIR)/package.mk
 
 define Package/BaiduPCS
