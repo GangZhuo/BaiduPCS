@@ -43,7 +43,9 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
         make menuconfig # select Utilities/BaiduPCS
         make -j
         make V=99 package/BaiduPCS/openwrt/compile
-	
+
+#### 或下载 [预编译 ipk for Openwrt] ，CPU: ar71xx, brcm71xx
+
 命令列表：
 ===================================
     如果出现中文乱码，请检查操作系统的当前编码是否为UTF8。
@@ -390,3 +392,4 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 [baidupcs-dependencies.zip]: https://sourceforge.net/projects/baidupcs/files/Dependencies/
 [适用Windows的预编译版本]:   https://sourceforge.net/projects/baidupcs/files/Windows/
 [Openwrt SDK]:               http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
+[预编译 ipk for Openwrt]:    http://sourceforge.net/projects/baidupcs/files/Openwrt/
