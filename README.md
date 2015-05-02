@@ -221,7 +221,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     
     登录可能需要输入验证码。目前的处理办法是把验证码图片写入到本地文件，用户打开文件识别验证码。
     可通过 'pcs set --captcha_file=<path> 来指定验证码保存路径，
-    例如：'pcs set --captcha_file=/var/www/xxx.com/captch.git'将文件保存到网站目录下。
+    例如：'pcs set --captcha_file=/var/www/xxx.com/captch.gif'将文件保存到网站目录下。
     可通过 'pcs context' 查看当前的执行上下文。执行上下文包括验证码图片保存路径等其他信息。
     
     示例：
