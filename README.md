@@ -158,7 +158,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     pcs download [-f] <remote file> <local file>
 	pcs d [-f] <remote file> <local file>
     
-    只能下载文件，如果需要下载目录，请使用 'pcs synch -d <remote dir> <local dir>'。
+    只能下载文件，如果需要下载目录，请使用 'pcs synch -d <local dir> <remote dir>'。
     
     选项：
       -f   如果本地文件存在的话，强制替换
