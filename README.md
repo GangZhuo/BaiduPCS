@@ -20,7 +20,6 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     make install #将安装到/usr/local/bin下
 ### 4. 手动安装到其他目录，例如 /usr/bin 下 
     cp ./bin/pcs /usr/bin/
-    chmod a+x /usr/bin/pcs (此行命令非必须执行)
 
 编译 (Windows)：
 ===================================
