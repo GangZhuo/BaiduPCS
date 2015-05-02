@@ -133,7 +133,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     {
 	    "cookiefile":	        "/home/gang/.pcs/default.cookie", /*指定Cookie文件*/
 	    "captchafile":	        "/home/gang/.pcs/captcha.gif",    /*指定验证码图片保存路径*/
-	    "workdir":	            "/",                              /*指定当期工作目录*/
+	    "workdir":	            "/",                              /*指定当前的网盘工作目录*/
 	    "list_page_size":	    20,                               /*指定列出目录时分页大小*/
 	    "list_sort_name":	    "name",                           /*指定列出目录时排序字段*/
 	    "list_sort_direction":	"asc",                            /*指定列出目录时的排序方向*/
