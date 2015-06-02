@@ -27,7 +27,7 @@ typedef unsigned __int64 uint64_t;
 #    ifdef PCS_STATIC_LIB
 #      define PCS_API extern "C" _declspec(dllexport)
 #    else
-#      define PCS_API extern "C"
+#      define PCS_API extern "C" 
 #    endif
 #    define PCS_EXTERN_C extern "C"
 #    define PCS_EXTERN_C_BEGIN extern "C" {
