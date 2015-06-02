@@ -11,24 +11,23 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{6EDC18B3-E237-4C73-9A54-58B0BEB98998}</ProjectGuid>
+    <ProjectGuid>{BE157AEB-7F3E-4C6F-8C8E-192D57E37A11}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>BaiduPCS</RootNamespace>
-    <ProjectName>BaiduPCS_DLL</ProjectName>
+    <RootNamespace>pcs</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v120_xp</PlatformToolset>
-    <CharacterSet>NotSet</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v120_xp</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>NotSet</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -42,49 +41,80 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>BaiduPCS</TargetName>
+    <TargetName>pcs</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>BaiduPCS</TargetName>
+    <TargetName>pcs</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;BAIDUPCS_EXPORTS;PCS_STATIC_LIB;CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)dependencies\win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)dependencies\win32\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)dependencies\win32\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>argpd.lib;libcurld.lib;openssld.lib;libssh2d.lib;zlibd.lib;wsock32.lib;wldap32.lib;ws2_32.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;BAIDUPCS_EXPORTS;PCS_STATIC_LIB;CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)dependencies\win32\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(SolutionDir)dependencies\win32\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)dependencies\win32\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>argp.lib;libcurl.lib;openssl.lib;libssh2.lib;zlib.lib;wsock32.lib;wldap32.lib;ws2_32.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="arg.c" />
+    <ClCompile Include="dir.c" />
+    <ClCompile Include="hashtable.c" />
+    <ClCompile Include="rb_tree\misc.c" />
+    <ClCompile Include="rb_tree\red_black_tree.c" />
+    <ClCompile Include="rb_tree\stack.c" />
+    <ClCompile Include="shell.c" />
+    <ClCompile Include="utf8.c" />
+    <ClCompile Include="utils.c" />
+    <ClCompile Include="pcs\cJSON.c" />
+    <ClCompile Include="pcs\pcs.c" />
+    <ClCompile Include="pcs\pcs_fileinfo.c" />
+    <ClCompile Include="pcs\pcs_http.c" />
+    <ClCompile Include="pcs\pcs_mem.c" />
+    <ClCompile Include="pcs\pcs_pan_api_resinfo.c" />
+    <ClCompile Include="pcs\pcs_slist.c" />
+    <ClCompile Include="pcs\pcs_utils.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="arg.h" />
+    <ClInclude Include="dir.h" />
+    <ClInclude Include="hashtable.h" />
+    <ClInclude Include="rb_tree\misc.h" />
+    <ClInclude Include="rb_tree\red_black_tree.h" />
+    <ClInclude Include="rb_tree\stack.h" />
+    <ClInclude Include="shell.h" />
+    <ClInclude Include="utf8.h" />
+    <ClInclude Include="utils.h" />
+    <ClInclude Include="version.h" />
     <ClInclude Include="pcs\cJSON.h" />
     <ClInclude Include="pcs\openssl_aes.h" />
     <ClInclude Include="pcs\openssl_md5.h" />
@@ -99,22 +129,7 @@
     <ClInclude Include="pcs\pcs_utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="pcs\cJSON.c" />
-    <ClCompile Include="pcs\pcs.c" />
-    <ClCompile Include="pcs\pcs_fileinfo.c" />
-    <ClCompile Include="pcs\pcs_http.c" />
-    <ClCompile Include="pcs\pcs_mem.c" />
-    <ClCompile Include="pcs\pcs_pan_api_resinfo.c" />
-    <ClCompile Include="pcs\pcs_slist.c" />
-    <ClCompile Include="pcs\pcs_utils.c" />
-    <ClCompile Include="dllmain.cpp">
-      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-      </PrecompiledHeader>
-      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-      </PrecompiledHeader>
-    </ClCompile>
+    <None Include="makefile" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

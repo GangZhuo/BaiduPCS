@@ -15,69 +15,72 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="pcs\cJSON.h">
+    <ClInclude Include="cJSON.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\openssl_aes.h">
+    <ClInclude Include="openssl_aes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\openssl_md5.h">
+    <ClInclude Include="openssl_md5.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\openssl_rsa.h">
+    <ClInclude Include="openssl_rsa.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\pcs.h">
+    <ClInclude Include="pcs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\pcs_defs.h">
+    <ClInclude Include="pcs_defs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\pcs_fileinfo.h">
+    <ClInclude Include="pcs_fileinfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\pcs_http.h">
+    <ClInclude Include="pcs_http.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\pcs_mem.h">
+    <ClInclude Include="pcs_mem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\pcs_pan_api_resinfo.h">
+    <ClInclude Include="pcs_pan_api_resinfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\pcs_slist.h">
+    <ClInclude Include="pcs_slist.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pcs\pcs_utils.h">
+    <ClInclude Include="pcs_utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BaiduPCS.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dllmain.cpp">
+    <ClCompile Include="cJSON.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pcs\cJSON.c">
+    <ClCompile Include="pcs.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pcs\pcs.c">
+    <ClCompile Include="pcs_fileinfo.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pcs\pcs_fileinfo.c">
+    <ClCompile Include="pcs_http.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pcs\pcs_http.c">
+    <ClCompile Include="pcs_mem.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pcs\pcs_mem.c">
+    <ClCompile Include="pcs_pan_api_resinfo.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pcs\pcs_pan_api_resinfo.c">
+    <ClCompile Include="pcs_slist.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pcs\pcs_slist.c">
+    <ClCompile Include="pcs_utils.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pcs\pcs_utils.c">
+    <ClCompile Include="dllmain.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

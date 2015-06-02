@@ -2,7 +2,6 @@
 #define _PCS_HTTP_H
 
 #include <stdarg.h>
-#include <curl/curl.h>
 #include "pcs_defs.h"
 
 typedef void *PcsHttp;

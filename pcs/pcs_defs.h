@@ -24,8 +24,10 @@ typedef unsigned __int64 uint64_t;
 
 #ifdef WIN32
 #  ifdef __cplusplus
-#    ifdef PCS_STATIC_LIB
+#    if defined(PCS_STATIC_LIB)
 #      define PCS_API extern "C" _declspec(dllexport)
+#    elif defined(PCS_IMPORT_LIB)
+#      define PCS_API extern "C" __declspec(dllimport)
 #    else
 #      define PCS_API extern "C" 
 #    endif
@@ -33,8 +35,10 @@ typedef unsigned __int64 uint64_t;
 #    define PCS_EXTERN_C_BEGIN extern "C" {
 #    define PCS_EXTERN_C_END }
 #  else /* ifdef __cplusplus */
-#    ifdef PCS_STATIC_LIB
+#    if defined(PCS_STATIC_LIB)
 #      define PCS_API _declspec(dllexport)
+#    elif defined(PCS_IMPORT_LIB)
+#      define PCS_API __declspec(dllimport)
 #    else
 #      define PCS_API 
 #    endif
@@ -45,7 +49,9 @@ typedef unsigned __int64 uint64_t;
 #  endif /* ifdef __cplusplus */
 #else /* ifdef WIN32 */
 #  ifdef __cplusplus
-#    ifdef PCS_STATIC_LIB
+#    if defined(PCS_STATIC_LIB)
+#      define PCS_API extern "C"
+#    elif defined(PCS_IMPORT_LIB)
 #      define PCS_API extern "C"
 #    else
 #      define PCS_API extern "C"
@@ -54,7 +60,9 @@ typedef unsigned __int64 uint64_t;
 #    define PCS_EXTERN_C_BEGIN extern "C" {
 #    define PCS_EXTERN_C_END }
 #  else /* ifdef __cplusplus */
-#    ifdef PCS_STATIC_LIB
+#    if defined(PCS_STATIC_LIB)
+#      define PCS_API
+#    elif defined(PCS_IMPORT_LIB)
 #      define PCS_API
 #    else
 #      define PCS_API
