@@ -49,3 +49,7 @@ PCS_API type_size_t* type_size()
 	return &ts;
 }
 
+PCS_API int str_len(const char *s)
+{
+	return strlen(s);
+}
