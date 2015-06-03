@@ -69,3 +69,28 @@ PCS_API void pcs_free_4_net(void *ptr)
 	pcs_free(ptr);
 }
 
+/*Ê±¼ä×ª»»*/
+PCS_API const char *time_str(time_t time)
+{
+	struct tm *tm = NULL;
+	time_t t = time;
+	static char tmp[64];
+
+	if (time)
+		tm = localtime(&t);
+
+	if (tm) {
+		sprintf(tmp, "%d-%02d-%02d %02d:%02d:%02d",
+			1900 + tm->tm_year,
+			tm->tm_mon + 1,
+			tm->tm_mday,
+			tm->tm_hour,
+			tm->tm_min,
+			tm->tm_sec);
+		return tmp;
+	}
+	else {
+		return "";
+	}
+}
+
