@@ -1256,7 +1256,6 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	ds->noflush_size += size;
 	if (ts->start == ts->end) {
 		ts->status = DOWNLOAD_STATUS_OK;
-		size = 0;
 	}
 
 	if (save_thread_states_to_file(pf, ds->file_size, ds->threads)) {
