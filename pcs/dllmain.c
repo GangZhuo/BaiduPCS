@@ -1,4 +1,5 @@
 #include "pcs_defs.h"
+#include "pcs_mem.h"
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files:
 #include <windows.h>
@@ -34,6 +35,7 @@ typedef struct type_size_t
 } type_size_t;
 
 /* ”√”⁄≤‚ ‘ */
+/* For C# invoke */
 PCS_API type_size_t* type_size()
 {
 	static type_size_t ts = {
@@ -49,7 +51,21 @@ PCS_API type_size_t* type_size()
 	return &ts;
 }
 
+/* For C# invoke */
 PCS_API int str_len(const char *s)
 {
 	return strlen(s);
 }
+
+/* For C# invoke */
+PCS_API void *pcs_malloc_4_net(size_t sz)
+{
+	return pcs_malloc(sz);
+}
+
+/* For C# invoke */
+PCS_API void pcs_free_4_net(void *ptr)
+{
+	pcs_free(ptr);
+}
+
