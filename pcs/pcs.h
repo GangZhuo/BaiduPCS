@@ -294,6 +294,9 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz);
  */
 PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t max_speed, curl_off_t resume_from);
 
+/*
+ * 获取待下载文件的字节大小
+ */
 PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path);
 
 /*
@@ -395,6 +398,7 @@ PCS_API char *pcs_cookie_data(Pcs handle);
 */
 PCS_API const char *pcs_req_rawdata(Pcs handle, int *size, const char **encode);
 
+/*获取下载速度*/
 PCS_API double pcs_speed_download(Pcs handle);
 
 #endif
