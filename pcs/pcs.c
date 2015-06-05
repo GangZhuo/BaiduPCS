@@ -2796,10 +2796,13 @@ PCS_API PcsBool pcs_md5_s(Pcs handle,
 	pcs_clear_errmsg(handle);
 
 	MD5_Init(&md5);
-	while ((sz = read_func(buf, 1, PCS_BUFFER_SIZE, userdata)) > 0) {
+	while (
+		((sz = read_func(buf, 1, PCS_BUFFER_SIZE, userdata)) > 0)
+		&& (sz != CURL_READFUNC_ABORT)
+		&& (sz != CURL_READFUNC_PAUSE)) {
 		MD5_Update(&md5, buf, sz);
 	}
-	if (sz >= 0) {
+	if (sz >= 0 && sz != CURL_READFUNC_ABORT && sz != CURL_READFUNC_PAUSE) {
 		MD5_Final(md5_value, &md5);
 		for (i = 0; i < 16; i++) {
 			sprintf(&md5_buf[i * 2], "%02x", md5_value[i]);
