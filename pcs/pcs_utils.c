@@ -15,7 +15,7 @@
 #include "pcs_mem.h"
 #include "pcs_utils.h"
 
-PcsBool pcs_isLittleEndian()
+PCS_API PcsBool pcs_isLittleEndian()
 {
 	union w {
 		int a;
@@ -25,7 +25,7 @@ PcsBool pcs_isLittleEndian()
 	return (c.b == 1);
 }
 
-PcsBool pcs_isBigEndian()
+PCS_API PcsBool pcs_isBigEndian()
 {
 	union w {
 		int a;
@@ -35,7 +35,7 @@ PcsBool pcs_isBigEndian()
 	return (c.b == 0);
 }
 
-char *pcs_utils_strdup(const char *str)
+PCS_API char *pcs_utils_strdup(const char *str)
 {
 	char *res = 0;
 	if (str) {
@@ -47,7 +47,7 @@ char *pcs_utils_strdup(const char *str)
 	return res;
 }
 
-char *pcs_utils_vsprintf(const char *fmt, va_list ap)
+PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap)
 {
     int cnt, sz=0;
     char *buf;
@@ -70,7 +70,7 @@ try_print:
 	return buf;
 }
 
-char *pcs_utils_sprintf(const char *fmt, ...)
+PCS_API char *pcs_utils_sprintf(const char *fmt, ...)
 {
     char *res;
     va_list args;
@@ -84,7 +84,7 @@ char *pcs_utils_sprintf(const char *fmt, ...)
 }
 
 /* Human-readable file size */
-char* pcs_utils_readable_size(double size/*in bytes*/, char *buf, int buf_size, char *sp)
+PCS_API char* pcs_utils_readable_size(double size/*in bytes*/, char *buf, int buf_size, char *sp)
 {
 	int i = 0;
 	const char* units[] = {"B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
@@ -98,7 +98,7 @@ char* pcs_utils_readable_size(double size/*in bytes*/, char *buf, int buf_size, 
 }
 
 /* Human-readable left time */
-char* pcs_utils_readable_left_time(int64_t second, char *buf, int buf_size, char *sp)
+PCS_API char* pcs_utils_readable_left_time(int64_t second, char *buf, int buf_size, char *sp)
 {
 	int i = 0;
 	const char* units[] = { "B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
@@ -116,7 +116,7 @@ char* pcs_utils_readable_left_time(int64_t second, char *buf, int buf_size, char
 	return buf;
 }
 
-char *pcs_utils_basedir(const char *path)
+PCS_API char *pcs_utils_basedir(const char *path)
 {
 	char *dir, *p;
 	int i;
@@ -141,7 +141,7 @@ char *pcs_utils_basedir(const char *path)
 	return dir;
 }
 
-char *pcs_utils_filename(const char *path)
+PCS_API char *pcs_utils_filename(const char *path)
 {
 	char *name;
 	const char *p;
@@ -172,7 +172,7 @@ static inline int chcmpi(char a, char b)
 	return a - b;
 }
 
-int pcs_utils_strcmpi(const char *str1, const char *str2)
+PCS_API int pcs_utils_strcmpi(const char *str1, const char *str2)
 {
 	int r;
 	const char *p1 = str1,
@@ -186,7 +186,7 @@ int pcs_utils_strcmpi(const char *str1, const char *str2)
 	return (*p1) - (*p2);
 }
 
-PcsBool pcs_utils_streq(const char *str1, const char *str2, int len)
+PCS_API PcsBool pcs_utils_streq(const char *str1, const char *str2, int len)
 {
 	int i = 0;
 	const char *p1 = str1,

@@ -13,8 +13,17 @@ struct pcs_mem {
 
 };
 
+typedef void(*pcs_mem_leak_print_fun)(void *ptr, const char *filename, int line);
+
+static void cb_leak_printf(void *ptr, const char *filename, int line);
+
 static struct pcs_mem *_mem = 0;
-void (*_pcs_mem_printf)(const char *format, ...) = (void (*)(const char *format, ...))printf;
+static pcs_mem_leak_print_fun _print = cb_leak_printf;
+
+static void cb_leak_printf(void *ptr, const char *filename, int line)
+{
+	printf("Memory leak on %p %s, %d\n", ptr, filename, line);
+}
 
 static inline void append_mem_ent(struct pcs_mem *mem)
 {
@@ -75,7 +84,7 @@ PCS_API void pcs_mem_print_leak()
 	if (!_mem) return;
 	ent = _mem;
 	do {
-		_pcs_mem_printf("Memory leak on %p %s, %d\n", ent->ptr, ent->filename, ent->line);
+		_print(ent->ptr, ent->filename, ent->line);
 		ent = ent->next;
 	} while(ent != _mem);
 	ent = _mem;
@@ -95,5 +104,10 @@ PCS_API void *pcs_mem_malloc_raw(size_t size)
 PCS_API void pcs_mem_free_raw(void *ptr)
 {
 	free(ptr);
+}
+
+PCS_API void pcs_mem_set_print_func(pcs_mem_leak_print_fun print)
+{
+	_print = print;
 }
 

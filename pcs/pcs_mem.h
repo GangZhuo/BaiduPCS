@@ -9,7 +9,7 @@
 #endif
 #include "pcs_defs.h"
 
-extern void (*_pcs_mem_printf)(const char *format, ...);
+typedef void(*pcs_mem_leak_print_fun)(void *ptr, const char *filename, int line);
 
 /* 原始的 malloc() 函数 */
 PCS_API void *pcs_mem_malloc_raw(size_t size);
@@ -24,6 +24,8 @@ PCS_API void *pcs_mem_malloc_arg1(size_t sz);
 PCS_API void pcs_mem_free(void *p);
 /* 打印泄漏的内存 */
 PCS_API void pcs_mem_print_leak();
+
+PCS_API void pcs_mem_set_print_func(pcs_mem_leak_print_fun print);
 
 
 #if defined(DEBUG) || defined(_DEBUG)

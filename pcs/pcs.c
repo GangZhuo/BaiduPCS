@@ -2709,6 +2709,27 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 	return meta;
 }
 
+PCS_API PcsFileInfo *pcs_upload_s(Pcs handle, const char *to_path, PcsBool overwrite,
+	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata),
+	void *userdata,
+	size_t content_size)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	char *filename;
+	PcsHttpForm form = NULL;
+	PcsFileInfo *meta;
+
+	pcs_clear_errmsg(handle);
+	filename = pcs_utils_filename(to_path);
+	if (pcs_http_form_addbufferfile(pcs->http, &form, "file", NULL, read_func, userdata, content_size) != PcsTrue) {
+		pcs_set_errmsg(handle, "Can't build the post data.");
+		return NULL;
+	}
+	meta = pcs_upload_form(handle, to_path, form, overwrite ? "overwrite" : "newcopy");
+	pcs_http_form_destroy(pcs->http, form);
+	return meta;
+}
+
 PCS_API int64_t pcs_local_filesize(Pcs handle, const char *path)
 {
 	FILE *pf;
