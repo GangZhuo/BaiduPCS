@@ -482,7 +482,7 @@ static int encrypt_file(const char *src, const char *dst, int secure_method, con
 	unsigned char		key[AES_BLOCK_SIZE] = { 0 };
 	unsigned char		iv[AES_BLOCK_SIZE] = { 0 };
 	int rc;
-	rc = AES_set_encrypt_key(md5_string_raw(secure_key), secure_method, &aes);
+	rc = AES_set_encrypt_key(pcs_md5_string_raw(secure_key), secure_method, &aes);
 	if (rc < 0) {
 		fprintf(stderr, "Error: Can't set encrypt key.\n");
 		return -1;
@@ -652,7 +652,7 @@ static int decrypt_file(const char *src, const char *dst, const char *secure_key
 		return -1;
 	}
 
-	rc = AES_set_decrypt_key(md5_string_raw(secure_key), head.bits, &aes);
+	rc = AES_set_decrypt_key(pcs_md5_string_raw(secure_key), head.bits, &aes);
 	if (rc < 0) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
@@ -791,7 +791,7 @@ static int encrypt_data(const char *src, size_t src_size, char **dst, size_t *ds
 	const char *pin;
 	char *pout, buf[32];
 
-	rc = AES_set_encrypt_key(md5_string_raw(secure_key), secure_method, &aes);
+	rc = AES_set_encrypt_key(pcs_md5_string_raw(secure_key), secure_method, &aes);
 	if (rc < 0) {
 		fprintf(stderr, "Error: Can't set encrypt key.\n");
 		return -1;
@@ -866,7 +866,7 @@ static int decrypt_data(const char *src, size_t src_size, char **dst, size_t *ds
 		return -1;
 	}
 
-	rc = AES_set_decrypt_key(md5_string_raw(secure_key), head.bits, &aes);
+	rc = AES_set_decrypt_key(pcs_md5_string_raw(secure_key), head.bits, &aes);
 	if (rc < 0) {
 		return -1;
 	}
