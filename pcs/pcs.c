@@ -2820,15 +2820,25 @@ PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool over
 		return NULL;
 	}
 
-	if (!pcs_md5_file(handle, local_filename, content_md5)) {
-		return NULL;
+	if (out_content_md5 != NULL && strnlen(out_content_md5, 33) == 32) {
+		strcpy(content_md5, out_content_md5);
 	}
-	if (out_content_md5) strcpy(out_content_md5, content_md5);
+	else {
+		if (!pcs_md5_file(handle, local_filename, content_md5)) {
+			return NULL;
+		}
+		if (out_content_md5) strcpy(out_content_md5, content_md5);
+	}
 
-	if (!pcs_md5_file_slice(handle, local_filename, 0, PCS_RAPIDUPLOAD_THRESHOLD, slice_md5)) {
-		return NULL;
+	if (out_slice_md5 != NULL && strnlen(out_slice_md5, 33) == 32) {
+		strcpy(slice_md5, out_slice_md5);
 	}
-	if (out_slice_md5) strcpy(out_slice_md5, slice_md5);
+	else {
+		if (!pcs_md5_file_slice(handle, local_filename, 0, PCS_RAPIDUPLOAD_THRESHOLD, slice_md5)) {
+			return NULL;
+		}
+		if (out_slice_md5) strcpy(out_slice_md5, slice_md5);
+	}
 
 	dir = pcs_utils_basedir(path);
 	filename = pcs_utils_filename(path);
