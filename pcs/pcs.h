@@ -93,6 +93,15 @@ typedef void *Pcs;
 /*输出PCS API的版本号*/
 PCS_API const char *pcs_version();
 
+/* 清除错误消息 */
+PCS_API void pcs_clear_errmsg(Pcs handle);
+
+/* 设置错误消息 */
+PCS_API void pcs_set_serrmsg(Pcs handle, const char *errmsg);
+
+/* 添加文本到错误消息的结尾 */
+PCS_API void pcs_cat_serrmsg(Pcs handle, const char *errmsg);
+
 /*
  * 创建Pcs。
  * 成功后返回该Pcs的handle，否则返回NULL。注意此函数无法使用pcs_strerror()获取错误编号

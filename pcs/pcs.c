@@ -625,7 +625,7 @@ const char *get_record_errmsg_by_errno(int error)
 	return errmsg;
 }
 
-void pcs_clear_errmsg(Pcs handle)
+PCS_API void pcs_clear_errmsg(Pcs handle)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	if (pcs->errmsg) {
@@ -634,7 +634,7 @@ void pcs_clear_errmsg(Pcs handle)
 	}
 }
 
-void pcs_set_errmsg(Pcs handle, const char *fmt, ...)
+PCS_API void pcs_set_errmsg(Pcs handle, const char *fmt, ...)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	va_list args;
@@ -647,15 +647,35 @@ void pcs_set_errmsg(Pcs handle, const char *fmt, ...)
 	va_end(args);
 }
 
-void pcs_cat_errmsg(Pcs handle, const char *fmt, ...)
+PCS_API void pcs_cat_errmsg(Pcs handle, const char *fmt, ...)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	char *p, *errmsg;
+	char *errmsg;
 	size_t sz = 0;
 	va_list args;
 	va_start(args, fmt);
 	errmsg = pcs_utils_vsprintf(fmt, args);
 	va_end(args);
+	pcs_cat_serrmsg(handle, errmsg);
+}
+
+/* 设置错误消息 */
+PCS_API void pcs_set_serrmsg(Pcs handle, const char *errmsg)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	if (pcs->errmsg) {
+		pcs_free(pcs->errmsg);
+		pcs->errmsg = NULL;
+	}
+	pcs->errmsg = pcs_utils_strdup(errmsg);
+}
+
+/* 添加文本到错误消息的结尾 */
+PCS_API void pcs_cat_serrmsg(Pcs handle, const char *errmsg)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	char *p;
+	size_t sz = 0;
 	if (pcs->errmsg) {
 		sz = strlen(pcs->errmsg) + strlen(errmsg);
 		p = (char *)pcs_malloc(sz + 1);
@@ -668,6 +688,7 @@ void pcs_cat_errmsg(Pcs handle, const char *fmt, ...)
 		pcs->errmsg = errmsg;
 	}
 }
+
 
 //static inline void pcs_set_errmsg(Pcs handle, PcsRes error)
 //{
