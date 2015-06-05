@@ -1572,7 +1572,11 @@ static PcsFileInfo *pcs_upload_slice_form(Pcs handle, PcsHttpForm form)
 
 PCS_API const char *pcs_version()
 {
+#if defined(DEBUG) || defined(_DEBUG)
+	return PCS_API_VERSION "-debug";
+#else
 	return PCS_API_VERSION;
+#endif
 }
 
 PCS_API Pcs pcs_create(const char *cookie_file)

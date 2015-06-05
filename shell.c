@@ -6475,6 +6475,6 @@ int main(int argc, char *argv[])
 exit_main:
 	free_context(&context);
 	free_args(&arg);
-	pcs_mem_print_leak();
+	pcs_print_leak();
 	return rc;
 }

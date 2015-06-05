@@ -87,4 +87,13 @@ PCS_API void pcs_mem_print_leak()
 	_mem = 0;
 }
 
+PCS_API void *pcs_mem_malloc_raw(size_t size)
+{
+	return malloc(size);
+}
+
+PCS_API void pcs_mem_free_raw(void *ptr)
+{
+	free(ptr);
+}
 

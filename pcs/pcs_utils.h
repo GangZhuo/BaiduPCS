@@ -54,5 +54,9 @@ int readInt(const char *buf);
 */
 char *extract_json_from_callback(char *callback);
 
+PCS_API int pcs_strlen(const char *s);
+
+PCS_API const char *pcs_time2str(time_t time);
+
 
 #endif

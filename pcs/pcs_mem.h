@@ -10,19 +10,31 @@
 #include "pcs_defs.h"
 
 extern void (*_pcs_mem_printf)(const char *format, ...);
+
+/* 原始的 malloc() 函数 */
+PCS_API void *pcs_mem_malloc_raw(size_t size);
+/* 原始的 free() 函数 */
+PCS_API void pcs_mem_free_raw(void *ptr);
+
+/* 带有泄漏检测的 malloc() 函数 */
+PCS_API void *pcs_mem_malloc(size_t size, const char *filename, int line);
+/* 带有泄漏检测的 malloc() 函数 */
+PCS_API void *pcs_mem_malloc_arg1(size_t sz);
+/* 带有泄漏检测的 free() 函数 */
+PCS_API void pcs_mem_free(void *p);
+/* 打印泄漏的内存 */
+PCS_API void pcs_mem_print_leak();
+
+
 #if defined(DEBUG) || defined(_DEBUG)
 
-   PCS_API void *pcs_mem_malloc(size_t size, const char *filename, int line);
-   PCS_API void *pcs_mem_malloc_arg1(size_t sz);
-   PCS_API void pcs_mem_free(void *p);
-   /*打印泄漏的内存*/
-   PCS_API void pcs_mem_print_leak();
-
+#  define pcs_print_leak()			pcs_mem_print_leak()
 #  define pcs_malloc(size)			pcs_mem_malloc(size, __FILE__, __LINE__)
 #  define pcs_free(ptr)				pcs_mem_free(ptr)
+
 #else
 #  include <stdlib.h>
-#  define pcs_mem_print_leak()		while(0)
+#  define pcs_print_leak()			while(0)
 #  define pcs_malloc(size)			malloc(size)
 #  define pcs_free(ptr)				free(ptr)
 #endif

@@ -313,3 +313,34 @@ char *extract_json_from_callback(char *callback)
 	}
 	return NULL;
 }
+
+/* For C# invoke */
+PCS_API int pcs_strlen(const char *s)
+{
+	return strlen(s);
+}
+
+/*时间转换*/
+PCS_API const char *pcs_time2str(time_t time)
+{
+	struct tm *tm = NULL;
+	time_t t = time;
+	static char tmp[64];
+
+	if (time)
+		tm = localtime(&t);
+
+	if (tm) {
+		sprintf(tmp, "%d-%02d-%02d %02d:%02d:%02d",
+			1900 + tm->tm_year,
+			tm->tm_mon + 1,
+			tm->tm_mday,
+			tm->tm_hour,
+			tm->tm_min,
+			tm->tm_sec);
+		return tmp;
+	}
+	else {
+		return "";
+	}
+}
