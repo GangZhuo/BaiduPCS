@@ -2782,6 +2782,33 @@ PCS_API PcsBool pcs_md5_file(Pcs handle, const char *path, char *md5_buf)
 	return PcsTrue;
 }
 
+PCS_API PcsBool pcs_md5_s(Pcs handle,
+	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata),
+	void *userdata,
+	char *md5_buf)
+{
+	MD5_CTX md5;
+	size_t sz;
+	unsigned char buf[PCS_BUFFER_SIZE];
+	unsigned char md5_value[16];
+	int i;
+
+	pcs_clear_errmsg(handle);
+
+	MD5_Init(&md5);
+	while ((sz = read_func(buf, 1, PCS_BUFFER_SIZE, userdata)) > 0) {
+		MD5_Update(&md5, buf, sz);
+	}
+	if (sz >= 0) {
+		MD5_Final(md5_value, &md5);
+		for (i = 0; i < 16; i++) {
+			sprintf(&md5_buf[i * 2], "%02x", md5_value[i]);
+		}
+		return PcsTrue;
+	}
+	return PcsFalse;
+}
+
 PCS_API PcsBool pcs_md5_file_slice(Pcs handle, const char *path, int64_t offset, int64_t length, char *md5_buf)
 {
 	MD5_CTX md5;

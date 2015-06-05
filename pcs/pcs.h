@@ -380,6 +380,17 @@ PCS_API int64_t pcs_local_filesize(Pcs handle, const char *path);
 PCS_API PcsBool pcs_md5_file(Pcs handle, const char *path, char *md5);
 
 /*
+* 计算文件的MD5值
+*   read_func  读取文件的方法
+*   userdata   原样传入 read_func
+*   md5        用于接收文件的md5值，长度必须大于等于32
+*/
+PCS_API PcsBool pcs_md5_s(Pcs handle,
+	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata),
+	void *userdata,
+	char *md5_buf);
+
+/*
 * 计算文件的MD5值，仅从文件offset偏移处开始计算，并仅计算 length 长度的数据。
 *   path		目标文件
 *   md5        用于接收文件的md5值，长度必须大于等于32
