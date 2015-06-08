@@ -28,6 +28,13 @@ PCS_API char *pcs_utils_filename(const char *path);
 PCS_API int pcs_utils_strcmpi(const char *str1, const char *str2);
 /*判断两字符串是否相等。相等返回PcsTrue，否则返回PcsFalse。只比较len指定的长度。*/
 PCS_API PcsBool pcs_utils_streq(const char *str1, const char *str2, int len);
+
+/*计算字节的MD5值*/
+PCS_API const unsigned char *pcs_md5_bytes_raw(const unsigned char* bytes, int len);
+
+/*计算字节的MD5值*/
+PCS_API const char *pcs_md5_bytes(const unsigned char* bytes, int len);
+
 /**
 * 字符串md5
 */

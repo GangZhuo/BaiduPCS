@@ -225,6 +225,25 @@ PCS_API const unsigned char *pcs_md5_string_raw(const char *str)
 	return md;
 }
 
+PCS_API const unsigned char *pcs_md5_bytes_raw(const unsigned char* bytes, int len)
+{
+	static unsigned char md[16];
+	MD5(bytes, len, md);
+	return md;
+}
+
+PCS_API const char *pcs_md5_bytes(const unsigned char* bytes, int len)
+{
+	static char tmp[33] = { '\0' };
+	unsigned char md[16];
+	int i;
+	MD5(bytes, len, md);
+	for (i = 0; i<16; i++){
+		sprintf(&tmp[i * 2], "%02x", md[i]);
+	}
+	return tmp;
+}
+
 
 ///**
 //* 字符串md5
