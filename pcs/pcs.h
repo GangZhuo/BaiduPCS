@@ -418,6 +418,8 @@ PCS_API PcsBool pcs_md5_file_slice(Pcs handle, const char *path, int64_t offset,
  */
 PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool overwrite,
 	const char *local_filename, char *content_md5, char *slice_md5);
+PCS_API PcsFileInfo *pcs_rapid_upload_r(Pcs handle, const char *path, PcsBool overwrite,
+	int64_t content_length, const char *content_md5, const char *slice_md5);
 
 /*
  * 获取Cookie 数据。

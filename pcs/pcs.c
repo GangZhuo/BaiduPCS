@@ -2879,12 +2879,7 @@ PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool over
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	int64_t content_length;
-	char content_md5[33] = { 0 }, slice_md5[33] = { 0 }, *content_length_str, *dir, *filename;
-	char *url, *html;
-	int http_code;
-	const char *errmsg;
-	cJSON *json, *item;
-	PcsFileInfo *meta;
+	char content_md5[33] = { 0 }, slice_md5[33] = { 0 };
 
 	pcs_clear_errmsg(handle);
 	content_length = pcs_local_filesize(handle, local_filename);
@@ -2916,6 +2911,21 @@ PCS_API PcsFileInfo *pcs_rapid_upload(Pcs handle, const char *path, PcsBool over
 		if (out_slice_md5) strcpy(out_slice_md5, slice_md5);
 	}
 
+	return pcs_rapid_upload_r(handle, path, overwrite, content_length, content_md5, slice_md5);
+}
+
+PCS_API PcsFileInfo *pcs_rapid_upload_r(Pcs handle, const char *path, PcsBool overwrite,
+	int64_t content_length, const char *content_md5, const char *slice_md5)
+{
+	struct pcs *pcs = (struct pcs *)handle;
+	char *content_length_str, *dir, *filename;
+	char *url, *html;
+	int http_code;
+	const char *errmsg;
+	cJSON *json, *item;
+	PcsFileInfo *meta;
+
+	pcs_clear_errmsg(handle);
 	dir = pcs_utils_basedir(path);
 	filename = pcs_utils_filename(path);
 	content_length_str = pcs_utils_sprintf("%"PRId64, content_length);
