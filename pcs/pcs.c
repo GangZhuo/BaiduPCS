@@ -984,7 +984,7 @@ static PcsFileInfoList *pcs_pan_api_1(Pcs handle, const char *action, ...)
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return NULL;
@@ -1240,7 +1240,7 @@ static PcsPanApiRes *pcs_pan_api_filemanager(Pcs handle, const char *opera, cons
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return NULL;
@@ -1405,7 +1405,7 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsHttpForm fo
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return NULL;
@@ -1459,7 +1459,7 @@ static PcsFileInfo *pcs_upload_slice_form(Pcs handle, PcsHttpForm form)
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return NULL;
@@ -1805,7 +1805,7 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 		if (http_code != 302) {
 			errmsg = pcs_http_strerror(pcs->http);
 			if (errmsg)
-				pcs_set_errmsg(handle, errmsg);
+				pcs_set_serrmsg(handle, errmsg);
 			else
 				pcs_set_errmsg(handle, "The server response wrong http code.");
 			return PCS_NETWORK_ERROR;
@@ -1815,7 +1815,7 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return PCS_NETWORK_ERROR;
@@ -1855,7 +1855,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return PCS_NETWORK_ERROR;
@@ -1865,7 +1865,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	//if (!html) {
 	//	errmsg = pcs_http_strerror(pcs->http);
 	//	if (errmsg)
-	//		pcs_set_errmsg(handle, errmsg);
+	//		pcs_set_serrmsg(handle, errmsg);
 	//	else
 	//		pcs_set_errmsg(handle, "Can't get response from the remote server.");
 	//	return PCS_NETWORK_ERROR;
@@ -1877,7 +1877,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return PCS_NETWORK_ERROR;
@@ -1927,7 +1927,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		pcs_free(token);
@@ -1977,7 +1977,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		pcs_free(token);
@@ -2075,7 +2075,7 @@ try_login:
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		pcs_free(token);
@@ -2191,7 +2191,7 @@ PCS_API PcsRes pcs_logout(Pcs handle)
 	}
 	errmsg = pcs_http_strerror(pcs->http);
 	if (errmsg)
-		pcs_set_errmsg(handle, errmsg);
+		pcs_set_serrmsg(handle, errmsg);
 	else
 		pcs_set_errmsg(handle, "Can't logout. Http Code: %d", http_code);
 	return PCS_FAIL;
@@ -2215,7 +2215,7 @@ PCS_API PcsRes pcs_quota(Pcs handle, int64_t *quota, int64_t *used)
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return PCS_NETWORK_ERROR;
@@ -2293,7 +2293,7 @@ PCS_API PcsRes pcs_mkdir(Pcs handle, const char *path)
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return PCS_NETWORK_ERROR;
@@ -2483,7 +2483,7 @@ static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunc
 	pcs_free(url);
 	errmsg = pcs_http_strerror(pcs->http);
 	if (errmsg)
-		pcs_set_errmsg(handle, errmsg);
+		pcs_set_serrmsg(handle, errmsg);
 	else
 		pcs_set_errmsg(handle, "Can't download the file: %s", pcs_http_strerror(pcs->http));
 	return PCS_FAIL;
@@ -2516,7 +2516,7 @@ PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path)
 	pcs_free(url);
 	errmsg = pcs_http_strerror(pcs->http);
 	if (errmsg)
-		pcs_set_errmsg(handle, errmsg);
+		pcs_set_serrmsg(handle, errmsg);
 	return size;
 }
 
@@ -2667,7 +2667,7 @@ PCS_API PcsFileInfo *pcs_create_superfile(Pcs handle, const char *path, PcsBool 
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return NULL;
@@ -2962,7 +2962,7 @@ PCS_API PcsFileInfo *pcs_rapid_upload_r(Pcs handle, const char *path, PcsBool ov
 	if (!html) {
 		errmsg = pcs_http_strerror(pcs->http);
 		if (errmsg)
-			pcs_set_errmsg(handle, errmsg);
+			pcs_set_serrmsg(handle, errmsg);
 		else
 			pcs_set_errmsg(handle, "Can't get response from the remote server.");
 		return NULL;
