@@ -10,7 +10,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 程序依赖于 libcurl。
 
 ### 1. 安装依赖
-    apt-get install build-essential libcurl4-openssl-dev
+    apt-get install build-essential libcurl4-openssl-dev libssl-dev
 ### 2. 获取源代码
     git clone https://github.com/GangZhuo/BaiduPCS.git
 ### 3. 编译源代码
