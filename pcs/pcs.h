@@ -9,7 +9,7 @@
 #include "pcs_slist.h"
 #include "pcs_utils.h"
 
-#define PCS_API_VERSION "v1.1"
+#define PCS_API_VERSION "v1.1.1"
 
 #define PCS_RAPIDUPLOAD_THRESHOLD (256 * 1024)
 
