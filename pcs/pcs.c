@@ -657,6 +657,7 @@ PCS_API void pcs_cat_errmsg(Pcs handle, const char *fmt, ...)
 	errmsg = pcs_utils_vsprintf(fmt, args);
 	va_end(args);
 	pcs_cat_serrmsg(handle, errmsg);
+	pcs_free(errmsg);
 }
 
 /* 设置错误消息 */
@@ -685,7 +686,7 @@ PCS_API void pcs_cat_serrmsg(Pcs handle, const char *errmsg)
 		strcat(p, errmsg);
 	}
 	else {
-		pcs->errmsg = errmsg;
+		pcs->errmsg = pcs_utils_strdup(errmsg);
 	}
 }
 
