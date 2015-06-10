@@ -459,7 +459,7 @@ int read_file(const char *file, char **pBuffer)
 	fseek(fp, 0L, SEEK_END);
 	size_of_file = ftell(fp);
 	if (size_of_file < 3) {
-		printf("Wrong file size: Size=%d, %s\n", size_of_file, file);
+		printf("Wrong file size: Size=%ld, %s\n", size_of_file, file);
 		fclose(fp);
 		return -1;
 	}

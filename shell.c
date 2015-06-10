@@ -1744,13 +1744,13 @@ static int restore_context(ShellContext *context, const char *filename)
 	}
 	filesize = read_file(context->contextfile, &filecontent);
 	if (filesize <= 0) {
-		fprintf(stderr, "Error: Can't read the context file (%s).\n", context->contextfile, app_name);
+		fprintf(stderr, "Error: Can't read the context file (%s).\n", context->contextfile);
 		if (filecontent) pcs_free(filecontent);
 		return -1;
 	}
 	root = cJSON_Parse(filecontent);
 	if (!root) {
-		fprintf(stderr, "Error: Broken context file (%s).\n", context->contextfile, app_name);
+		fprintf(stderr, "Error: Broken context file (%s).\n", context->contextfile);
 		pcs_free(filecontent);
 		return -1;
 	}
@@ -1936,7 +1936,7 @@ static void destroy_pcs(Pcs *pcs)
 /*打印版本*/
 static void version()
 {
-	printf(program_full_name "\n", app_name);
+	printf(program_full_name "%s\n", app_name);
 }
 
 /*打印cat命令用法*/
@@ -2318,8 +2318,8 @@ static void usage_synch()
 		   "  '-d' to download newer files only, and use '-c' to view confuse files.\n"
 		   "  Notes:\n"
 		   "    The confuse items will do nothing, \n"
-		   "    e.g. A side of the target is file and another is directory.\n",
-		   app_name);
+		   "    e.g. A side of the target is file and another is directory.\n"
+		   );
 	printf("\nOptions:\n");
 	printf("  -c    Print the files that confuse, which is don't know how to do.\n");
 	printf("  -d    Synch the new files from the net disk. \n"
@@ -2634,7 +2634,7 @@ static int rb_compare(const void *a, const void *b, void *state)
 /*红黑树中用于打印 key */
 static void rb_print_key(const void *a, void *state)
 {
-	printf("%s", a);
+	printf("%s", (char *)a);
 }
 
 /*红黑树中用于打印 info */
@@ -4994,7 +4994,7 @@ static int cmd_download(ShellContext *context, struct args *arg)
 	}
 	else if (local && !local->isdir) {
 		if (!is_force) {
-			fprintf(stderr, "Error: The local file exist. You can specify '-f' to force override.\n", locPath);
+			fprintf(stderr, "Error: The local file: %s exist. You can specify '-f' to force override.\n", locPath);
 			DestroyLocalFileInfo(local);
 			return -1;
 		}
@@ -5158,7 +5158,7 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 
 	f = pcs_upload_buffer(context->pcs, path, PcsTrue, buf, sz);
 	if (!f) {
-		fprintf(stderr, "Error: %s. \n", pcs_strerror(context->pcs), path);
+		fprintf(stderr, "Error: %s. path = %s\n", pcs_strerror(context->pcs), path);
 		pcs_free(path);
 		if (need_free) pcs_free(buf);
 		return -1;
@@ -6202,7 +6202,7 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 		return -1;
 	}
 	else if (local->isdir) {
-		fprintf(stderr, "Error: The local file is directory. \nYou can use 'synch -cu' command to upload the directory.\n", locPath);
+		fprintf(stderr, "Error: The local file is directory: %s. \nYou can use 'synch -cu' command to upload the directory.\n", locPath);
 		DestroyLocalFileInfo(local);
 		return -1;
 	}
