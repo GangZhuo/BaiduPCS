@@ -1256,6 +1256,7 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	ds->noflush_size += size;
 	if (ts->start == ts->end) {
 		ts->status = DOWNLOAD_STATUS_OK;
+		size = 0;
 	}
 
 	if (save_thread_states_to_file(pf, ds->file_size, ds->threads)) {
@@ -3460,7 +3461,7 @@ static inline int do_download(ShellContext *context,
 	fsize = pcs_get_download_filesize(context->pcs, remote_path);
 	ds.file_size = fsize;
 
-	if (fsize <= 0) {
+	if (fsize <= MIN_SLICE_SIZE) {
 		/*启动下载*/
 		/*打开文件*/
 		ds.pf = fopen(tmp_local_path, "wb");
