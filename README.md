@@ -31,7 +31,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     使用 Microsoft Visual Studio Community 2013 打开源码根目录下的 baidupcs.sln，并执行编译操作，
 	将在 Debug 或 Release 目录下产生 pcs.exe 文件。
 
-#### 下载 [适用Windows的预编译版本]
+#### 下载 [适用Windows的预编译版本] 或 下载 .net4.0 带窗体版本 [BaiduCloudDisk.Net4_150612.zip] 
 
 编译 (Openwrt)：
 ===================================
@@ -390,5 +390,6 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 [baidupcs-dependencies.zip]: https://sourceforge.net/projects/baidupcs/files/Dependencies/
 [适用Windows的预编译版本]:   https://sourceforge.net/projects/baidupcs/files/Windows/
+[BaiduCloudDisk.Net4_150612.zip]: https://sourceforge.net/projects/baidupcs/files/Windows/
 [Openwrt SDK]:               http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
 [预编译 ipk for Openwrt]:    http://sourceforge.net/projects/baidupcs/files/Openwrt/
