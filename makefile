@@ -71,7 +71,7 @@ bin/pcs_utils.o: pcs/pcs_utils.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pc
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_utils.c
 
 bin/libpcs.so: pre $(PCS_OBJS)
-	$(CC) -shared -fPIC -o $@ $(PCS_OBJS)
+	$(CC) -shared -fPIC -o $@ $(PCS_OBJS) -lm -lcurl
 
 pcs4-dev : pre bin/libpcs.so $(SHELL_OBJS)
 	$(CC) -o bin/pcs $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto -lpthread
