@@ -26,6 +26,8 @@ else
 CCFLAGS:=-g -D_FILE_OFFSET_BITS=64 -DDEBUG -D_DEBUG
 endif
 
+PCS_CCFLAGS = -fPIC
+
 all: bin/libpcs.a bin/pcs
 
 bin/pcs : pre bin/libpcs.a $(SHELL_OBJS)
@@ -68,13 +70,39 @@ bin/pcs_slist.o: pcs/pcs_slist.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_slist.h
 bin/pcs_utils.o: pcs/pcs_utils.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pcs/pcs_slist.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_utils.c
 
+bin/libpcs.so: pre $(PCS_OBJS)
+	$(CC) -shared -fPIC -o $@ $(PCS_OBJS)
+
+pcs4-dev : pre bin/libpcs.so $(SHELL_OBJS)
+	$(CC) -o bin/pcs $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto -lpthread
+
 .PHONY : install
 install:
 	cp ./bin/pcs /usr/local/bin
 
+.PHONY : uninstall
+uninstall:
+	rm /usr/local/bin/pcs
+
+.PHONY : install4-dev
+install4-dev:
+	mkdir /usr/local/include/pcs
+	cp ./pcs/*.h /usr/local/include/pcs/
+	cp ./bin/libpcs.so /usr/local/lib/
+	cp ./bin/pcs /usr/local/bin
+	ldconfig
+
+.PHONY : uninstall4-dev
+uninstall4-dev:
+	rm /usr/local/bin/pcs
+	rm /usr/local/lib/libpcs.so
+	rm /usr/local/include/pcs/*.h
+	rm -r /usr/local/include/pcs
+	ldconfig
+
 .PHONY : clean
 clean :
-	-rm ./bin/*.o ./bin/libpcs.a ./bin/pcs
+	-rm ./bin/*.o ./bin/*.so ./bin/libpcs.a ./bin/pcs
 
 .PHONY : pre
 pre :
