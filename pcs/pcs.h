@@ -301,7 +301,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz);
  * 必须指定写入下载内容的函数，可通过PCS_OPTION_DOWNLOAD_WRITE_FUNCTION选项来指定
  * 成功后返回PCS_OK，失败则返回错误编号
  */
-PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t max_speed, curl_off_t resume_from);
+PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t max_speed, curl_off_t resume_from, curl_off_t max_length);
 
 /*
  * 获取待下载文件的字节大小

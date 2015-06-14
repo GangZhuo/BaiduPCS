@@ -2452,7 +2452,7 @@ PCS_API PcsPanApiRes *pcs_copy(Pcs handle, PcsSList2 *slist)
 	return res;
 }
 
-static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state, curl_off_t max_speed, curl_off_t resume_from)
+static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunction write, void *write_state, curl_off_t max_speed, curl_off_t resume_from, curl_off_t max_length)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url;
@@ -2476,7 +2476,7 @@ static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunc
 		pcs_set_errmsg(handle, "Can't build the url.");
 		return PCS_BUILD_URL;
 	}
-	if (pcs_http_get_download(pcs->http, url, PcsTrue, max_speed, resume_from)) {
+	if (pcs_http_get_download(pcs->http, url, PcsTrue, max_speed, resume_from, max_length)) {
 		pcs_free(url);
 		return PCS_OK;
 	}
@@ -2489,10 +2489,10 @@ static PcsRes pcs_download_normal(Pcs handle, const char *path, PcsHttpWriteFunc
 	return PCS_FAIL;
 }
 
-PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t max_speed, curl_off_t resume_from)
+PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t max_speed, curl_off_t resume_from, curl_off_t max_length)
 {
 	struct pcs *pcs = (struct pcs *)handle;
-	return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data, max_speed, resume_from);
+	return pcs_download_normal(handle, path, pcs->download_func, pcs->download_data, max_speed, resume_from, max_length);
 }
 
 PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path)
@@ -2551,7 +2551,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 	if (pcs->buffer) pcs_free(pcs->buffer);
 	pcs->buffer = NULL;
 	pcs->buffer_size = 0;
-	rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs, 0, 0);
+	rc = pcs_download_normal(handle, path, &pcs_cat_write_func, pcs, 0, 0, 0);
 	if (rc != PCS_OK) {
 		return NULL;
 	}

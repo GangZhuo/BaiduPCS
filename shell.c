@@ -3219,7 +3219,7 @@ static void *download_thread(void *params)
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write_for_multy_thread,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, ts,
 			PCS_OPTION_END);
-		res = pcs_download(pcs, ds->remote_file, convert_to_real_speed(context->max_speed_per_thread), ts->start);
+		res = pcs_download(pcs, ds->remote_file, convert_to_real_speed(context->max_speed_per_thread), ts->start, ts->end - ts->start);
 		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_OK) {
 			lock_for_download(ds);
 			if (!ds->pErrMsg) {
@@ -3482,7 +3482,7 @@ static inline int do_download(ShellContext *context,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
 			PCS_OPTION_END);
-		res = pcs_download(context->pcs, remote_path, convert_to_real_speed(context->max_speed_per_thread), 0);
+		res = pcs_download(context->pcs, remote_path, convert_to_real_speed(context->max_speed_per_thread), 0, 0);
 		fclose(ds.pf);
 		if (res != PCS_OK) {
 			if (pErrMsg) {
