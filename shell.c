@@ -5044,7 +5044,7 @@ static int cmd_download(ShellContext *context, struct args *arg)
 	}
 	else if (local && !local->isdir) {
 		if (!is_force) {
-			fprintf(stderr, "Error: The local file: %s exist. You can specify '-f' to force override.\n", locPath);
+			fprintf(stderr, "Error: The local file: %s exist. You can specify '-f' to force override.\n", arg->argv[1]);
 			DestroyLocalFileInfo(local);
 			if (!u8_is_utf8_sys()) pcs_free(locPath);
 			return -1;
@@ -5097,7 +5097,7 @@ static int cmd_download(ShellContext *context, struct args *arg)
 		if (!u8_is_utf8_sys()) pcs_free(locPath);
 		return -1;
 	}
-	printf("Download %s to %s Success.\n", meta->path, locPath);
+	printf("Download %s to %s Success.\n", meta->path, arg->argv[1]);
 	pcs_fileinfo_destroy(meta);
 	if (errmsg) pcs_free(errmsg);
 	pcs_free(path);
@@ -5267,7 +5267,7 @@ static int cmd_encode(ShellContext *context, struct args *arg)
 	dstInfo = GetLocalFileInfo(dst);
 	if (dstInfo) {
 		if (dstInfo->isdir) {
-			fprintf(stderr, "Error: The dest is directory. %s", dst);
+			fprintf(stderr, "Error: The dest is directory. %s", arg->argv[1]);
 			DestroyLocalFileInfo(dstInfo);
 			if (!u8_is_utf8_sys()) {
 				pcs_free(src);
@@ -5276,7 +5276,7 @@ static int cmd_encode(ShellContext *context, struct args *arg)
 			return -1;
 		}
 		else if (!force) {
-			fprintf(stderr, "Error: The dest is exist. You can use '-f' to force override. %s", dst);
+			fprintf(stderr, "Error: The dest is exist. You can use '-f' to force override. %s", arg->argv[1]);
 			DestroyLocalFileInfo(dstInfo);
 			if (!u8_is_utf8_sys()) {
 				pcs_free(src);
@@ -6308,7 +6308,7 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 		return -1;
 	}
 	else if (local->isdir) {
-		fprintf(stderr, "Error: The local file is directory: %s. \nYou can use 'synch -cu' command to upload the directory.\n", locPath);
+		fprintf(stderr, "Error: The local file is directory: %s. \nYou can use 'synch -cu' command to upload the directory.\n", arg->argv[0]);
 		DestroyLocalFileInfo(local);
 		if (!u8_is_utf8_sys()) pcs_free(locPath);
 		return -1;
@@ -6392,7 +6392,7 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 		if (!u8_is_utf8_sys()) pcs_free(locPath);
 		return -1;
 	}
-	printf("Upload %s to %s Success.\n", locPath, path);
+	printf("Upload %s to %s Success.\n", arg->argv[0], path);
 	if (errmsg) pcs_free(errmsg);
 	pcs_free(path);
 	if (meta) pcs_fileinfo_destroy(meta);
