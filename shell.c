@@ -6282,7 +6282,7 @@ static int cmd_upload(ShellContext *context, struct args *arg)
 	const char *opts[] = { "f", NULL };
 	int is_force = 0;
 	char *path = NULL, *errmsg = NULL;
-	const char *relPath = NULL, *locPath = NULL;
+	char *relPath = NULL, *locPath = NULL;
 
 	LocalFileInfo *local;
 	PcsFileInfo *meta;
