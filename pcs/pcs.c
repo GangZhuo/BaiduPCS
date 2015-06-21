@@ -2353,7 +2353,7 @@ PCS_API PcsFileInfo *pcs_meta(Pcs handle, const char *path)
 	key = pcs_utils_filename(path);
 	if (strlen(key) > 64) {
 		unsigned char *p = (unsigned char *)key + 64;
-		while ((*p) > 127 && (((*p) & 0xC0) != 0xC0) && p > key)
+		while ((*p) > 127 && (((*p) & 0xC0) != 0xC0) && p > (unsigned char *)key)
 			p--;
 		*p = '\0';
 	}
