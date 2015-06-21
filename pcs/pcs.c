@@ -2351,6 +2351,8 @@ PCS_API PcsFileInfo *pcs_meta(Pcs handle, const char *path)
 	pcs_clear_errmsg(handle);
 	dir = pcs_utils_basedir(path);
 	key = pcs_utils_filename(path);
+	if (strlen(key) > 64)
+		key[64] = '\0';
 	filist = pcs_search(handle, dir, key, PcsFalse);
 	pcs_free(dir);
 	pcs_free(key);
