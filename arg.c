@@ -50,7 +50,7 @@ static void free_opt(void *p)
 }
 
 /*解析参数*/
-int parse_arg(struct args *arg, int argc, char *argv[])
+int parse_arg(struct args *arg, int argc, char *argv[], char *(*s2utf8)(const char *s))
 {
 	int i, j = 0;
 	char *p, *op, *val;
@@ -75,7 +75,7 @@ int parse_arg(struct args *arg, int argc, char *argv[])
 				p++;
 				val = findchar(p, '=');
 				if (ht_has(arg->opts, p, val - p)) return -1; /*重复指定参数*/
-				if (ht_add(arg->opts, p, val - p, (*val) == '=' ? arg_strdup(val + 1) : NULL))
+				if (ht_add(arg->opts, p, val - p, (*val) == '=' ? (s2utf8 ? s2utf8(val + 1) : arg_strdup(val + 1)) : NULL))
 					return -1; /*添加到哈希表中失败*/
 			}
 			else {
@@ -92,7 +92,7 @@ int parse_arg(struct args *arg, int argc, char *argv[])
 			arg->cmd = p;
 		}
 		else {
-			arg->argv[j++] = p;
+			arg->argv[j++] = s2utf8 ? s2utf8(p) : arg_strdup(p);
 		}
 	}
 	return 0;
@@ -101,7 +101,14 @@ int parse_arg(struct args *arg, int argc, char *argv[])
 void free_args(struct args *arg)
 {
 	if (arg->opts) ht_destroy(arg->opts);
-	if (arg->argv) pcs_free(arg->argv);
+	if (arg->argv) {
+		int i;
+		for (i = 0; i < arg->argc; i++) {
+			char *p = arg->argv[i];
+			if (p) pcs_free(p);
+		}
+		pcs_free(arg->argv);
+	}
 }
 
 /*判断是否存在opt选项

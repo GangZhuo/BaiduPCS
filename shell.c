@@ -386,6 +386,20 @@ int u8_tombs_size(const char *src, int srcsz)
 	err = WideCharToMultiByte(GetConsoleCP(), WC_COMPOSITECHECK, unicode, unicode_size, NULL, 0, NULL, NULL);
 	return err;
 }
+
+char *s2utf8(const char *s)
+{
+	int sl = strlen(s);
+	int sz = u8_mbs_toutf8_size(s, sl);
+	char *res = 0;
+	res = (char *)pcs_malloc(sz + 1);
+	if (!res)
+		return 0;
+	memset(res, 0, sz + 1);
+	u8_mbs_toutf8(res, sz, s, sl);
+	return res;
+}
+
 # define printf u8_printf
 
 # define sleep(s) Sleep((s) * 1000)
@@ -403,6 +417,18 @@ int truncate(const char *file, int64_t size)
 		return 0;
 	}
 	return -1;
+}
+
+#else
+/*判断当前操作系统编码是否是UTF-8编码*/
+int u8_is_utf8_sys()
+{
+	return 1;
+}
+
+char *s2utf8(const char *s)
+{
+	return pcs_utils_strdup(s);
 }
 
 #endif
@@ -6443,7 +6469,7 @@ int main(int argc, char *argv[])
 	char *errmsg = NULL, *val = NULL;
 	setlocale(LC_ALL, "chs");
 	app_name = filename(argv[0]);
-	if (parse_arg(&arg, argc, argv)) {
+	if (parse_arg(&arg, argc, argv, u8_is_utf8_sys() ? NULL : s2utf8)) {
 		usage();
 		free_args(&arg);
 		return -1;
