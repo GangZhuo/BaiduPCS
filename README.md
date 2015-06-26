@@ -390,6 +390,6 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 [baidupcs-dependencies.zip]: https://sourceforge.net/projects/baidupcs/files/Dependencies/
 [适用Windows的预编译版本]:   https://sourceforge.net/projects/baidupcs/files/Windows/
-[BaiduCloudDisk for .Net 4.0]: https://sourceforge.net/projects/baidupcs/files/Windows/
+[BaiduCloudDisk for .Net 4.0]: https://github.com/GangZhuo/BaiduPCS_NET/releases
 [Openwrt SDK]:               http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
 [预编译 ipk for Openwrt]:    http://sourceforge.net/projects/baidupcs/files/Openwrt/
