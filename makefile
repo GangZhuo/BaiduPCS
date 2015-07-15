@@ -26,7 +26,7 @@ else
 CCFLAGS:=-g -D_FILE_OFFSET_BITS=64 -DDEBUG -D_DEBUG
 endif
 
-PCS_CCFLAGS = -fPIC
+PCS_CCFLAGS = -fPIC $(CCFLAGS)
 
 all: bin/libpcs.a bin/pcs
 
