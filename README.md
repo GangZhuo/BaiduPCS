@@ -389,7 +389,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 3. 上传大文件后，通过 'pcs meta'获取到的md5值与本地文件计算出的md5不匹配，这个应是百度网盘的bug。（测试时，把上传的文件下载到本地后，对比md5匹配）
 
 [baidupcs-dependencies.zip]: https://sourceforge.net/projects/baidupcs/files/Dependencies/
-[适用Windows的预编译版本]:   https://sourceforge.net/projects/baidupcs/files/Windows/
+[适用Windows的预编译版本]:   https://github.com/GangZhuo/BaiduPCS/releases
 [BaiduCloudDisk for .Net 4.0]: https://github.com/GangZhuo/BaiduPCS_NET/releases
 [Openwrt SDK]:               http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
 [预编译 ipk for Openwrt]:    http://sourceforge.net/projects/baidupcs/files/Openwrt/
