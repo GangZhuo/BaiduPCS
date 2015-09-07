@@ -5,7 +5,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 支持线程限速。具体查看'pcs set'和'pcs context'命令的说明。
 * 支持AES-CBC-128, AES-CBC-192, AES-CBC-256加密。
 
-简单使用教程见： https://github.com/GangZhuo/BaiduPCS/wiki/BaiduPCS-%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8
+查看 [初级使用教程]
 
 编译 (Debian)：
 ===================================
@@ -395,3 +395,4 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 [BaiduCloudDisk for .Net 4.0]: https://github.com/GangZhuo/BaiduPCS_NET/releases
 [Openwrt SDK]:               http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
 [预编译 ipk for Openwrt]:    http://sourceforge.net/projects/baidupcs/files/Openwrt/
+[初级使用教程]:    https://github.com/GangZhuo/BaiduPCS/wiki/BaiduPCS-%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8
