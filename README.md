@@ -5,6 +5,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 支持线程限速。具体查看'pcs set'和'pcs context'命令的说明。
 * 支持AES-CBC-128, AES-CBC-192, AES-CBC-256加密。
 
+简单使用教程见： https://github.com/GangZhuo/BaiduPCS/wiki/BaiduPCS-%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8
+
 编译 (Debian)：
 ===================================
 程序依赖于 libcurl。
@@ -47,7 +49,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 命令列表：
 ===================================
-    如果出现中文乱码，请检查操作系统的当前编码是否为UTF8。
+    如果出现中文乱码，请检查操作系统的当前编码是否为UTF-8。
     命令中涉及到的网盘文件路径，可以是绝对路径，也可以是相对于当前工作目录的相对路径。
     例：
         /data/data.txt 即是网盘绝对路径，表示网盘根目录下的data目录中的data.txt文件。
@@ -386,7 +388,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 ===================================
 * 1. 上传大文件时，程序会计算文件的MD5值，此过程耗时较久。
 * 2. 下载大文件时，程序会在磁盘上预分配文件空间，此过程耗时较久。
-* 3. 上传大文件后，通过 'pcs meta'获取到的md5值与本地文件计算出的md5不匹配，这个应是百度网盘的bug。（测试时，把上传的文件下载到本地后，对比md5匹配）
+* 3. 上传大文件后，通过 'pcs meta'获取到的md5值与本地文件计算出的md5不匹配，这个应是百度网盘的bug。（测试时，把上传的文件下载到本地后，对比md5值是匹配的）
 
 [baidupcs-dependencies.zip]: https://sourceforge.net/projects/baidupcs/files/Dependencies/
 [适用Windows的预编译版本]:   https://github.com/GangZhuo/BaiduPCS/releases
