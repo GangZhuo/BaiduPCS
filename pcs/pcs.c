@@ -2503,7 +2503,17 @@ PCS_API PcsRes pcs_download(Pcs handle, const char *path, curl_off_t max_speed, 
 
 PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path)
 {
-	struct pcs *pcs = (struct pcs *)handle;
+    PcsFileInfo *meta;
+    int64_t fs_sz = -1;
+    meta = pcs_meta(handle, path);
+	if (meta) {
+	    if (!meta->isdir)
+    		fs_sz = meta->size;
+        pcs_fileinfo_destroy(meta);
+	}
+    return fs_sz;
+
+	/*struct pcs *pcs = (struct pcs *)handle;
 	char *url;
 	const char *errmsg;
 	int64_t size;
@@ -2523,7 +2533,7 @@ PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path)
 	errmsg = pcs_http_strerror(pcs->http);
 	if (errmsg)
 		pcs_set_serrmsg(handle, errmsg);
-	return size;
+	return size;*/
 }
 
 static size_t pcs_cat_write_func(char *ptr, size_t size, size_t contentlength, void *userdata)

@@ -3504,6 +3504,19 @@ static inline int do_download(ShellContext *context,
 
 	fsize = pcs_get_download_filesize(context->pcs, remote_path);
 	ds.file_size = fsize;
+    if (fsize < 1) {
+		if (pErrMsg) {
+			if (*pErrMsg) pcs_free(*pErrMsg);
+			(*pErrMsg) = pcs_utils_sprintf("Can't get the file size.\n");
+		}
+		if (op_st) (*op_st) = OP_ST_FAIL;
+		DeleteFileRecursive(tmp_local_path);
+		pcs_free(tmp_local_path);
+		pcs_free(local_path);
+        pcs_free(remote_path);
+		uninit_download_state(&ds);
+		return -1;
+	}
 
 	if (fsize <= MIN_SLICE_SIZE) {
 		/*启动下载*/

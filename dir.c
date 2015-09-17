@@ -10,22 +10,25 @@
 # include <stdio.h>
 # include <stdlib.h>
 # include <string.h>
+# include <time.h>
 # include <sys/types.h>
 # include <sys/stat.h>
 # include <alloca.h>
 # include <unistd.h>
 # include <dirent.h>
 # ifdef HAVE_UTIME_H
-#    include <utime.h>
+#   ifdef WIN32
+#     include <sys/utime.h>
+#   endif
+#   ifdef LINUX
+#     include <utime.h>
+#   endif
 # else
-#  ifdef HAVE_SYS_UTIME_H
-#    include <sys/utime.h>
-#  else
  struct utimbuf {
 	time_t actime;
 	time_t modtime;
  };
-#  endif
+ int utime(const char *filename, const struct utimbuf *times);
 # endif
 
 #endif
