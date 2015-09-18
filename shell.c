@@ -6045,6 +6045,7 @@ static int cmd_search(ShellContext *context, struct args *arg)
 	const char *relPath = NULL, *keyword = NULL;
 
 	PcsFileInfoList *list = NULL;
+	int fscount = 0;
 
 	if (test_arg(arg, 1, 2, "r", "h", "help", NULL)) {
 		usage_search();
@@ -6087,12 +6088,13 @@ static int cmd_search(ShellContext *context, struct args *arg)
 		}
 		print_filelist_head(4);
 		pcs_free(path);
-		return 0;
+		return 1;
 	}
+	fscount = list->count;
 	print_filelist(list, NULL, NULL, NULL);
 	pcs_filist_destroy(list);
 	pcs_free(path);
-	return 0;
+	return fscount > 0 ? 0 : 1;
 }
 
 #pragma region synch
