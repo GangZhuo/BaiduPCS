@@ -5174,9 +5174,10 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 		//获取文件的内容
 		org = pcs_cat(context->pcs, path, &len);
 		if (org == NULL) {
-			fprintf(stderr, "Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
-			pcs_free(path);
-			return -1;
+			//fprintf(stderr, "Error: %s path=%s.\n", pcs_strerror(context->pcs), path);
+			//pcs_free(path);
+			//return -1;
+			org = "";
 		}
 		buf = (char *)org;
 		if (context->secure_enable) {
