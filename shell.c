@@ -5178,9 +5178,10 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 			//pcs_free(path);
 			//return -1;
 			org = "";
+			len = 0;
 		}
 		buf = (char *)org;
-		if (context->secure_enable) {
+		if (len > 0 && context->secure_enable) {
 			int context_secure_method = get_secure_method(context);
 			if (context_secure_method == PCS_SECURE_AES_CBC_128
 				|| context_secure_method == PCS_SECURE_AES_CBC_192
@@ -5202,7 +5203,8 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 		//拼接两个字符串
 		t = (char *)pcs_malloc(sz + len + 1);
 		assert(t);
-		memcpy(t, buf, len);
+		if (len > 0)
+			memcpy(t, buf, len);
 		memcpy(t + len, text, sz + 1);
 		sz += len;
 		if (need_free) pcs_free(buf);
