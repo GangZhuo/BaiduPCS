@@ -42,7 +42,6 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
         git clone https://github.com/GangZhuo/BaiduPCS.git
         popd
         make menuconfig # select Utilities/BaiduPCS
-        make -j
         make V=99 package/BaiduPCS/openwrt/compile
 
 #### 或下载 [预编译 ipk for Openwrt] ，CPU: ar71xx, brcm71xx, brcm47xx, ramips_24kec
