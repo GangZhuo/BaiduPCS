@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=BaiduPCS
-PKG_VERSION:=0.2.0
+PKG_VERSION:=0.2.1
 PKG_RELEASE:=$(PKG_SOURCE_VERSION)
 
 PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_URL:=https://github.com/GangZhuo/BaiduPCS/archive
-PKG_SOURCE:=$(PKG_VERSION).tar.gz
+#PKG_SOURCE_URL:=https://github.com/GangZhuo/BaiduPCS/archive
+#PKG_SOURCE:=$(PKG_VERSION).tar.gz
 PKG_BUILD_DEPENDS:=libopenssl libcurl libpthread
 
 #PKG_INSTALL:=1
@@ -23,7 +23,12 @@ define Package/BaiduPCS
 endef
 
 define Package/BaiduPCS/description
-The client for baidu net disk.
+	The client for baidu net disk.
+endef
+
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+	cp -r ../* $(PKG_BUILD_DIR)
 endef
 
 define Package/BaiduPCS/install
