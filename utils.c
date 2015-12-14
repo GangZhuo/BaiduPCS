@@ -287,18 +287,15 @@ char *combin_path(const char *base, int basesz, const char *filename)
 	char *result = NULL;
 #ifdef WIN32
 	char buf[MAX_PATH] = "";
-	if (basesz == -1) {
-		if (PathCombine(buf, base, filename)) {
-			result = i_strdup(buf, -1);
-		}
+	char *p = i_strdup(base, basesz),
+		*f = i_strdup(filename, -1);
+	p = fix_win_path(p);
+	f = fix_win_path(f);
+	if (PathCombine(buf, p, f)) {
+		result = i_strdup(buf, -1);
 	}
-	else {
-		char *p = i_strdup(base, basesz);
-		if (PathCombine(buf, p, filename)) {
-			result = i_strdup(buf, -1);
-		}
-		pcs_free(p);
-	}
+	pcs_free(p);
+	pcs_free(f);
 #else
 	if (basesz == -1) {
 		result = combin_net_disk_path(base, filename);
@@ -434,6 +431,21 @@ char *fix_unix_path(char *path)
 	char *p = path;
 	while (*p) {
 		if (*p == '\\') *p = '/';
+		p++;
+	}
+	return path;
+}
+
+/*
+* 修正路径。
+* 即把路径中斜杠替换为反斜杠。
+* 修正完成后，原样返回path
+*/
+char *fix_win_path(char *path)
+{
+	char *p = path;
+	while (*p) {
+		if (*p == '/') *p = '\\';
 		p++;
 	}
 	return path;

@@ -77,6 +77,13 @@ char *combin_net_disk_path(const char *base, const char *filename);
 char *fix_unix_path(char *path);
 
 /*
+* 修正路径。
+* 即把路径中斜杠替换为反斜杠。
+* 修正完成后，原样返回path
+*/
+char *fix_win_path(char *path);
+
+/*
 * 读取文件全部内容
 * file    - 待读取的文件
 * pBuffer - 文件的内容所在的内存指针将存入pBuffer指定的内存中

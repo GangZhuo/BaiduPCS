@@ -3436,6 +3436,7 @@ static inline int do_download(ShellContext *context,
 	struct DownloadState ds = { 0 };
 	char *local_path, *remote_path, *dir,
 		*tmp_local_path;
+	const char *local_filename;
 	int secure_method = 0;
 	int64_t fsize = 0;
 
@@ -3445,7 +3446,18 @@ static inline int do_download(ShellContext *context,
 	ds.pErrMsg = pErrMsg;
 	ds.status = 0;
 
-	local_path = combin_path(local_basedir, -1, local_file);
+	local_filename = filename(local_file);
+	if (strlen(local_filename) == 0) {
+		char *new_local_file;
+		dir = base_dir(local_file, -1);
+		new_local_file = combin_path(dir, -1, filename(remote_file));
+		local_path = combin_path(local_basedir, -1, new_local_file);
+		pcs_free(new_local_file);
+		pcs_free(dir);
+	}
+	else {
+		local_path = combin_path(local_basedir, -1, local_file);
+	}
 
 	/*创建目录*/
 	dir = base_dir(local_path, -1);
