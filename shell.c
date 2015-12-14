@@ -288,7 +288,7 @@ struct UploadThreadState {
 	struct UploadThreadState *next;
 };
 
-static char *app_name = NULL;
+static const char *app_name = NULL;
 
 /*
 * 检查是否登录
