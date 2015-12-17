@@ -201,6 +201,78 @@ static char *pcs_get_value_by_key(const char *html, const char *key)
 	return val;
 }
 
+/*从html中解析出类似于 yunData.setData(****) 的参数。*/
+static char *pcs_get_yunData(const char *html, const char *key)
+{
+#define ST_LEN 32
+	char *val = NULL, st[ST_LEN];
+	const char *p = html,
+		*end = NULL,
+		*tmp;
+	int i = strlen(key),
+		si = 0;
+
+	st[0] = '\0';
+#define st_push(c) st[++si] = (c)
+#define st_pop() st[si--]
+#define st_top() st[si]
+
+	while (*p) {
+		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
+			tmp = p + i;
+			PCS_SKIP_SPACE(tmp);
+			if (*tmp != '(') continue; tmp++;
+			PCS_SKIP_SPACE(tmp);
+			if (*tmp != '{') continue;
+			end = tmp;
+
+			while (*end) {
+				if (st_top() == '\\') {
+					st_pop();
+				}
+				else {
+					switch (*end) {
+					case '"':
+						if (st_top() == '"') {
+							st_pop();
+						}
+						else {
+							st_push('"');
+						}
+						break;
+					case '\\':
+						st_push('\\');
+						break;
+					case '{':
+					case '[':
+					case '(':
+						if (st_top() != '"')
+							st_push(*end);
+						break;
+					case '}':
+					case ']':
+					case ')':
+						if (st_top() != '"')
+							st_pop();
+						break;
+					}
+				}
+				if (si == 0)
+					break;
+				end++;
+			}
+			if (*end == '}') {
+				val = (char *)pcs_malloc(end - tmp + 2);
+				memcpy(val, tmp, end - tmp + 1);
+				val[end - tmp + 1] = '\0';
+				return val;
+			}
+		}
+		p++;
+	}
+	return val;
+}
+
 /*从URL地址的QueryString中解析出类似于 &error=123&a= 的值。此例中，key传入"&error"，将返回123*/
 static char *pcs_get_embed_query_int_value_by_key(const char *html, const char *key)
 {
@@ -1272,6 +1344,35 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	pcs->bdstoken = pcs_get_value_by_key(html, "yunData.MYBDSTOKEN");
 	if (!pcs->bdstoken || strlen(pcs->bdstoken) == 0) {
 		pcs->bdstoken = pcs_get_value_by_key(html, "FileUtils.bdstoken");
+	}
+	if (!pcs->bdstoken || strlen(pcs->bdstoken) == 0) {
+		cJSON *json, *item;
+		char *jsonData = pcs_get_yunData(html, "yunData.setData");
+		if (!jsonData) {
+			return PCS_NOT_LOGIN;
+		}
+		json = cJSON_Parse(jsonData);
+		if (!json) {
+			pcs_free(jsonData);
+			return PCS_NOT_LOGIN;
+		}
+		item = cJSON_GetObjectItem(json, "bdstoken");
+		if (!item || !item->valuestring || strlen(item->valuestring) == 0) {
+			pcs_free(jsonData);
+			cJSON_Delete(json);
+			return PCS_NOT_LOGIN;
+		}
+		pcs->bdstoken = pcs_utils_strdup(item->valuestring);
+		if (pcs->bduss) pcs_free(pcs->bduss);
+		pcs->bduss = pcs_http_get_cookie(pcs->http, "BDUSS");
+		if (pcs->sysUID) pcs_free(pcs->sysUID);
+		item = cJSON_GetObjectItem(json, "username");
+		if (item && item->valuestring) {
+			pcs->sysUID = pcs_utils_strdup(item->valuestring);
+		}
+		pcs_free(jsonData);
+		cJSON_Delete(json);
+		return PCS_LOGIN;
 	}
 	if (pcs->bdstoken != NULL && strlen(pcs->bdstoken) > 0) {
 		//printf("bdstoken: %s\n", pcs->bdstoken);
