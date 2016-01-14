@@ -14,7 +14,7 @@ CYGWIN_CCFLAGS =
 endif
 
 ifeq ($(LC_OS_NAME), darwin)
-APPLE_CCFLAGS = -largp
+APPLE_CCFLAGS = -I/usr/local/opt/openssl/include
 else
 APPLE_CCFLAGS = 
 endif
@@ -26,7 +26,7 @@ else
 CCFLAGS:=-g -D_FILE_OFFSET_BITS=64 -DDEBUG -D_DEBUG
 endif
 
-PCS_CCFLAGS = -fPIC $(CCFLAGS)
+PCS_CCFLAGS = -fPIC $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS)
 
 all: bin/libpcs.a bin/pcs
 
@@ -102,7 +102,7 @@ uninstall4-dev:
 
 .PHONY : clean
 clean :
-	-rm ./bin/*.o ./bin/*.so ./bin/libpcs.a ./bin/pcs
+	-rm -f ./bin/*.o ./bin/*.so ./bin/libpcs.a ./bin/pcs
 
 .PHONY : pre
 pre :
