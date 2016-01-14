@@ -35,6 +35,20 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 #### 下载 [适用Windows的预编译版本] 或 下载 .net4.0 带窗体版本 [BaiduCloudDisk for .Net 4.0] 
 
+编译 (Mac)：
+===================================
+### 1. 获取源代码
+    git clone https://github.com/GangZhuo/BaiduPCS.git
+### 2. 安装依赖
+	brew install openssl
+### 3. 编译源代码
+    cd BaiduPCS
+    make clean
+    make
+    make install #将安装到/usr/local/bin下
+### 4. 手动安装到其他目录，例如 /usr/bin 下
+    cp ./bin/pcs /usr/bin/
+
 编译 (Openwrt)：
 ===================================
 ### 进入 [Openwrt SDK] 目录，然后执行如下命令：
