@@ -20,25 +20,32 @@ static unsigned int calcHash1(const char *key, int key_size, int ignore_case)
 	return nr;
 }
 
-static unsigned int calcHash2(const char *key, int key_size)
+static unsigned int calcHash2(const char *key, int key_size, int ignore_case)
 {
-	unsigned int hash = 0;
+	unsigned int hash = 0, ch;
 	int i;
 	if (key_size == -1) key_size = strlen(key);
 	for (i = 0; i < key_size; i++) {
+		ch = (unsigned int)key[i];
+		if (ch >= 'A' && ch <= 'Z' && ignore_case && (i == 0 || !(key[i - 1] & 0x80)))
+			ch += 'a' - 'A';
 		hash *= 16777619;
-		hash ^= (unsigned int) key[i];
+		hash ^= ch;
 	}
 	return (hash);
 }
 
-static unsigned int calcHash3(const char *key, int key_size)
+static unsigned int calcHash3(const char *key, int key_size, int ignore_case)
 {
-	unsigned int h;
+	unsigned int h, ch;
 	int i;
 	if (key_size == -1) key_size = strlen(key);
-	for (h = 0, i = 0; i < key_size; i++)
-		h = 31 * h + ((unsigned int)key[i]);
+	for (h = 0, i = 0; i < key_size; i++) {
+		ch = (unsigned int)key[i];
+		if (ch >= 'A' && ch <= 'Z' && ignore_case && (i == 0 || !(key[i - 1] & 0x80)))
+			ch += 'a' - 'A';
+		h = 31 * h + (ch);
+	}
 	return h;
 }
 
@@ -86,8 +93,8 @@ static int table_add_item(HashtableNode **table, int real_capacity, const char *
 	HashtableNode *last = NULL, *p;
 	if (key_size == -1) key_size = strlen(key);
 	nHash = calcHash1(key, key_size, ignore_case);
-	nHashA = calcHash2(key, key_size);
-	nHashB = calcHash3(key, key_size);
+	nHashA = calcHash2(key, key_size, ignore_case);
+	nHashB = calcHash3(key, key_size, ignore_case);
 	pos = nHash % real_capacity;
 	p = table[pos];
 	if (!p) {
@@ -123,8 +130,8 @@ static int table_set_item(HashtableNode **table, int real_capacity, const char *
 	HashtableNode *last = NULL, *p;
 	if (key_size == -1) key_size = strlen(key);
 	nHash = calcHash1(key, key_size, ignore_case);
-	nHashA = calcHash2(key, key_size);
-	nHashB = calcHash3(key, key_size);
+	nHashA = calcHash2(key, key_size, ignore_case);
+	nHashB = calcHash3(key, key_size, ignore_case);
 	pos = nHash % real_capacity;
 	p = table[pos];
 	if (pHasOld) (*pHasOld) = 0;
@@ -143,6 +150,7 @@ static int table_set_item(HashtableNode **table, int real_capacity, const char *
 	if (p) {
 		if (pHasOld) (*pHasOld) = 1;
 		if (pOldVal) (*pOldVal) = p->value;
+		p->key = key;
 		p->value = value;
 		return 0;
 	}
@@ -164,8 +172,8 @@ static HashtableNode *table_get_item(HashtableNode **table, int real_capacity, c
 	pos = nHash % real_capacity;
 	p = table[pos];
 	if (!p) return NULL;
-	nHashA = calcHash2(key, key_size);
-	nHashB = calcHash3(key, key_size);
+	nHashA = calcHash2(key, key_size, ignore_case);
+	nHashB = calcHash3(key, key_size, ignore_case);
 	while (p) {
 		if (p->hashA == nHashA && p->hashB == nHashB) {
 			break;
@@ -185,8 +193,8 @@ static HashtableNode *table_remove_item(HashtableNode **table, int real_capacity
 	pos = nHash % real_capacity;
 	p = table[pos];
 	if (p) {
-		nHashA = calcHash2(key, key_size);
-		nHashB = calcHash3(key, key_size);
+		nHashA = calcHash2(key, key_size, ignore_case);
+		nHashB = calcHash3(key, key_size, ignore_case);
 		while (p) {
 			if (p->hashA == nHashA && p->hashB == nHashB) {
 				break;
@@ -199,7 +207,7 @@ static HashtableNode *table_remove_item(HashtableNode **table, int real_capacity
 				prev->next = p->next;
 			}
 			else {
-				table[pos] = NULL;
+				table[pos] = p->next;
 			}
 			p->next = NULL;
 		}
