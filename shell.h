@@ -28,6 +28,7 @@ typedef struct ShellContext
 	int			timeout_retry;  /*是否启用超时后重试*/
 	int			max_thread; /*指定最大线程数量*/
 	int			max_speed_per_thread; /*指定单个线程的最多下载速度*/
+	int			max_upload_speed_per_thread; /*指定单个线程的最大上传速度*/
 } ShellContext;
 
 #endif

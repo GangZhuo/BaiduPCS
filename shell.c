@@ -1730,6 +1730,10 @@ static char *context2str(ShellContext *context)
 	assert(item);
 	cJSON_AddItemToObject(root, "max_speed_per_thread", item);
 
+	item = cJSON_CreateNumber(context->max_upload_speed_per_thread);
+	assert(item);
+	cJSON_AddItemToObject(root, "max_upload_speed_per_thread", item);
+
 	json = cJSON_Print(root);
 	assert(json);
 
@@ -1912,6 +1916,16 @@ static int restore_context(ShellContext *context, const char *filename)
 		}
 	}
 
+	item = cJSON_GetObjectItem(root, "max_upload_speed_per_thread");
+	if (item) {
+		if (((int)item->valueint) < 0) {
+			printf("warning: Invalid context.max_upload_speed_per_thread, the value should be >= 0, use default value: %d.\n", context->max_upload_speed_per_thread);
+		}
+		else {
+			context->max_upload_speed_per_thread = (int)item->valueint;
+		}
+	}
+
 	cJSON_Delete(root);
 	pcs_free(filecontent);
 	return 0;
@@ -1936,6 +1950,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->timeout_retry = 1;
 	context->max_thread = 1;
 	context->max_speed_per_thread = 0;
+	context->max_upload_speed_per_thread = 0;
 }
 
 /*释放上下文*/
@@ -2325,6 +2340,7 @@ static void usage_set()
 	printf("  timeout_retry        Boolean    true|false. \n");
 	printf("  max_thread           UInt       > 0 and < %d. The max number of thread that allow create.\n", MAX_THREAD_NUM);
 	printf("  max_speed_per_thread Int        >= 0. The max speed in KiB per thread.\n");
+	printf("  max_upload_speed_per_thread Int >= 0. The max speed in KiB per thread.\n");
 	printf("\nSamples:\n");
 	printf("  %s set -h\n", app_name);
 	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
@@ -2642,6 +2658,23 @@ static int set_max_speed_per_thread(ShellContext *context, const char *val)
 	v = atoi(val);
 	if (v < 0) return -1;
 	context->max_speed_per_thread = v;
+	return 0;
+}
+
+/*设置上下文中的max_upload_speed_per_thread值*/
+static int set_max_upload_speed_per_thread(ShellContext *context, const char *val)
+{
+	const char *p = val;
+	int v;
+	if (!val || !val[0]) return -1;
+	while (*p) {
+		if (*p < '0' || *p > '9')
+			return -1;
+		p++;
+	}
+	v = atoi(val);
+	if (v < 0) return -1;
+	context->max_upload_speed_per_thread = v;
 	return 0;
 }
 
@@ -3935,7 +3968,8 @@ static void *upload_thread(void *params)
 		ds->uploaded_size -= ts->uploaded_size;
 		ts->uploaded_size = 0;
 
-		res = pcs_upload_slicefile(pcs, &read_slice, ts, (size_t)(ts->end - ts->start));
+		res = pcs_upload_slicefile(pcs, &read_slice, ts, (size_t)(ts->end - ts->start),
+			convert_to_real_speed(context->max_upload_speed_per_thread));
 		if (!res) {
 			lock_for_upload(ds);
 			if (ds->pErrMsg && !(*ds->pErrMsg)) {
@@ -4142,7 +4176,8 @@ static inline int do_upload(ShellContext *context,
 			PCS_OPTION_PROGRESS, (void *)((long)PcsTrue),
 			//PCS_OPTION_TIMEOUT, (void *)0L,
 			PCS_OPTION_END);
-		res = pcs_upload(context->pcs, remote_path, is_force, local_path);
+		res = pcs_upload(context->pcs, remote_path, is_force, local_path,
+			convert_to_real_speed(context->max_upload_speed_per_thread));
 		//pcs_setopts(context->pcs,
 		//	PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
 		//	PCS_OPTION_END);
@@ -5241,7 +5276,8 @@ static int cmd_echo(ShellContext *context, struct args *arg)
 		}
 	}
 
-	f = pcs_upload_buffer(context->pcs, path, PcsTrue, buf, sz);
+	f = pcs_upload_buffer(context->pcs, path, PcsTrue, buf, sz,
+		convert_to_real_speed(context->max_upload_speed_per_thread));
 	if (!f) {
 		fprintf(stderr, "Error: %s. path = %s\n", pcs_strerror(context->pcs), path);
 		pcs_free(path);
@@ -6037,6 +6073,14 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	if (has_optEx(arg, "max_speed_per_thread", &val)) {
 		count++;
 		if (set_max_speed_per_thread(context, val)) {
+			usage_set();
+			return -1;
+		}
+	}
+
+	if (has_optEx(arg, "max_upload_speed_per_thread", &val)) {
+		count++;
+		if (set_max_upload_speed_per_thread(context, val)) {
 			usage_set();
 			return -1;
 		}

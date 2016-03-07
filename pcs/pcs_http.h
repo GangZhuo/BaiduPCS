@@ -231,13 +231,14 @@ PCS_API void pcs_http_form_destroy(PcsHttp handle, PcsHttpForm post);
  * 向服务器发送一个POST请求。该方法可以上传文件到服务器。
  *   url             服务器地址
  *   data            发送到服务器的数据。
+ *   max_speed       最大上传速度。
  *   follow_location 假如服务器返回跳转到另一个页面的指令时，是否自动跳转过去，如果跳转的话，则返回跳转后页面的内容
  * 返回服务器返回的内容。内容自动解码为当前操作系统使用的编码。
  * 例如：在Windows系统中，如果系统编码为GB2312，则返回内容自动解码为GB2312编码；在Linux系统中，系统编码为UTF-8，则返回内容的编码则为UTF-8
  * Not need call pcs_free(void *) to free the return value.
  * The memory will auto free when call pcs_http_destroy
 */
-PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm data, PcsBool follow_location);
+PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm data, curl_off_t max_speed, PcsBool follow_location);
 
 /*以字符串形式返回所有Cookie数据。*/
 PCS_API char *pcs_http_cookie_data(PcsHttp handle);

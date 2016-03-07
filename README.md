@@ -161,10 +161,13 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 	                                                                因为频繁调用api去获取目录下文件名称
 	                                                                将导致一些api调用超时，此选项用于控制超时时
 	                                                                是否重试。*/
-	    "max_thread":	    5,                                /*下载时允许的最大线程数*/
+	    "max_thread":	        5,                                /*下载时允许的最大线程数*/
 	    "max_speed_per_thread": 0                                 /*设置的是单个线程的最大下载速度。0表示不限速。
 	                                                                单位为KiB。例，如果设置为100，共有5线程，
-	                                                                则总的最大下载速度将在500KiB/s上下微浮动。*/
+	                                                                则总的最大下载速度将在500KiB/s上下浮动。*/
+	    "max_upload_speed_per_thread": 0                          /*设置的是单个线程的最大上传速度。0表示不限速。
+	                                                                单位为KiB。例，如果设置为100，共有5线程，
+	                                                                则总的最大上传速度将在500KiB/s上下浮动。*/
     }
     
 
@@ -316,6 +319,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 	--timeout_retry=[true|false]       设置执行synch和compare时，获取目录下文件超时时，是否允许重试
 	--max_thread=<num>                 设置下载时允许的最大线程数
 	--max_speed_per_thread=<num>       设置单线程的最大下载速度。单位为KiB。详细查看'pcs context'命令中对上下文文件的说明
+	--max_upload_speed_per_thread=<num>设置单线程的最大上传速度。单位为KiB。详细查看'pcs context'命令中对上下文文件的说明
 
     示例：
       pcs set -h

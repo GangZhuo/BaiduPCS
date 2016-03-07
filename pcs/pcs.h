@@ -9,7 +9,7 @@
 #include "pcs_slist.h"
 #include "pcs_utils.h"
 
-#define PCS_API_VERSION "v1.1.1"
+#define PCS_API_VERSION "v1.1.2"
 
 #define PCS_RAPIDUPLOAD_THRESHOLD (256 * 1024)
 
@@ -315,27 +315,31 @@ PCS_API int64_t pcs_get_download_filesize(Pcs handle, const char *path);
  *              例，如果文件file.txt以存在，则上传后新的文件自动变更为file20140117.txt
  *   buffer     待上传的字节序
  *   buffer_size 字节序的字节大小
+ *   max_speed  最大上传速度
  * 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
  * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
  * 失败则返回 NULL。
  */
-PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, const char *buffer, size_t buffer_size);
+PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite,
+	const char *buffer, size_t buffer_size, curl_off_t max_speed);
 
 /*
 * 上传分片数据
 *   buffer     待上传的字节序
 *   buffer_size 字节序的字节大小
+*   max_speed  最大上传速度
 * 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
 * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
 * 失败则返回 NULL。
 */
-PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buffer_size);
+PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buffer_size, curl_off_t max_speed);
 
 /*
 * 上传分片文件
 *   read_func     读取分片文件的方法
 *   userdata	  程序本身不使用该参数，仅原样传递到 read_func 函数中
 *   content_size  待上传分片文件的大小
+*   max_speed  最大上传速度
 * 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
 * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
 * 失败则返回 NULL。
@@ -343,7 +347,7 @@ PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buf
 PCS_API PcsFileInfo *pcs_upload_slicefile(Pcs handle,
 	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata),
 	void *userdata,
-	size_t content_size);
+	size_t content_size, curl_off_t max_speed);
 
 /*合并分片*/
 PCS_API PcsFileInfo *pcs_create_superfile(Pcs handle, const char *path, PcsBool overwrite, PcsSList *block_list);
@@ -354,13 +358,14 @@ PCS_API PcsFileInfo *pcs_create_superfile(Pcs handle, const char *path, PcsBool 
  *   overwrite  指定是否覆盖原文件，传入PcsTrue则覆盖，传入PcsFalse，则会使用当前日期重命名。
  *              例，如果文件file.txt以存在，则上传后新的文件自动变更为file20140117.txt
  *   local_filename 待上传的本地文件
+ *   max_speed  最大上传速度
  * 通过PCS_OPTION_PROGRESS_FUNCTION选项设定进度条回调用，使用PCS_OPTION_PROGRESS启用进度条回调，可简单实现上传进度
  * 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
  * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
  * 失败则返回 NULL。
  */
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
-									   const char *local_filename);
+									   const char *local_filename, curl_off_t max_speed);
 /*
 * 上传文件到网盘
 *   to_path		  目标文件，地址需写全，如/temp/file.txt
@@ -369,6 +374,7 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 *   read_func     读取文件的方法
 *   userdata	  程序本身不使用该参数，仅原样传递到 read_func 函数中
 *   content_size  待上传文件的大小
+*   max_speed     最大上传速度
 * 成功后，返回PcsFileInfo类型实例，该实例包含网盘中新文件的路径等信息
 * 使用完成后需调用 pcs_fileinfo_destroy() 方法释放。
 * 失败则返回 NULL。
@@ -376,7 +382,7 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 PCS_API PcsFileInfo *pcs_upload_s(Pcs handle, const char *to_path, PcsBool overwrite,
 	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata),
 	void *userdata,
-	size_t content_size);
+	size_t content_size, curl_off_t max_speed);
 
 /*获取本地文件的大小*/
 PCS_API int64_t pcs_local_filesize(Pcs handle, const char *path);

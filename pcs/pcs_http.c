@@ -90,7 +90,9 @@ enum HttpMethod
 };
 
 static inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod method, const char *url, PcsBool follow_location,
-	PcsHttpWriteFunction write_func, void *state, curl_off_t max_speed, curl_off_t resume_from, curl_off_t max_length)
+	PcsHttpWriteFunction write_func, void *state,
+	curl_off_t max_recv_speed, curl_off_t max_send_speed,
+	curl_off_t resume_from, curl_off_t max_length)
 {
 	pcs_http_reset_response(http);
 	curl_easy_setopt(http->curl, CURLOPT_USERAGENT, http->usage ? http->usage : USAGE);
@@ -124,8 +126,8 @@ static inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod metho
 		curl_easy_setopt(http->curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)0);
 	}
 
-	curl_easy_setopt(http->curl, CURLOPT_MAX_RECV_SPEED_LARGE, max_speed ? max_speed : (curl_off_t)0);
-
+	curl_easy_setopt(http->curl, CURLOPT_MAX_RECV_SPEED_LARGE, max_recv_speed ? max_recv_speed : (curl_off_t)0);
+	curl_easy_setopt(http->curl, CURLOPT_MAX_SEND_SPEED_LARGE, max_send_speed ? max_send_speed : (curl_off_t)0);
 
 	if (follow_location)
 		curl_easy_setopt(http->curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -758,7 +760,7 @@ PCS_API int pcs_http_get_response_size(PcsHttp handle)
 PCS_API char *pcs_http_get(PcsHttp handle, const char *url, PcsBool follow_location)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
-	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, 0, 0, 0);
+	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, 0, 0, 0, 0);
 	return pcs_http_perform(http, url);
 }
 
@@ -766,7 +768,7 @@ PCS_API char *pcs_http_get_raw(PcsHttp handle, const char *url, PcsBool follow_l
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
 	char *data;
-	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, 0, 0, 0);
+	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, 0, 0, 0, 0);
 	http->res_type = PCS_HTTP_RES_TYPE_RAW;
 	data = pcs_http_perform(http, url);
 	if (sz) *sz = http->res_body_size;
@@ -776,7 +778,7 @@ PCS_API char *pcs_http_get_raw(PcsHttp handle, const char *url, PcsBool follow_l
 PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, PcsBool follow_location)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
-	pcs_http_prepare(http, HTTP_METHOD_POST, url, follow_location, &pcs_http_write, http, 0, 0, 0);
+	pcs_http_prepare(http, HTTP_METHOD_POST, url, follow_location, &pcs_http_write, http, 0, 0, 0, 0);
 	if (post_data)
 		curl_easy_setopt(http->curl, CURLOPT_POSTFIELDS, post_data);  
 	else
@@ -787,7 +789,8 @@ PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, Pc
 PCS_API PcsBool pcs_http_get_download(PcsHttp handle, const char *url, PcsBool follow_location, curl_off_t max_speed, curl_off_t resume_from, curl_off_t max_length)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
-	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, max_speed, resume_from, max_length);
+	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http,
+		max_speed, 0, resume_from, max_length);
 	http->res_type = PCS_HTTP_RES_TYPE_DOWNLOAD;
 	pcs_http_perform(http, url);
 	return http->strerror == NULL ? PcsTrue : PcsFalse;
@@ -803,7 +806,7 @@ PCS_API int64_t pcs_http_get_download_filesize(PcsHttp handle, const char *url, 
 	CURLcode res;
 	double downloadFileLenth = 0;
 	struct pcs_http *http = (struct pcs_http *)handle;
-	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, pcs_http_null_write, NULL, 0, 0, 0);
+	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, pcs_http_null_write, NULL, 0, 0, 0, 0);
 	curl_easy_setopt(http->curl, CURLOPT_NOBODY, 1L);   //不需要body
 	res = curl_easy_perform(http->curl);
 	if (res == CURLE_OK) {
@@ -912,12 +915,12 @@ PCS_API void pcs_http_form_destroy(PcsHttp handle, PcsHttpForm post)
 	}
 }
 
-PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm data, PcsBool follow_location)
+PCS_API char *pcs_post_httpform(PcsHttp handle, const char *url, PcsHttpForm data, curl_off_t max_speed, PcsBool follow_location)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
 	struct http_post *formpost = (struct http_post *)data;
 	char *rc;
-	pcs_http_prepare(http, HTTP_METHOD_POST, url, follow_location, &pcs_http_write, http, 0, 0, 0);
+	pcs_http_prepare(http, HTTP_METHOD_POST, url, follow_location, &pcs_http_write, http, 0, max_speed, 0, 0);
 	if (data){
 		curl_easy_setopt(http->curl, CURLOPT_HTTPPOST, formpost->formpost); 
 		if (formpost->read_func) {

@@ -896,7 +896,7 @@ static int pcs_get_errno_from_api_res(Pcs handle, const char *html)
 	return res;
 }
 
-static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsHttpForm form, const char *ondup)
+static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsHttpForm form, curl_off_t max_speed, const char *ondup)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url, *html,
@@ -919,7 +919,7 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsHttpForm fo
 		pcs_set_errmsg(handle, "Can't build the url.");
 		return NULL;
 	}
-	html = pcs_post_httpform(pcs->http, url, form, PcsTrue);
+	html = pcs_post_httpform(pcs->http, url, form, max_speed, PcsTrue);
 	pcs_free(url);
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
@@ -956,7 +956,7 @@ static PcsFileInfo *pcs_upload_form(Pcs handle, const char *path, PcsHttpForm fo
 	return meta;
 }
 
-static PcsFileInfo *pcs_upload_slice_form(Pcs handle, PcsHttpForm form)
+static PcsFileInfo *pcs_upload_slice_form(Pcs handle, PcsHttpForm form, curl_off_t max_speed)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *url, *html;
@@ -973,7 +973,7 @@ static PcsFileInfo *pcs_upload_slice_form(Pcs handle, PcsHttpForm form)
 		pcs_set_errmsg(handle, "Can't build the url.");
 		return NULL;
 	}
-	html = pcs_post_httpform(pcs->http, url, form, PcsTrue);
+	html = pcs_post_httpform(pcs->http, url, form, max_speed, PcsTrue);
 	pcs_free(url);
 	if (!html) {
 		const char *errmsg = pcs_http_strerror(pcs->http);
@@ -2092,7 +2092,7 @@ PCS_API const char *pcs_cat(Pcs handle, const char *path, size_t *dstsz)
 	return pcs->buffer;
 }
 
-PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, const char *buffer, size_t buffer_size)
+PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool overwrite, const char *buffer, size_t buffer_size, curl_off_t max_speed)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *filename;
@@ -2110,13 +2110,13 @@ PCS_API PcsFileInfo *pcs_upload_buffer(Pcs handle, const char *path, PcsBool ove
 		return NULL;
 	}
 	pcs_free(filename);
-	meta = pcs_upload_form(handle, path, form, overwrite ? "overwrite" : "newcopy");
+	meta = pcs_upload_form(handle, path, form, max_speed, overwrite ? "overwrite" : "newcopy");
 	pcs_http_form_destroy(pcs->http, form);
 	if (buf != buffer) pcs_free(buf);
 	return meta;
 }
 
-PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buffer_size)
+PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buffer_size, curl_off_t max_speed)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsHttpForm form = NULL;
@@ -2130,7 +2130,7 @@ PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buf
 		if (buf != buffer) pcs_free(buf);
 		return NULL;
 	}
-	meta = pcs_upload_slice_form(handle, form);
+	meta = pcs_upload_slice_form(handle, form, max_speed);
 	pcs_http_form_destroy(pcs->http, form);
 	if (buf != buffer) pcs_free(buf);
 	return meta;
@@ -2139,7 +2139,7 @@ PCS_API PcsFileInfo *pcs_upload_slice(Pcs handle, const char *buffer, size_t buf
 PCS_API PcsFileInfo *pcs_upload_slicefile(Pcs handle, 
 	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata),
 	void *userdata,
-	size_t content_size)
+	size_t content_size, curl_off_t max_speed)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsHttpForm form = NULL;
@@ -2150,7 +2150,7 @@ PCS_API PcsFileInfo *pcs_upload_slicefile(Pcs handle,
 		pcs_set_errmsg(handle, "Can't build the post data.");
 		return NULL;
 	}
-	meta = pcs_upload_slice_form(handle, form);
+	meta = pcs_upload_slice_form(handle, form, max_speed);
 	pcs_http_form_destroy(pcs->http, form);
 	return meta;
 }
@@ -2244,7 +2244,7 @@ PCS_API PcsFileInfo *pcs_create_superfile(Pcs handle, const char *path, PcsBool 
 }
 
 PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite, 
-									   const char *local_filename)
+									   const char *local_filename, curl_off_t max_speed)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *filename;
@@ -2259,7 +2259,7 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 		return NULL;
 	}
 	pcs_free(filename);
-	meta = pcs_upload_form(handle, path, form, overwrite ? "overwrite" : "newcopy");
+	meta = pcs_upload_form(handle, path, form, max_speed, overwrite ? "overwrite" : "newcopy");
 	pcs_http_form_destroy(pcs->http, form);
 	return meta;
 }
@@ -2267,7 +2267,7 @@ PCS_API PcsFileInfo *pcs_upload(Pcs handle, const char *path, PcsBool overwrite,
 PCS_API PcsFileInfo *pcs_upload_s(Pcs handle, const char *to_path, PcsBool overwrite,
 	size_t(*read_func)(void *ptr, size_t size, size_t nmemb, void *userdata),
 	void *userdata,
-	size_t content_size)
+	size_t content_size, curl_off_t max_speed)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	char *filename;
@@ -2280,7 +2280,7 @@ PCS_API PcsFileInfo *pcs_upload_s(Pcs handle, const char *to_path, PcsBool overw
 		pcs_set_errmsg(handle, "Can't build the post data.");
 		return NULL;
 	}
-	meta = pcs_upload_form(handle, to_path, form, overwrite ? "overwrite" : "newcopy");
+	meta = pcs_upload_form(handle, to_path, form, max_speed, overwrite ? "overwrite" : "newcopy");
 	pcs_http_form_destroy(pcs->http, form);
 	return meta;
 }
