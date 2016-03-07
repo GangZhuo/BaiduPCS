@@ -150,7 +150,7 @@ static int table_set_item(HashtableNode **table, int real_capacity, const char *
 	if (p) {
 		if (pHasOld) (*pHasOld) = 1;
 		if (pOldVal) (*pOldVal) = p->value;
-		p->key = key;
+		//p->key = key;
 		p->value = value;
 		return 0;
 	}
