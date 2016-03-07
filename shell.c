@@ -3549,7 +3549,7 @@ static inline int do_download(ShellContext *context,
 
 	fsize = pcs_get_download_filesize(context->pcs, remote_path);
 	ds.file_size = fsize;
-    if (fsize < 1) {
+    if (fsize < 0) {
 		if (pErrMsg) {
 			if (*pErrMsg) pcs_free(*pErrMsg);
 			(*pErrMsg) = pcs_utils_sprintf("Can't get the file size.\n");
