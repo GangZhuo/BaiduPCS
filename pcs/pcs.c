@@ -1318,7 +1318,7 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	int http_code;
 
 	pcs_clear_errmsg(handle);
-	html = pcs_http_get(pcs->http, URL_DISK_HOME, PcsFalse);
+	html = pcs_http_get(pcs->http, URL_DISK_HOME, PcsTrue);
 	http_code = pcs_http_code(pcs->http);
 	if (http_code != 200) {
 		if (http_code != 302) {
