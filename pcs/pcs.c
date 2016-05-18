@@ -221,7 +221,8 @@ static char *pcs_get_yunData(const char *html, const char *key)
 		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
 			tmp = p + i;
 			PCS_SKIP_SPACE(tmp);
-			if (*tmp != '(') continue; tmp++;
+			//if (*tmp != '(') continue; tmp++;
+			if (*tmp != '=') continue; tmp++;
 			PCS_SKIP_SPACE(tmp);
 			if (*tmp != '{') continue;
 			end = tmp;
@@ -1347,7 +1348,8 @@ PCS_API PcsRes pcs_islogin(Pcs handle)
 	}
 	if (!pcs->bdstoken || strlen(pcs->bdstoken) == 0) {
 		cJSON *json, *item;
-		char *jsonData = pcs_get_yunData(html, "yunData.setData");
+		char *jsonData = pcs_get_yunData(html, "context");
+		//char *jsonData = pcs_get_yunData(html, "yunData.setData");
 		if (!jsonData) {
 			return PCS_NOT_LOGIN;
 		}
