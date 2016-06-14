@@ -221,10 +221,13 @@ static char *pcs_get_yunData(const char *html, const char *key)
 		if (*p == key[0] && pcs_utils_streq(p, key, i)) {
 			tmp = p + i;
 			PCS_SKIP_SPACE(tmp);
-			//if (*tmp != '(') continue; tmp++;
-			if (*tmp != '=') continue; tmp++;
+			if (*tmp != '=') {
+				p++; continue;
+			}tmp++;
 			PCS_SKIP_SPACE(tmp);
-			if (*tmp != '{') continue;
+			if (*tmp != '{') {
+				p++; continue;
+			}
 			end = tmp;
 
 			while (*end) {
