@@ -1671,6 +1671,25 @@ try_login:
 			return PCS_OK;
 		}
 	}
+    else if (error == 120021) {
+        // force verify
+        char *authtoken = pcs_get_embed_query_token_by_key(html, "&authtoken");
+        char *loginproxy = pcs_get_embed_query_token_by_key(html, "&loginproxy");
+        url = pcs_utils_sprintf("http://passport.baidu.com/v2/sapi/authwidgetverify?authtoken=%s&&type=mobile&jsonp=1&apiver=v3&verifychannel=&action=send&vcode=&questionAndAnswer=&needsid=&rsakey=&countrycode=&subpro=netdisk_web&callback=bd__cbs__dl4txf", authtoken);
+        html = pcs_http_get(pcs->http, url, PcsTrue);
+        pcs_free(url);
+        //TODO: verify 'errno': should be 110000
+        //TODO: get mobile verify code, feed to captch
+        url = pcs_utils_sprintf("http://passport.baidu.com/v2/sapi/authwidgetverify?authtoken=%s&&type=mobile&jsonp=1&apiver=v3&verifychannel=&action=check&vcode=%s&questionAndAnswer=&needsid=&rsakey=&countrycode=&subpro=netdisk_web&callback=bd__cbs__dl4txf", authtoken, captch);
+        html = pcs_http_get(pcs->http, url, PcsTrue);
+        pcs_free(url);
+        //TODO:verify 'errno': should be 110000
+        html = pcs_http_get(pcs->http, loginproxy, PcsTrue);
+        //TODO: check response
+
+        pcs_free(loginproxy);
+        pcs_free(authtoken);
+    }
 	pcs_set_errmsg(handle, "error: %d %s", error, get_login_errmsg(error));
 	pcs_free(token);
 	pcs_free(code_string);
