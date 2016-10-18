@@ -1671,7 +1671,7 @@ try_login:
 			return PCS_OK;
 		}
 	}
-	pcs_set_errmsg(handle, "%s", get_login_errmsg(error));
+	pcs_set_errmsg(handle, "error: %d %s", error, get_login_errmsg(error));
 	pcs_free(token);
 	pcs_free(code_string);
 	pcs_free(codetype);
