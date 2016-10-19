@@ -125,3 +125,23 @@ PCS_API PcsSList2 *pcs_slist2_add_ex(PcsSList2 *slist, const char *src1, int len
 	return p;
 }
 
+PCS_API PcsSList2 *pcs_slist2_clone(PcsSList2 *slist)
+{
+	PcsSList2 *newlist = 0, *p = slist, *n = 0;
+    while (p) {
+        if (n) {
+            n = pcs_slist2_add_ex(n, p->string1, strlen(p->string1), p->string2, strlen(p->string2));
+        }
+        else {
+            n = newlist = pcs_slist2_create_ex(p->string1, strlen(p->string1), p->string2, strlen(p->string2));
+        }
+        if (!n) {
+            pcs_slist2_destroy(newlist);
+            newlist = 0;
+            break;
+        }
+        p = p->next;
+    }
+    return newlist;
+}
+
