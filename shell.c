@@ -1577,6 +1577,10 @@ static void print_filelist_head(int size_width, int thumb)
 	printf("File Name");
     if (thumb) {
         putchar(' ');
+        putchar(' ');
+        putchar(' ');
+        putchar(' ');
+        printf("Thumb Url");
     }
     putchar('\n');
 }
