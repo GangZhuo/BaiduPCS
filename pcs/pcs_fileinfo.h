@@ -2,6 +2,7 @@
 #define _PCS_FILEINFO_H
 
 #include "pcs_defs.h"
+#include "pcs_slist.h"
 
 /* 用于存储网盘中文件的元数据 */
 typedef struct PcsFileInfo {
@@ -23,6 +24,8 @@ typedef struct PcsFileInfo {
 	PcsBool		ifhassubdir; /* 是否含有子目录, 只有 pcs_meta() 设置该值  */
 
 	int			user_flag;
+
+    PcsSList2   *thumbs;
 } PcsFileInfo;
 
 /*网盘中文件元数据链表的单个节点*/
@@ -51,6 +54,8 @@ PCS_API PcsFileInfo *pcs_fileinfo_create();
 PCS_API void pcs_fileinfo_destroy(PcsFileInfo *fi);
 /*复制一份PcsFileInfo。注意是深克隆。*/
 PCS_API PcsFileInfo *pcs_fileinfo_clone(PcsFileInfo *fi);
+/*添加缩略图到 fi 中*/
+PCS_API PcsSList2 *pcs_fileinfo_add_thumb(PcsFileInfo *fi, const char *name, const char *url);
 
 PCS_API PcsFileInfoListItem *pcs_filistitem_create();
 PCS_API void pcs_filistitem_destroy(PcsFileInfoListItem *item);

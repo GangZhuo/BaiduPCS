@@ -29,9 +29,23 @@ PCS_API void pcs_fileinfo_destroy(PcsFileInfo *fi)
 		}
 		pcs_free(fi->block_list);
 	}
-	pcs_free(fi);
+    if (fi->thumbs) {
+        pcs_slist2_destroy(fi->thumbs);
+    }
+    pcs_free(fi);
 }
 
+PCS_API PcsSList2 *pcs_fileinfo_add_thumb(PcsFileInfo *fi, const char *name, const char *url)
+{
+    PcsSList2 *n;
+    if (fi->thumbs) {
+        n = pcs_slist2_add_ex(fi->thumbs, name, strlen(name), url, strlen(url));
+    }
+    else {
+        n = fi->thumbs = pcs_slist2_create_ex(name, strlen(name), url, strlen(url));
+    }
+    return n;
+}
 
 PCS_API PcsFileInfo *pcs_fileinfo_clone(PcsFileInfo *fi)
 {
@@ -69,7 +83,10 @@ PCS_API PcsFileInfo *pcs_fileinfo_clone(PcsFileInfo *fi)
 		}
 	}
 	res->ifhassubdir = fi->ifhassubdir;
-	return res;
+	if (fi->thumbs) {
+        res->thumbs = pcs_slist2_clone(fi->thumbs);
+    }
+    return res;
 }
 
 
