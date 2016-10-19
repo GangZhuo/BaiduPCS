@@ -1662,6 +1662,14 @@ static void print_fileinfo(PcsFileInfo *f, const char *prex)
 		printf("%smd5:\t\t%s\n", prex, f->md5);
 		printf("%sdlink:\t\t%s\n", prex, f->dlink);
 	}
+    if (f->thumbs) {
+        PcsSList2 *list = f->thumbs;
+        printf("%sthumbs:\n", prex);
+        while (list) {
+            printf("%s  %s: %s\n", prex, list->string1, list->string2);
+            list = list->next;
+        }
+    }
 }
 
 #pragma endregion
