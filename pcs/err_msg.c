@@ -23,10 +23,12 @@ const char *get_login_errmsg(int error)
 		break;
 	case 5: // "请在弹出的窗口操作,或重新登录";
 	case 120019: //请在弹出的窗口操作,或重新登录
-	case 120021: //登录失败,请在弹出的窗口操作,或重新登录
 	case 400031: //请在弹出的窗口操作,或重新登录
 		errmsg = "Try again";
 		break;
+	case 120021: //登录失败,请在弹出的窗口操作,或重新登录
+        errmsg = "Wrong sms password, please try again";
+        break;
 	case 6: // "您输入的验证码有误";
 		errmsg = "Wrong captcha";
 		break;
