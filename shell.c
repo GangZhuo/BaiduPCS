@@ -1203,6 +1203,14 @@ static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t
 	return PcsTrue;
 }
 
+
+static PcsBool input_str(const char *tips, char *value, size_t valueSize, void *state)
+{
+    printf("%s", tips);
+    std_string(value, valueSize);
+    return PcsTrue;
+}
+
 /*显示上传进度*/
 static int upload_progress(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
 {
@@ -1974,6 +1982,8 @@ static Pcs *create_pcs(ShellContext *context)
 	if (!pcs) return NULL;
 	pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, (void *)&verifycode);
 	pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION_DATA, (void *)context);
+    pcs_setopt(pcs, PCS_OPTION_INPUT_FUNCTION, (void *)&input_str);
+    pcs_setopt(pcs, PCS_OPTION_INPUT_FUNCTION_DATA, (void *)context);
 	pcs_setopts(pcs,
 		PCS_OPTION_PROGRESS_FUNCTION, (void *)&upload_progress,
 		PCS_OPTION_PROGRESS, (void *)((long)PcsFalse),
