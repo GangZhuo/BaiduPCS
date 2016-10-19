@@ -558,6 +558,18 @@ PCS_API void pcs_http_setopts(PcsHttp handle, ...)
     va_end(args);
 }
 
+PCS_API char *pcs_http_url_decode(PcsHttp handle, char *s)
+{
+    struct pcs_http *http = (struct pcs_http *)handle;
+    char *val;
+    int outlen;
+    val = curl_easy_unescape(http->curl, s, 0, &outlen);
+    memcpy(s, val, outlen);
+    s[outlen] = '\0';
+    curl_free(val);
+    return s;
+}
+
 PCS_API char *pcs_http_build_url_v(PcsHttp handle, const char *url, va_list args)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
