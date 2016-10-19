@@ -500,7 +500,22 @@ static PcsFileInfo *pcs_parse_fileinfo(cJSON * item)
 			}
 		}
 	}
-	return fi;
+    
+    list = cJSON_GetObjectItem(item, "thumbs");
+	if (list) {
+        val = cJSON_GetObjectItem(list, "url3");
+        if (val) pcs_fileinfo_add_thumb(fi, "url3", val->valuestring);
+
+        val = cJSON_GetObjectItem(list, "url2");
+        if (val) pcs_fileinfo_add_thumb(fi, "url2", val->valuestring);
+
+        val = cJSON_GetObjectItem(list, "url1");
+        if (val) pcs_fileinfo_add_thumb(fi, "url1", val->valuestring);
+
+        val = cJSON_GetObjectItem(list, "icon");
+        if (val) pcs_fileinfo_add_thumb(fi, "icon", val->valuestring);
+    }
+    return fi;
 }
 
 /*
