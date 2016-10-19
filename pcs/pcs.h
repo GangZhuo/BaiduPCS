@@ -23,6 +23,10 @@ typedef enum PcsOption {
 	PCS_OPTION_CAPTCHA_FUNCTION,
 	/* Pcs本身不使用该值，仅原样传递到PcsGetCaptcha函数中 */
 	PCS_OPTION_CAPTCHA_FUNCTION_DATA,
+    /* 值为 PcsInputFunction 类型的函数*/
+    PCS_OPTION_INPUT_FUNCTION,
+    /* Pcs 本身不使用该指，仅原样传递到回调函数中 */
+    PCS_OPTION_INPUT_FUNCTION_DATA,
 	/* 值为PcsHttpWriteFunction类型的函数 */
 	PCS_OPTION_DOWNLOAD_WRITE_FUNCTION,
 	/* Pcs本身不使用该值，仅原样传递到PcsHttpWriteFunction函数中 */
@@ -72,7 +76,8 @@ typedef enum PcsRes {
 	PCS_NOT_EXIST,
 	PCS_CLONE_OBJ,
 	PCS_WRONG_ARGS,
-
+    PCS_NO_INPUT_FUNC,
+    PCS_GET_INPUT_FAIL,
 
 
 } PcsRes;
@@ -87,6 +92,16 @@ typedef enum PcsRes {
  * 返回是否成功，返回PcsFalse，将导致登录中断
 */
 typedef PcsBool (*PcsGetCaptchaFunction)(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state);
+
+/*
+ * 当 Pcs 需要用户输入时，回调该函数用于获取用户输入值
+ *   tips  提示用户输入的字符串
+ *   value 用于接受用户输入
+ *   valueSize value 的最大长度,包括 '\0' 值
+ *   state 使用 PCS_OPTION_INPUT_FUNCTION_DATE 选项设定的值，将被原样传入
+ * 返回是否成功，返回 PcsFalse，将导致中断
+ */
+typedef PcsBool (*PcsInputFunction)(const char *tips, char *value, size_t valueSize, void *state);
 
 typedef void *Pcs;
 

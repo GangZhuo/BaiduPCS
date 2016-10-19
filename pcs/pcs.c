@@ -28,11 +28,13 @@
 
 #define PCS_SKIP_SPACE(p) while((*p) && (*p == ' ' || *p == '\f' || *p == '\n' || *p == '\r' || *p == '\t' || *p == '\v')) p++
 
-#define PCS_IS_TOKEN_CHAR(ch) (((ch) >= '0' && (ch) <= '9')\
-								   || ((ch) >= 'a' && (ch) <= 'z')\
-								   || ((ch) >= 'A' && (ch) <= 'Z')\
-								   || (ch) == '_'\
-								   || (ch) == '-')
+//#define PCS_IS_TOKEN_CHAR(ch) (((ch) >= '0' && (ch) <= '9')\
+//								   || ((ch) >= 'a' && (ch) <= 'z')\
+//								   || ((ch) >= 'A' && (ch) <= 'Z')\
+//								   || (ch) == '_'\
+//								   || (ch) == '-')
+
+#define PCS_IS_TOKEN_CHAR(ch) ((ch) != '&' && (ch) != '?' && (ch) != '#' && (ch) > 32 && (ch) < 127)
 
 #define URL_HOME			"http://www.baidu.com"
 #define URL_DISK_HOME		"http://pan.baidu.com/disk/home"
@@ -42,6 +44,10 @@
 #define URL_CAPTCHA			"https://passport.baidu.com/cgi-bin/genimage?"
 #define URL_PAN_API			"http://pan.baidu.com/api/"
 #define URL_PCS_REST		"http://c.pcs.baidu.com/rest/2.0/pcs/file"
+#define URL_AUTHWIDGET_VERIFY "http://passport.baidu.com/v2/sapi/authwidgetverify?" \
+                              "authtoken=%s&&type=mobile&jsonp=1&apiver=v3&verifychannel=&action=%s" \
+                              "&vcode=%s&questionAndAnswer=&needsid=&rsakey=&countrycode=" \
+                              "&subpro=netdisk_web&callback=bd__cbs__dl4txf"
 
 struct pcs {
 	char		*username;
@@ -55,6 +61,9 @@ struct pcs {
 
 	PcsGetCaptchaFunction		captcha_func;
 	void						*captcha_data;
+
+    PcsInputFunction        input_func;
+    void                    *input_func_data;
 
 	PcsHttp		http;
 
@@ -170,6 +179,22 @@ PcsRes pcs_get_captcha(Pcs handle, const char *code_string, char *captcha, int c
 	}
 	pcs_free(url);
 	return PCS_OK;
+}
+
+/* 调用用户注册的输入函数来让用户输入数据 */
+PcsRes pcs_input(Pcs handle, const char *tips, char *value, size_t valueSize)
+{
+    struct pcs *pcs = (struct pcs *)handle;
+    memset(value, 0, valueSize);
+    if (!pcs->input_func) {
+        pcs_set_errmsg(handle, "No input function, please regist the function by call pcs_setopt(handle, PCS_OPTION_INPUT_FUNCTION, pFun).");
+        return PCS_NO_INPUT_FUNC;
+    }
+    if (!(*pcs->input_func)(tips, value, valueSize, pcs->input_func_data)) {
+        pcs_set_errmsg(handle, "Can't get the user input");
+        return PCS_GET_INPUT_FAIL;
+    }
+    return PCS_OK;
 }
 
 /*从html中解析出类似于 FileUtils.bdstoken="****" 的值。此例中，key传入"FileUtils.bdstoken"，将返回"****"值*/
@@ -1258,6 +1283,12 @@ PCS_API PcsRes pcs_setopt(Pcs handle, PcsOption opt, void *value)
 	case PCS_OPTION_CAPTCHA_FUNCTION_DATA:
 		pcs->captcha_data = value;
 		break;
+    case PCS_OPTION_INPUT_FUNCTION:
+        pcs->input_func = (PcsInputFunction)value;
+        break;
+    case PCS_OPTION_INPUT_FUNCTION_DATA:
+        pcs->input_func_data = value;
+        break;
 	case PCS_OPTION_DOWNLOAD_WRITE_FUNCTION:
 		//pcs_http_setopt(pcs->http, PCS_HTTP_OPTION_HTTP_WRITE_FUNCTION, value);
 		pcs->download_func = (PcsHttpWriteFunction)value;
@@ -1397,7 +1428,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsRes res;
-	char *p, *html, *url, *token, *code_string, captch[8], *post_data, *tt, *codetype, *rsa_pwd = NULL/*, *ptmp*/;
+	char *p, *html, *url, *token, *code_string, captch[32], *post_data, *tt, *codetype, *rsa_pwd = NULL/*, *ptmp*/;
 	cJSON *json, *root, *item;
 	int error = -1, i;
 	const char *errmsg;
@@ -1578,6 +1609,9 @@ try_login:
 			return res;
 		}
 	}
+    else {
+        captch[0] = '\0';
+    }
 	tt = pcs_utils_sprintf("%d", (int)time(0));
 	post_data = pcs_http_build_post_data(pcs->http,
 		"staticpage", "http://pan.baidu.com/res/static/thirdparty/pass_v3_jump.html",
@@ -1673,22 +1707,66 @@ try_login:
 	}
     else if (error == 120021) {
         // force verify
-        char *authtoken = pcs_get_embed_query_token_by_key(html, "&authtoken");
-        char *loginproxy = pcs_get_embed_query_token_by_key(html, "&loginproxy");
-        url = pcs_utils_sprintf("http://passport.baidu.com/v2/sapi/authwidgetverify?authtoken=%s&&type=mobile&jsonp=1&apiver=v3&verifychannel=&action=send&vcode=&questionAndAnswer=&needsid=&rsakey=&countrycode=&subpro=netdisk_web&callback=bd__cbs__dl4txf", authtoken);
+        char *authtoken, *loginproxy;
+        authtoken = pcs_get_embed_query_token_by_key(html, "&authtoken");
+        loginproxy = pcs_get_embed_query_token_by_key(html, "&loginproxy");
+        url = pcs_utils_sprintf(URL_AUTHWIDGET_VERIFY, authtoken, "send", "");
         html = pcs_http_get(pcs->http, url, PcsTrue);
         pcs_free(url);
-        //TODO: verify 'errno': should be 110000
-        //TODO: get mobile verify code, feed to captch
-        url = pcs_utils_sprintf("http://passport.baidu.com/v2/sapi/authwidgetverify?authtoken=%s&&type=mobile&jsonp=1&apiver=v3&verifychannel=&action=check&vcode=%s&questionAndAnswer=&needsid=&rsakey=&countrycode=&subpro=netdisk_web&callback=bd__cbs__dl4txf", authtoken, captch);
+
+        //verify 'errno': should be 110000
+#define MCHECK_ERRNO() do { \
+        json = cJSON_Parse(extract_json_from_callback(html)); \
+	    if (!json || (root = cJSON_GetObjectItem(json, "errno")) == NULL || root->valueint != 110000){ \
+	        pcs_set_errmsg(handle, "Failed to send sms: %s", \
+                    json && (root = cJSON_GetObjectItem(json, "msg")) != NULL ? root->valuestring : ""); \
+			pcs_free(token); \
+			pcs_free(code_string); \
+			pcs_free(codetype); \
+			if (rsa_pwd) pcs_free(rsa_pwd); \
+            pcs_free(authtoken); \
+            pcs_free(loginproxy); \
+            if (json) cJSON_Delete(json); \
+			return PCS_FAIL; \
+        } \
+	    if (json) \
+	        cJSON_Delete(json); \
+} while (0)
+        
+        MCHECK_ERRNO();
+        res = pcs_input(pcs, "Please input the sms password"
+                " (If your phone do not receive a sms password, press CTRL+C, and then login again.):", captch, sizeof(captch));
+		if (res != PCS_OK) {
+			pcs_set_errmsg(handle, "canceled");
+			pcs_free(token);
+			pcs_free(code_string);
+			pcs_free(codetype);
+			if (rsa_pwd) pcs_free(rsa_pwd);
+            pcs_free(authtoken);
+            pcs_free(loginproxy);
+			return res;
+		}
+
+        url = pcs_utils_sprintf(URL_AUTHWIDGET_VERIFY, authtoken, "check", captch);
         html = pcs_http_get(pcs->http, url, PcsTrue);
         pcs_free(url);
-        //TODO:verify 'errno': should be 110000
+        //verify 'errno': should be 110000
+        MCHECK_ERRNO();
+
+        if (loginproxy) pcs_http_url_decode(pcs->http, loginproxy);
         html = pcs_http_get(pcs->http, loginproxy, PcsTrue);
         //TODO: check response
 
         pcs_free(loginproxy);
         pcs_free(authtoken);
+
+        if (pcs_islogin(pcs) == PCS_LOGIN) {
+			pcs_free(token);
+			pcs_free(code_string);
+			pcs_free(codetype);
+			if (rsa_pwd) pcs_free(rsa_pwd);
+			return PCS_OK;
+		}
     }
 	pcs_set_errmsg(handle, "error: %d %s", error, get_login_errmsg(error));
 	pcs_free(token);
@@ -1696,6 +1774,7 @@ try_login:
 	pcs_free(codetype);
 	if (rsa_pwd) pcs_free(rsa_pwd);
 	return PCS_FAIL;
+#undef MCHECK_ERRNO
 }
 
 PCS_API PcsRes pcs_logout(Pcs handle)
