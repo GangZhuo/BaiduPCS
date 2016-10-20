@@ -1199,7 +1199,21 @@ static PcsBool verifycode(unsigned char *ptr, size_t size, char *captcha, size_t
 	fclose(pf);
 
 	printf("The captcha image at %s.\nPlease input the captcha code: ", savedfile);
+#ifdef WIN32
+	{
+		char fmt[32];
+		memset(captcha, 0, captchaSize);
+		snprintf(fmt, sizeof(fmt), "%%%ds", captchaSize - 1);
+		scanf(fmt, captcha);
+	}
+	if (!u8_is_utf8_sys()) {
+		char *u8s = mbs2utf8(captcha);
+		strncpy(captcha, u8s, captchaSize);
+		pcs_free(u8s);
+	}
+#else
 	std_string(captcha, captchaSize);
+#endif
 	return PcsTrue;
 }
 
