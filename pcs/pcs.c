@@ -1710,7 +1710,7 @@ try_login:
 		i++;
 		goto try_login;
 	}
-	else if (error == 0 || error == 18 || error == 120016
+	else if (error == 0 || error == 18
 		|| error == 400032 || error == 400034 || error == 400037 || error == 400401) {
 		if (pcs_islogin(pcs) == PCS_LOGIN) {
 			pcs_free(token);
