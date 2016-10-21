@@ -2214,6 +2214,7 @@ static void usage_list()
 	printf("\nDescription:\n");
 	printf("  List the directory\n");
 	printf("\nOptions:\n");
+	printf("  -md5   Print md5 if possiable.\n");
 	printf("  -thumb Print thumb url if possiable.\n");
 	printf("  -h     Print the usage.\n");
 	printf("\nSamples:\n");
@@ -2412,6 +2413,7 @@ static void usage_search()
 	printf("\nDescription:\n");
 	printf("  Search the files in the specify directory\n");
 	printf("\nOptions:\n");
+	printf("  -md5   Print md5 if possiable.\n");
 	printf("  -thumb Print thumb url if possiable.\n");
 	printf("  -h     Print the usage.\n");
 	printf("  -r     Recursive search the sub directories.\n");
@@ -2548,9 +2550,11 @@ static void usage()
 	printf("  upload   Upload the file\n");
 	printf("  version  Print the version\n");
 	printf("  who      Print the current user\n");
-	printf("Use '%s <command> -h' to print the details of the command. \n", app_name);
+	printf("Use '%s <command> -h' to print command usage. \n", app_name);
 	printf("Sample: \n");
 	printf("  %s help\n", app_name);
+	printf("  %s help cat\n", app_name);
+	printf("  %s cat -h\n", app_name);
 	printf("  %s cat /note.txt\n", app_name);
 	printf("  %s cd /temp\n", app_name);
 	printf("  %s cat /note.txt --context=/home/gang/.pcs_context\n", app_name);
