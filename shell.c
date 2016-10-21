@@ -414,6 +414,7 @@ char *utf82mbs(const char *s)
 }
 
 # define printf u8_printf
+# define snprintf _snprintf
 
 # define sleep(s) Sleep((s) * 1000)
 
@@ -1574,7 +1575,7 @@ static void print_uint64(const char *format, int64_t size)
 }
 
 /*打印文件列表的头*/
-static void print_filelist_head(int size_width, int thumb)
+static void print_filelist_head(int size_width, int md5, int thumb)
 {
 	int i;
 	putchar('D');
@@ -1583,15 +1584,17 @@ static void print_filelist_head(int size_width, int thumb)
 		putchar(' ');
 	printf("Size");
 	putchar(' ');
+	putchar(' ');
 	printf("Modify Date Time");
-	putchar(' ');
-	putchar(' ');
+	if (md5) {
+		putchar(' ');
+		putchar(' ');
+		printf("MD5");
+	}
 	putchar(' ');
 	putchar(' ');
 	printf("File Name");
     if (thumb) {
-        putchar(' ');
-        putchar(' ');
         putchar(' ');
         putchar(' ');
         printf("Thumb Url");
@@ -1600,7 +1603,7 @@ static void print_filelist_head(int size_width, int thumb)
 }
 
 /*打印文件列表的数据行*/
-static void print_filelist_row(PcsFileInfo *f, int size_width, int thumb)
+static void print_filelist_row(PcsFileInfo *f, int size_width, int md5, int thumb)
 {
 	const char *p;
 
@@ -1615,17 +1618,25 @@ static void print_filelist_row(PcsFileInfo *f, int size_width, int thumb)
 		putchar(*p++);
 	}
 	putchar(' ');
+	putchar(' ');
 	print_time("%s", f->server_mtime);
+	if (md5) {
+		putchar(' ');
+		putchar(' ');
+		printf("%s", f->md5);
+	}
+	putchar(' ');
 	putchar(' ');
 	printf("%s", f->path);
     if (thumb && f->thumbs) {
-        printf(" %s", f->thumbs->string2);
+        printf("  %s", f->thumbs->string2);
     }
     putchar('\n');
 }
 
 /*打印文件列表*/
-static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCount, int64_t *pTotalSize, int thumb)
+static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCount, int64_t *pTotalSize,
+	int md5, int thumb)
 {
 	char tmp[64] = { 0 };
 	int cnt_file = 0,
@@ -1652,12 +1663,12 @@ static void print_filelist(PcsFileInfoList *list, int *pFileCount, int *pDirCoun
 
 	if (size_width < 4)
 		size_width = 4;
-	print_filelist_head(size_width, thumb);
+	print_filelist_head(size_width, md5, thumb);
 	puts("------------------------------------------------------------------------------");
 	pcs_filist_iterater_init(list, &iterater, PcsFalse);
 	while (pcs_filist_iterater_next(&iterater)) {
 		file = iterater.current;
-		print_filelist_row(file, size_width, thumb);
+		print_filelist_row(file, size_width, md5, thumb);
 	}
 	puts("------------------------------------------------------------------------------");
 	pcs_utils_readable_size((double)total, tmp, 63, NULL);
@@ -5604,9 +5615,9 @@ static int cmd_list(ShellContext *context, struct args *arg)
 	char tmp[64] = { 0 };
 	int fileCount = 0, dirCount = 0;
 	int64_t totalSize = 0;
-    int thumb = 0;
+    int md5 = 0, thumb = 0;
 
-	if (test_arg(arg, 0, 1, "thumb", "h", "help", NULL)) {
+	if (test_arg(arg, 0, 1, "md5", "thumb", "h", "help", NULL)) {
 		usage_list();
 		return -1;
 	}
@@ -5628,7 +5639,8 @@ static int cmd_list(ShellContext *context, struct args *arg)
 		return -1;
 	}
 
-    thumb = has_opt(arg, "thumb");
+	md5 = has_opt(arg, "md5");
+	thumb = has_opt(arg, "thumb");
 
 	while (1) {
 		list = pcs_list(context->pcs, path,
@@ -5644,7 +5656,7 @@ static int cmd_list(ShellContext *context, struct args *arg)
 			break;
 		}
 		printf("PAGE#%d\n", page_index);
-		print_filelist(list, &fileCount, &dirCount, &totalSize, thumb);
+		print_filelist(list, &fileCount, &dirCount, &totalSize, md5, thumb);
 		if (list->count < context->list_page_size) {
 			pcs_filist_destroy(list);
 			break;
@@ -6151,12 +6163,12 @@ static int cmd_search(ShellContext *context, struct args *arg)
 	int is_recursive = 0;
 	char *path = NULL;
 	const char *relPath = NULL, *keyword = NULL;
-    int thumb = 0;
+    int md5 = 0, thumb = 0;
 
 	PcsFileInfoList *list = NULL;
 	int fscount = 0;
 
-	if (test_arg(arg, 1, 2, "thumb", "r", "h", "help", NULL)) {
+	if (test_arg(arg, 1, 2, "md5", "thumb", "r", "h", "help", NULL)) {
 		usage_search();
 		return -1;
 	}
@@ -6166,7 +6178,8 @@ static int cmd_search(ShellContext *context, struct args *arg)
 	}
 
 	is_recursive = has_opt(arg, "r");
-    thumb = has_opt(arg, "thumb");
+	md5 = has_opt(arg, "md5");
+	thumb = has_opt(arg, "thumb");
 
 	if (arg->argc == 1) {
 		keyword = arg->argv[0];
@@ -6196,12 +6209,12 @@ static int cmd_search(ShellContext *context, struct args *arg)
 			pcs_free(path);
 			return -1;
 		}
-		print_filelist_head(4, thumb);
+		print_filelist_head(4, md5, thumb);
 		pcs_free(path);
 		return 1;
 	}
 	fscount = list->count;
-	print_filelist(list, NULL, NULL, NULL, thumb);
+	print_filelist(list, NULL, NULL, NULL, md5, thumb);
 	pcs_filist_destroy(list);
 	pcs_free(path);
 	return fscount > 0 ? 0 : 1;
