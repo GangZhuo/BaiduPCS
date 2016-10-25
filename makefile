@@ -14,7 +14,7 @@ CYGWIN_CCFLAGS =
 endif
 
 ifeq ($(LC_OS_NAME), darwin)
-APPLE_CCFLAGS = -I/usr/local/opt/openssl/include
+APPLE_CCFLAGS = -I/usr/local/opt/openssl/include -L/usr/local/opt/openssl/lib
 else
 APPLE_CCFLAGS = 
 endif
