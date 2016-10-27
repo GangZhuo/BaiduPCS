@@ -2393,7 +2393,6 @@ static void usage_set()
 	printf("  secure_enable        Boolean    true|false\n");
 	printf("  secure_key           String     not null when 'secure_method' is not 'plaintext'\n");
 	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
-	printf("  secure_method        Enum       plaintext|aes-cbc-128|aes-cbc-192|aes-cbc-256\n");
 	printf("  timeout_retry        Boolean    true|false. \n");
 	printf("  max_thread           UInt       > 0 and < %d. The max number of thread that allow create.\n", MAX_THREAD_NUM);
 	printf("  max_speed_per_thread Int        >= 0. The max speed in KiB per thread.\n");
