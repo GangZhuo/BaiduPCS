@@ -5961,13 +5961,15 @@ static int cmd_remove(ShellContext *context, struct args *arg)
 	}
 
 	res = pcs_delete(context->pcs, &slist);
-	if (!res) {
+	if (!res || res->error != 0) {
 		fprintf(stderr, "Error: %s path=%s.\n", pcs_strerror(context->pcs), slist.string);
+		if (res)
+			pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string);
 		return -1;
 	}
 	info = res->info_list;
-	if (info->info.error) {
+	if (info && info->info.error) {
 		fprintf(stderr, "Error: unknow path=%s. \n", slist.string);
 		pcs_pan_api_res_destroy(res);
 		pcs_free(slist.string);
