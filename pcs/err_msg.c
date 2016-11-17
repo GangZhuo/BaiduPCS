@@ -129,27 +129,17 @@ const char *get_errmsg_by_errno(int error)
 	case 13:
 		errmsg = "This directory can not be shared";// "此目录无法共享";
 		break;
-	case 14:
-		errmsg = "System error";// "系统错误";
-		break;
 	case 103:
 		errmsg = "Extraction code error";// "提取码错误";
 		break;
 	case 104:
 		errmsg = "Invalid authentication cookie";// "验证cookie无效";
 		break;
+	case 14:
 	case 201:
-		errmsg = "System error";// "系统错误";
-		break;
 	case 202:
-		errmsg = "System error";// "系统错误";
-		break;
 	case 203:
-		errmsg = "System error";// "系统错误";
-		break;
 	case 204:
-		errmsg = "System error";// "系统错误";
-		break;
 	case 205:
 		errmsg = "System error";// "系统错误";
 		break;
