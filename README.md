@@ -165,9 +165,10 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 	    "max_speed_per_thread": 0                                 /*设置的是单个线程的最大下载速度。0表示不限速。
 	                                                                单位为KiB。例，如果设置为100，共有5线程，
 	                                                                则总的最大下载速度将在500KiB/s上下浮动。*/
-	    "max_upload_speed_per_thread": 0                          /*设置的是单个线程的最大上传速度。0表示不限速。
+	    "max_upload_speed_per_thread": 0,                         /*设置的是单个线程的最大上传速度。0表示不限速。
 	                                                                单位为KiB。例，如果设置为100，共有5线程，
 	                                                                则总的最大上传速度将在500KiB/s上下浮动。*/
+	    "user_agent": "netdisk;5.2.7;PC;PC-Windows;6.2.9200;WindowsBaiduYunGuanJia", /*指定 User-Agent。*/
     }
     
 
@@ -321,6 +322,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 	--max_thread=<num>                 设置下载时允许的最大线程数
 	--max_speed_per_thread=<num>       设置单线程的最大下载速度。单位为KiB。详细查看'pcs context'命令中对上下文文件的说明
 	--max_upload_speed_per_thread=<num>设置单线程的最大上传速度。单位为KiB。详细查看'pcs context'命令中对上下文文件的说明
+	--user_agent=<user-agent>          设置 User-Agent。
 
     示例：
       pcs set -h
