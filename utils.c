@@ -20,12 +20,6 @@
 #include "utils.h"
 
 
-#if defined(WIN32)
-# define snprintf _snprintf
-# define vsnprintf _vsnprintf
-#endif
-
-
 static inline char *i_strdup(const char *str, int len)
 {
 	char *res = 0;

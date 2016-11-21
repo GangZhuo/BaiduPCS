@@ -20,8 +20,6 @@
 #include <malloc.h>
 #include <stdint.h>
 typedef uint32_t u_int32_t;
-#define snprintf _snprintf
-#define vsnprintf _vsnprintf
 #else
 #include <alloca.h>
 #endif
