@@ -1,4 +1,4 @@
-﻿
+
 const char *get_login_errmsg(int error)
 {
 	const char *errmsg = 0;
@@ -16,7 +16,7 @@ const char *get_login_errmsg(int error)
 		errmsg = "Username not exist";
 		break;
 	case 3: // "验证码不存在或已过期,请重新输入";
-		errmsg = "Captcha expired";
+		errmsg = "Captcha invalid, try again";
 		break;
 	case 4: // "您输入的帐号或密码有误";
 		errmsg = "Wrong password";
@@ -24,25 +24,25 @@ const char *get_login_errmsg(int error)
 	case 5: // "请在弹出的窗口操作,或重新登录";
 	case 120019: //请在弹出的窗口操作,或重新登录
 	case 400031: //请在弹出的窗口操作,或重新登录
-		errmsg = "Try again";
+		errmsg = "See popped out window.";
 		break;
 	case 120021: //登录失败,请在弹出的窗口操作,或重新登录
-        errmsg = "Wrong sms password, please try again";
+        errmsg = "Wrong SMS password, please try again";
         break;
 	case 120016:
-		errmsg = "Account is at risk, please bind your phone on http://pan.baidu.com";
+		errmsg = "Account is at risk, please bind your phone on http://pan.baidu.com .";
 		break;
 	case 6: // "您输入的验证码有误";
-		errmsg = "Wrong captcha";
+		errmsg = "Wrong captcha.";
 		break;
 	case 7: // "密码错误，可以试试短信登录";
-		errmsg = "Wrong password, try sms password";
+		errmsg = "Wrong password, try sms password.";
 		break;
 	case 16: // "您的帐号因安全问题已被限制登录";
-		errmsg = "Your account locked";
+		errmsg = "Your account has been locked.";
 		break;
 	case 17: //您的帐号已锁定,请解锁后登录
-		errmsg = "Your account has been locked";
+		errmsg = "Your account has been locked. Login after unlock your account.";
 		break;
 	case 18:
 	case 400032:
@@ -52,31 +52,31 @@ const char *get_login_errmsg(int error)
 		errmsg = "";// no message, see https://github.com/GangZhuo/BaiduPCS/issues/29
 		break;
 	case 257: // "请输入验证码";
-		errmsg = "Wrong captcha";
+		errmsg = "Wrong captcha.";
 		break;
 	case 100005: //系统错误,请您稍后再试
-		errmsg = "System error, please try again later";
+		errmsg = "System error. Please try again later.";
 		break;
 	case 100023: //开启Cookie之后才能登录
-		errmsg = "Cookie not open";
+		errmsg = "Cookie must be open for login.";
 		break;
 	case 100027: // "百度正在进行系统升级，暂时不能提供服务，敬请谅解";
-		errmsg = "System upgrading..., unable to provide services, please forgive me";
+		errmsg = "System upgrading... Unable to provide services. Please try again later.";
 		break;
 	case 110024: //此帐号暂未激活,重发验证邮件
-		errmsg = "The account is not activate, resend the activation email";
+		errmsg = "This account is not activated. Resending the activation email.";
 		break;
 	case 200010: //验证码不存在或已过期
-		errmsg = "Captcha not exist or expired";
+		errmsg = "Captcha not exist or expired.";
 		break;
 	case 401007: // "您的手机号关联了其他帐号，请选择登录";
-		errmsg = "Your phone number associated with more than one account, please login with the user name";
+		errmsg = "Your phone number was associated with more than one account, please login with the user name.";
 		break;
 	case 500010: //登录过于频繁,请24小时后再试
-		errmsg = "Login too frequently, please try again after 24 hours";
+		errmsg = "Login too frequently, please try again after 24 hours.";
 		break;
 	default:
-		errmsg = "Unknow";
+		errmsg = "Unknown error.";
 		break;
 	}
 	return errmsg;
@@ -88,52 +88,52 @@ const char *get_errmsg_by_errno(int error)
 	const char *errmsg = 0;
 	switch (error) {
 	case 0:
-		errmsg = "Success";// "成功";
+		errmsg = "Success.";// "成功";
 		break;
 	case 1:
-		errmsg = "Server Error";// "服务器错误 ";
+		errmsg = "Server Error.";// "服务器错误 ";
 		break;
 	case 2:
-		errmsg = "The folder can not be moved";// "该文件夹不可以移动";
+		errmsg = "The folder can not being move.";// "该文件夹不可以移动";
 		break;
 	case 3:
-		errmsg = "One operation file can't over 100";// "一次操作文件不可超过100个";
+		errmsg = "Can not operation files more than 100 at one time.";// "一次操作文件不可超过100个";
 		break;
 	case 4:
-		errmsg = "The new file name error";// "新文件名错误";
+		errmsg = "New file name error.";// "新文件名错误";
 		break;
 	case 5:
-		errmsg = "Target directory illegal";// "目标目录非法";
+		errmsg = "Target directory illegal.";// "目标目录非法";
 		break;
 	case 6:
 		errmsg = "Alternate";// "备用";
 		break;
 	case 7:
-		errmsg = "NS illegal or do not have access";// "NS非法或无权访问";
+		errmsg = "NS illegal or Access Denied.";// "NS非法或无权访问";
 		break;
 	case 8:
-		errmsg = "ID illegally or do not have access";// "ID非法或无权访问";
+		errmsg = "ID illegally or Access Denied";// "ID非法或无权访问";
 		break;
 	case 9:
-		errmsg = "Application key failure";// "申请key失败";
+		errmsg = "Applicate key failure";// "申请key失败";
 		break;
 	case 10:
 		errmsg = "Failed to create a file of superfile";// "创建文件的superfile失败";
 		break;
 	case 11:
-		errmsg = "user_id (or user_name) illegal or non-existent";// "user_id(或user_name)非法或不存在";
+		errmsg = "user_id (or user_name) illegal or non-exist";// "user_id(或user_name)非法或不存在";
 		break;
 	case 12:
-		errmsg = "Batch processing is not successful in all";// "批量处理未全部成功";
+		errmsg = "Batch processing is not successful at all.";// "批量处理未全部成功";
 		break;
 	case 13:
 		errmsg = "This directory can not be shared";// "此目录无法共享";
 		break;
 	case 103:
-		errmsg = "Extraction code error";// "提取码错误";
+		errmsg = "File passcode error";// "提取码错误";
 		break;
 	case 104:
-		errmsg = "Invalid authentication cookie";// "验证cookie无效";
+		errmsg = "Invalid cookie authentication";// "验证cookie无效";
 		break;
 	case 14:
 	case 201:
@@ -177,19 +177,19 @@ const char *get_errmsg_by_errno(int error)
 		errmsg = "pcs returns an error code";// "pcs返回错误码";
 		break;
 	case 31021:
-		errmsg = "Network connection fails, check the network or try again later.";// "网络连接失败，请检查网络或稍候再试";
+		errmsg = "Network connection fails. Check the network or try again later.";// "网络连接失败，请检查网络或稍候再试";
 		break;
 	case 31075:
 		errmsg = "One in support of Operation 999, minus point try";// "一次支持操作999个，减点试试吧";
 		break;
 	case 31080:
-		errmsg = "Our server error, the wait to try it";// "我们的服务器出错了，稍候试试吧";
+		errmsg = "Server error. Try again later.";// "我们的服务器出错了，稍候试试吧";
 		break;
 	case 31116:
-		errmsg = "Your space inadequate yo, and quickly buy space bar";// "你的空间不足了哟，赶紧购买空间吧";
+		errmsg = "You have been reach the quota. Buy more!";// "你的空间不足了哟，赶紧购买空间吧";
 		break;
 	case -1:
-		errmsg = "User name and password authentication fails";// "用户名和密码验证失败";
+		errmsg = "Password authentication failed";// "用户名和密码验证失败";
 		break;
 	case -2:
 		errmsg = "Alternate";// "备用";
@@ -198,25 +198,25 @@ const char *get_errmsg_by_errno(int error)
 		errmsg = "The user does not activate (call init interface)";// "用户未激活（调用init接口）";
 		break;
 	case -4:
-		errmsg = "Can't find host_key and user_key (or BDUSS) from COOKIE";// "COOKIE中未找到host_key&user_key（或BDUSS）";
+		errmsg = "Can't find host_key and user_key (BDUSS) from COOKIE";// "COOKIE中未找到host_key&user_key（或BDUSS）";
 		break;
 	case -5:
-		errmsg = "host_key and user_key invalid";// "host_key和user_key无效";
+		errmsg = "host_key and user_key (BDUSS) are invalid";// "host_key和user_key无效";
 		break;
 	case -6:
-		errmsg = "bduss invalid";// "bduss无效";
+		errmsg = "BDUSS invalid";// "bduss无效";
 		break;
 	case -7:
-		errmsg = "File or directory name wrong or do not have access";// "文件或目录名错误或无权访问";
+		errmsg = "File / directory name wrong, or do not have access to";// "文件或目录名错误或无权访问";
 		break;
 	case -8:
-		errmsg = "This file already exists in this directory";// "该目录下已存在此文件";
+		errmsg = "This file is already exists in this directory";// "该目录下已存在此文件";
 		break;
 	case -9:
-		errmsg = "Owner of the file is deleted, the operation fails";// "文件被所有者删除，操作失败";
+		errmsg = "Owner of the file is deleted, operation failed";// "文件被所有者删除，操作失败";
 		break;
 	case -10:
-		errmsg = "Network disk space is full";// "网盘空间已满";
+		errmsg = "Network Disk quota reached.";// "网盘空间已满";
 		break;
 	case -11:
 		errmsg = "Parent directory does not exist";// "父目录不存在";
@@ -225,7 +225,7 @@ const char *get_errmsg_by_errno(int error)
 		errmsg = "Device not registered";// "设备尚未注册";
 		break;
 	case -13:
-		errmsg = "Equipment is already bound";// "设备已经被绑定";
+		errmsg = "Device is already bounded to your account";// "设备已经被绑定";
 		break;
 	case -14:
 		errmsg = "Account has been initialized";// "帐号已经初始化";
@@ -237,7 +237,7 @@ const char *get_errmsg_by_errno(int error)
 		errmsg = "The file can not be shared rename, move, and so";// "被分享的文件无法重命名，移动等操作";
 		break;
 	case -23:
-		errmsg = "Database operation fails, contact netdisk administrator";// "数据库操作失败，请联系netdisk管理员";
+		errmsg = "Database operation fails. Contact baidu administrator";// "数据库操作失败，请联系netdisk管理员";
 		break;
 	case -24:
 		errmsg = "No cancellations public file containing a list of files you want to cancel.";// "要取消的文件列表中含有不允许取消public的文件。";
@@ -246,10 +246,10 @@ const char *get_errmsg_by_errno(int error)
 		errmsg = "Non-beta user";// "非公测用户";
 		break;
 	case -26:
-		errmsg = "Failure invitation code";// "邀请码失效";
+		errmsg = "Invalid invitation code";// "邀请码失效";
 		break;
 	default:
-		errmsg = "Unknow error";
+		errmsg = "Unknown error";
 		break;
 	}
 	return errmsg;
@@ -267,34 +267,34 @@ const char *get_share_errmsg_by_errno(int error)
 		errmsg = "Parameter error";// "参数错误";
 		break;
 	case 3:
-		errmsg = "Not logged or invalid account number";// "未登录或帐号无效";
+		errmsg = "Not logged in or have an invalid account";// "未登录或帐号无效";
 		break;
 	case 4:
-		errmsg = "Storage like a problem, please try again later";// "存储好像出问题了，请稍候再试";
+		errmsg = "Storage error, please try again later";// "存储好像出问题了，请稍候再试";
 		break;
 	case 108:
-		errmsg = "Filename sensitive word, optimization about it";// "文件名有敏感词，优化一下吧";
+		errmsg = "Filename have sensitive word. Rename it.";// "文件名有敏感词，优化一下吧";
 		break;
 	case 110:
 		errmsg = "Share the number exceeds the limit, you can go to \"my share\" in the view shared file links";// "分享次数超出限制，可以到“我的分享”中查看已分享的文件链接";
 		break;
 	case 114:
-		errmsg = "The current mandate does not exist, save fails";// "当前任务不存在，保存失败";
+		errmsg = "The current mandate does not exist. Saving fails";// "当前任务不存在，保存失败";
 		break;
 	case 115:
-		errmsg = "The document prohibits Share";// "该文件禁止分享";
+		errmsg = "The document prohibits to Share";// "该文件禁止分享";
 		break;
 	case -1:
-		errmsg = "Because you share a file in violation of relevant laws and regulations, sharing has been disabled before the share out files are not affected.";// "由于您分享了违反相关法律法规的文件，分享功能已被禁用，之前分享出去的文件不受影响。";
+		errmsg = "Because you have been shared a file in violation of relevant laws and regulations, sharing has been disabled. (History share out files are not affected.)";// "由于您分享了违反相关法律法规的文件，分享功能已被禁用，之前分享出去的文件不受影响。";
 		break;
 	case -2:
-		errmsg = "User does not exist, please refresh the page after retry";// "用户不存在,请刷新页面后重试";
+		errmsg = "User does not exist, please try again later.";// "用户不存在,请刷新页面后重试";
 		break;
 	case -3:
-		errmsg = "File does not exist, please refresh the page and try again";// "文件不存在,请刷新页面后重试";
+		errmsg = "File does not exist, please try again later.";// "文件不存在,请刷新页面后重试";
 		break;
 	case -4:
-		errmsg = "Login information is incorrect, please try to log in again";// "登录信息有误，请重新登录试试";
+		errmsg = "Login information is incorrect, please try to login again";// "登录信息有误，请重新登录试试";
 		break;
 	case -5:
 		errmsg = "host_key and user_key invalid";// "host_key和user_key无效";
