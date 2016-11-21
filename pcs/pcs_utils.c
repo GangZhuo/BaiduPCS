@@ -4,6 +4,8 @@
 #include <stdarg.h>
 #ifdef WIN32
 # include <malloc.h>
+# define snprintf _snprintf
+# define vsnprintf _vsnprintf
 #include "openssl_md5.h"
 #else
 # include <alloca.h>
@@ -51,8 +53,12 @@ PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap)
     char *buf;
 	va_list ap_try;
 
-    sz = 1024;
-    buf = (char*)pcs_malloc(sz);
+#ifdef WIN32
+	sz = 4096;
+#else
+	sz = 1024;
+#endif
+	buf = (char*)pcs_malloc(sz);
 try_print:
 	va_copy(ap_try, ap);
 	cnt = vsnprintf(buf, sz - 1, fmt, ap_try);

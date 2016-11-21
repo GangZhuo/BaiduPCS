@@ -20,6 +20,8 @@
 #include <malloc.h>
 #include <stdint.h>
 typedef uint32_t u_int32_t;
+# define snprintf _snprintf
+# define vsnprintf _vsnprintf
 #else
 #include <alloca.h>
 #endif
@@ -511,7 +513,11 @@ int u8_vprintf(const char *fmt, va_list ap)
     wchar_t *wcs;
 	va_list ap_try;
 
-    sz = 512;
+#ifdef WIN32
+	sz = 4096;
+#else
+	sz = 512;
+#endif
     buf = (char*)malloc(sz);
  try_print:
 	va_copy(ap_try, ap);
