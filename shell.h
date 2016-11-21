@@ -29,6 +29,8 @@ typedef struct ShellContext
 	int			max_thread; /*指定最大线程数量*/
 	int			max_speed_per_thread; /*指定单个线程的最多下载速度*/
 	int			max_upload_speed_per_thread; /*指定单个线程的最大上传速度*/
+
+	char		*user_agent;    /**/
 } ShellContext;
 
 #endif

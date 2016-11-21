@@ -414,7 +414,6 @@ char *utf82mbs(const char *s)
 }
 
 # define printf u8_printf
-# define snprintf _snprintf
 
 # define sleep(s) Sleep((s) * 1000)
 
@@ -1787,6 +1786,10 @@ static char *context2str(ShellContext *context)
 	assert(item);
 	cJSON_AddItemToObject(root, "max_upload_speed_per_thread", item);
 
+	item = cJSON_CreateString(context->user_agent);
+	assert(item);
+	cJSON_AddItemToObject(root, "user_agent", item);
+
 	json = cJSON_Print(root);
 	assert(json);
 
@@ -1979,6 +1982,12 @@ static int restore_context(ShellContext *context, const char *filename)
 		}
 	}
 
+	item = cJSON_GetObjectItem(root, "user_agent");
+	if (item && item->valuestring && item->valuestring[0]) {
+		if (context->user_agent) pcs_free(context->user_agent);
+		context->user_agent = pcs_utils_strdup(item->valuestring);
+	}
+
 	cJSON_Delete(root);
 	pcs_free(filecontent);
 	return 0;
@@ -2004,6 +2013,8 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->max_thread = 1;
 	context->max_speed_per_thread = 0;
 	context->max_upload_speed_per_thread = 0;
+
+	context->user_agent = pcs_utils_strdup(USAGE);
 }
 
 /*释放上下文*/
@@ -2017,6 +2028,7 @@ static void free_context(ShellContext *context)
 	if (context->secure_method) pcs_free(context->secure_method);
 	if (context->secure_key) pcs_free(context->secure_key);
 	if (context->contextfile) pcs_free(context->contextfile);
+	if (context->user_agent) pcs_free(context->user_agent);
 	memset(context, 0, sizeof(ShellContext));
 }
 
@@ -2032,7 +2044,7 @@ static Pcs *create_pcs(ShellContext *context)
 	pcs_setopts(pcs,
 		PCS_OPTION_PROGRESS_FUNCTION, (void *)&upload_progress,
 		PCS_OPTION_PROGRESS, (void *)((long)PcsFalse),
-		PCS_OPTION_USAGE, (void *)USAGE,
+		PCS_OPTION_USAGE, (void*)context->user_agent,
 		//PCS_OPTION_TIMEOUT, (void *)((long)TIMEOUT),
 		PCS_OPTION_CONNECTTIMEOUT, (void *)((long)CONNECTTIMEOUT),
 		PCS_OPTION_END);
@@ -2397,6 +2409,7 @@ static void usage_set()
 	printf("  max_thread           UInt       > 0 and < %d. The max number of thread that allow create.\n", MAX_THREAD_NUM);
 	printf("  max_speed_per_thread Int        >= 0. The max speed in KiB per thread.\n");
 	printf("  max_upload_speed_per_thread Int >= 0. The max speed in KiB per thread.\n");
+	printf("  user_agent           String     set user agent.\n");
 	printf("\nSamples:\n");
 	printf("  %s set -h\n", app_name);
 	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
@@ -2735,6 +2748,16 @@ static int set_max_upload_speed_per_thread(ShellContext *context, const char *va
 	v = atoi(val);
 	if (v < 0) return -1;
 	context->max_upload_speed_per_thread = v;
+	return 0;
+}
+
+/*设置上下文中的 user_agent 值*/
+static int set_user_agent(ShellContext *context, const char *val)
+{
+	if (!val || !val[0]) return -1;
+	if (streq(context->user_agent, val, -1)) return 0;
+	if (context->user_agent) pcs_free(context->user_agent);
+	context->user_agent = pcs_utils_strdup(val);
 	return 0;
 }
 
@@ -6047,6 +6070,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 		"cookie_file", "captcha_file", 
 		"list_page_size", "list_sort_name", "list_sort_direction",
 		"secure_method", "secure_key", "secure_enable", "timeout_retry", "max_thread", "max_speed_per_thread",
+		"user-agent",
 		"h", "help", NULL) && arg->optc == 0) {
 		usage_set();
 		return -1;
@@ -6147,6 +6171,14 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	if (has_optEx(arg, "max_upload_speed_per_thread", &val)) {
 		count++;
 		if (set_max_upload_speed_per_thread(context, val)) {
+			usage_set();
+			return -1;
+		}
+	}
+
+	if (has_optEx(arg, "user_agent", &val)) {
+		count++;
+		if (set_user_agent(context, val)) {
 			usage_set();
 			return -1;
 		}
