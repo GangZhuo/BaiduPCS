@@ -93,7 +93,13 @@ struct pcs {
 #define PCS_ACTION_DOWNLOAD		1
 #define PCS_ACTION_UPLOAD		2
 
-#include "err_msg.c"
+/* 在 err_msg.c 中实现 */
+const char *get_login_errmsg(int error);
+const char *get_errmsg_by_errno(int error);
+const char *get_share_errmsg_by_errno(int error);
+const char *get_download_errmsg_by_errno(int error);
+const char *get_buy_errmsg_by_errno(int error);
+const char *get_record_errmsg_by_errno(int error);
 
 PCS_API void pcs_clear_errmsg(Pcs handle)
 {

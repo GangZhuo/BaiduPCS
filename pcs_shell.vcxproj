@@ -103,6 +103,7 @@
     <ClCompile Include="pcs\pcs_pan_api_resinfo.c" />
     <ClCompile Include="pcs\pcs_slist.c" />
     <ClCompile Include="pcs\pcs_utils.c" />
+    <ClCompile Include="pcs\err_msg.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="arg.h" />
