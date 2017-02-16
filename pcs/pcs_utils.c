@@ -47,6 +47,34 @@ PCS_API char *pcs_utils_strdup(const char *str)
 	return res;
 }
 
+PCS_API char *pcs_utils_strcat(char *dst, const char *src, int src_len, int free_dst)
+{
+	char *res = 0;
+	int dst_len;
+
+	if (!src)
+		return dst;
+	if (src_len == -1)
+		src_len = strlen(src);
+	if (src_len == 0)
+		return dst;
+
+	if (dst)
+		dst_len = strlen(dst);
+	else
+		dst_len = 0;
+
+	res = (char *)pcs_malloc(dst_len + src_len + 1);
+	if (!res)
+		return 0;
+	memcpy(res, dst, dst_len);
+	memcpy(res + dst_len, src, src_len);
+	res[dst_len + src_len] = '\0';
+	if (dst && free_dst)
+		pcs_free(dst);
+	return res;
+}
+
 PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap)
 {
     int cnt, sz=0;
@@ -367,3 +395,13 @@ PCS_API const char *pcs_time2str(time_t time)
 		return "";
 	}
 }
+
+PCS_API char *pcs_js_timestr()
+{
+	static char s[32];
+
+	snprintf(s, sizeof(s), "%d", (int)time(NULL) * 1000);
+
+	return s;
+}
+

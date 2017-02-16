@@ -13,6 +13,14 @@
 
 #define PCS_RAPIDUPLOAD_THRESHOLD (256 * 1024)
 
+#ifndef __out
+#define __out
+#endif
+
+#ifndef __in
+#define __in
+#endif
+
 typedef enum PcsOption {
 	PCS_OPTION_END = 0,
 	/* 值为以0结尾的C格式字符串 */

@@ -13,6 +13,11 @@ PCS_API PcsBool pcs_isBigEndian();
 
 /*原因复制一份字符串。返回值需要调用pcs_free()*/
 PCS_API char *pcs_utils_strdup(const char *str);
+/* 把 src 添加到 dst 后边，自动重建 dst。
+ * 返回 新建立的 字符串指针。
+ * free_dst 设置为 TRUE，表示建立新的字符串后，释放掉 dst 的内存空间。
+ */
+PCS_API char *pcs_utils_strcat(char *dst, const char *src, int src_len, int free_dst);
 /*pcs_utils_sprintf的矢量模式*/
 PCS_API char *pcs_utils_vsprintf(const char *fmt, va_list ap);
 /*输出字符串到内存，并返回该内存。*/
@@ -65,5 +70,6 @@ PCS_API int pcs_strlen(const char *s);
 
 PCS_API const char *pcs_time2str(time_t time);
 
+PCS_API char *pcs_js_timestr();
 
 #endif
