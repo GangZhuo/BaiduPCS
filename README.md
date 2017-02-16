@@ -28,16 +28,16 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 ### 1. 获取源代码
     git clone https://github.com/GangZhuo/BaiduPCS.git
 ### 2. 安装依赖
-    到 [windows.php.net] 下载需要的依赖包：libcurl, openssl, libssh2。下载后，把压缩包解压到 deps 目录。
+    到 http://windows.php.net/downloads/php-sdk/deps/vc14/x86/ 下载需要的依赖包：libcurl, openssl, libssh2。下载后，把压缩包解压到 deps 目录。
     最终目录结构为：
 
-   somedirectory\
-    |_BaiduPCS
-    | |_winbuild
-      |_deps
-      |_ lib
-      |_ include
-      |_ bin
+	somedirectory
+	 |_BaiduPCS
+	 | |_winbuild
+	 |_deps
+	 |_ lib
+	 |_ include
+	 |_ bin
 
 
 ### 3. 编译源代码
@@ -427,4 +427,4 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 [Openwrt SDK]:               http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
 [预编译 ipk for Openwrt]:    http://sourceforge.net/projects/baidupcs/files/Openwrt/
 [初级使用教程]:    https://github.com/GangZhuo/BaiduPCS/wiki/BaiduPCS-%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8
-[windows.php.net]: http://windows.php.net/downloads/php-sdk/deps/vc14/x86/
+[windows.php.net]:    http://windows.php.net/downloads/php-sdk/deps/vc14/x86/
