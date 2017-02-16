@@ -37,7 +37,11 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 	somedirectory
 	 |_BaiduPCS
-	 | |_pcs (etc...)
+	 | |_docs
+	 | |_openwrt
+	 | |_pcs
+	 | |_rbtree
+	 | |_(etc ...)
 	 |_deps
 	   |_curl
 	   | |_bin
