@@ -1769,7 +1769,8 @@ static PcsRes pcs_call_authwidgetverify(__in Pcs handle,
 		root = cJSON_GetObjectItem(json, "data");
 		if (root && root->type == cJSON_Object) {
 			static const char *verfify_items[] = { "softtoken", "mobile", "email", "password" };
-			for (int i = 0, len = sizeof(verfify_items) / sizeof(verfify_items[0]); i < len; i++) {
+			int i, len = sizeof(verfify_items) / sizeof(verfify_items[0]);
+			for (i = 0; i < len; i++) {
 				item = cJSON_GetObjectItem(root, verfify_items[i]);
 				if (item && item->type == cJSON_String && strlen(item->valuestring) > 0) {
 					if (data == NULL)
