@@ -28,16 +28,27 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 ### 1. 获取源代码
     git clone https://github.com/GangZhuo/BaiduPCS.git
 ### 2. 安装依赖
-    到 http://windows.php.net/downloads/php-sdk/deps/vc14/x86/ 下载需要的依赖包：libcurl, openssl, libssh2。下载后，把压缩包解压到 deps 目录。
+    到 http://windows.php.net/downloads/php-sdk/deps/vc14/x86/ 下载需要的依赖包：libcurl,
+    openssl, libssh2。下载后，把压缩包解压到 deps 目录。
+    
     最终目录结构为：
 
 	somedirectory
 	 |_BaiduPCS
 	 | |_winbuild
 	 |_deps
-	 |_ lib
-	 |_ include
-	 |_ bin
+	   |_curl
+	   | |_bin
+	   | |_include
+	   | |_lib
+	   |_libssh2
+	   | |_bin
+	   | |_include
+	   | |_lib
+	   |_openssl
+	   | |_bin
+	   | |_include
+	   | |_lib
 
 
 ### 3. 编译源代码
