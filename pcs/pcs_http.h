@@ -259,4 +259,9 @@ PCS_API double pcs_http_speed_download(PcsHttp handle);
  */
 PCS_API char *pcs_http_url_decode(PcsHttp handle, char *s);
 
+/* 当 pcs_http_get() 设置为不跟随跳转时，可通过此方法获取目标地址。
+ * 返回 30x 的目标地址。
+ */
+PCS_API const char *pcs_http_redir_url(PcsHttp handle);
+
 #endif

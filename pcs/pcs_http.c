@@ -500,6 +500,14 @@ PCS_API int pcs_http_code(PcsHttp handle)
 	return http->res_code;
 }
 
+PCS_API const char *pcs_http_redir_url(PcsHttp handle)
+{
+	struct pcs_http *http = (struct pcs_http *)handle;
+	char *location;
+	curl_easy_getinfo(http->curl, CURLINFO_REDIRECT_URL, &location);
+	return location;
+}
+
 PCS_API void pcs_http_setopt(PcsHttp handle, PcsHttpOption opt, void *value)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
