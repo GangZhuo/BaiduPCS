@@ -8,7 +8,6 @@
 #ifdef WIN32
 #  include <conio.h>
 #  include <direct.h>
-# include <WinSock2.h>
 # include <Windows.h>
 # include <Shlwapi.h>
 

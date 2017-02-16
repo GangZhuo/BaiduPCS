@@ -27,10 +27,21 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 ===================================
 ### 1. 获取源代码
     git clone https://github.com/GangZhuo/BaiduPCS.git
-### 2. 安装依赖 [baidupcs-dependencies.zip]
-    下载依赖包 baidupcs-dependencies.zip，解压后，把 dependencies 目录复制到 BaiduPCS 源码根目录下。
+### 2. 安装依赖
+    到 [windows.php.net] 下载需要的依赖包：libcurl, openssl, libssh2。下载后，把压缩包解压到 deps 目录。
+    最终目录结构为：
+
+   somedirectory\
+    |_BaiduPCS
+    | |_winbuild
+      |_deps
+      |_ lib
+      |_ include
+      |_ bin
+
+
 ### 3. 编译源代码
-    使用 Microsoft Visual Studio Community 2013 打开源码根目录下的 baidupcs.sln，并执行编译操作，
+    使用 Microsoft Visual Studio Community 2015 打开源码根目录下的 baidupcs.sln，并执行编译操作，
 	将在 Debug 或 Release 目录下产生 pcs.exe 文件。
 
 #### 下载 [适用Windows的预编译版本] 或 下载 .net4.0 带窗体版本 [BaiduCloudDisk for .Net 4.0] 
@@ -416,3 +427,4 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 [Openwrt SDK]:               http://wiki.openwrt.org/doc/howto/obtain.firmware.sdk
 [预编译 ipk for Openwrt]:    http://sourceforge.net/projects/baidupcs/files/Openwrt/
 [初级使用教程]:    https://github.com/GangZhuo/BaiduPCS/wiki/BaiduPCS-%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8
+[windows.php.net]: http://windows.php.net/downloads/php-sdk/deps/vc14/x86/

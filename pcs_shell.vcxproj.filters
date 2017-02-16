@@ -51,9 +51,6 @@
     <ClCompile Include="pcs\pcs_utils.c">
       <Filter>Source Files\pcs</Filter>
     </ClCompile>
-    <ClInclude Include="pcs\err_msg.c">
-      <Filter>Source Files\pcs</Filter>
-    </ClInclude>
     <ClCompile Include="shell.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -79,6 +76,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="utf8.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="pcs\err_msg.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
