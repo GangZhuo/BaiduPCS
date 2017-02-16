@@ -1118,7 +1118,7 @@ static void unlock_for_upload(struct UploadState *us)
 
 #pragma endregion
 
-#pragma region 三个回调： 输入验证码、显示上传进度、写下载文件
+#pragma region 三个回调： 输入验证码, 显示上传进度, 写下载文件
 
 static int save_thread_states_to_file(FILE *pf, int64_t offset, struct DownloadThreadState *state_link)
 {
