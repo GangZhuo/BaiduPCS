@@ -686,34 +686,61 @@ PCS_API char *pcs_http_build_post_data_v(PcsHttp handle, va_list args)
 	while((name = va_arg(args, char *)) != NULL) {
 		val = va_arg(args, char *);
 		if (name[0] == '\0') continue;
-		escapval = curl_easy_escape(http->curl, val, 0);
-
-		if (!res) {
-			ressz = strlen(name) + strlen(escapval) + 1;
-			res = (char *)pcs_malloc(ressz + 1);
+		if (val == NULL) {
 			if (!res) {
-				return NULL;
+				ressz = strlen(name) + 1;
+				res = (char *)pcs_malloc(ressz + 1);
+				if (!res) {
+					return NULL;
+				}
+				strcpy(res, name);
+				strcat(res, "=");
 			}
-			strcpy(res, name);
-			strcat(res, "=");
-			strcat(res, escapval);
+			else {
+				ressz += strlen(name) + 2;
+				p = (char *)pcs_malloc(ressz + 1);
+				if (!p) {
+					pcs_free(res);
+					return NULL;
+				}
+				strcpy(p, res);
+				pcs_free(res);
+				res = p;
+				strcat(res, "&");
+				strcat(res, name);
+				strcat(res, "=");
+			}
 		}
 		else {
-			ressz += strlen(name) + strlen(escapval) + 2;
-			p = (char *)pcs_malloc(ressz + 1);
-			if (!p) {
-				pcs_free(res);
-				return NULL;
+			escapval = curl_easy_escape(http->curl, val, 0);
+
+			if (!res) {
+				ressz = strlen(name) + strlen(escapval) + 1;
+				res = (char *)pcs_malloc(ressz + 1);
+				if (!res) {
+					return NULL;
+				}
+				strcpy(res, name);
+				strcat(res, "=");
+				strcat(res, escapval);
 			}
-			strcpy(p, res);
-			pcs_free(res);
-			res = p;
-			strcat(res, "&");
-			strcat(res, name);
-			strcat(res, "=");
-			strcat(res, escapval);
+			else {
+				ressz += strlen(name) + strlen(escapval) + 2;
+				p = (char *)pcs_malloc(ressz + 1);
+				if (!p) {
+					pcs_free(res);
+					return NULL;
+				}
+				strcpy(p, res);
+				pcs_free(res);
+				res = p;
+				strcat(res, "&");
+				strcat(res, name);
+				strcat(res, "=");
+				strcat(res, escapval);
+			}
+			curl_free((void *)escapval);
 		}
-		curl_free((void *)escapval);
 	}
 
 	return res;
