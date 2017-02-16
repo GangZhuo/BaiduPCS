@@ -11,6 +11,10 @@
 # include <WinSock2.h>
 # include <Windows.h>
 # include <Shlwapi.h>
+
+# define snprintf _snprintf
+# define vsnprintf _vsnprintf
+
 #else
 #  include <inttypes.h>
 #  include <termios.h>

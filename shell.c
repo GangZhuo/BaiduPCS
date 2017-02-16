@@ -13,6 +13,10 @@
 # include <Windows.h>
 # include "pcs/openssl_aes.h"
 # include "pcs/openssl_md5.h"
+
+# define snprintf _snprintf
+# define vsnprintf _vsnprintf
+
 #else
 # include <unistd.h>
 # include <termios.h>
