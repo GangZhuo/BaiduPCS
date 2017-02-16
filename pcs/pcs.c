@@ -1696,6 +1696,7 @@ static PcsRes pcs_dologin(__in Pcs handle,
 		if (out_html != NULL)
 			*out_html = pcs_utils_strdup(html);
 
+		/* TODO: 应该不需要叫一次 jump_url 的，待验证？ */
 		jump_url = pcs_get_pass_v3_jump_url(handle, html);
 		html = pcs_http_get(pcs->http, jump_url, PcsTrue);
 		pcs_free(jump_url);
@@ -1703,6 +1704,7 @@ static PcsRes pcs_dologin(__in Pcs handle,
 			pcs_set_errmsg(handle, "GET '%s' failed.", jump_url);
 			return PCS_NETWORK_ERROR;
 		}
+
 		return PCS_OK;
 	}
 }
