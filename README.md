@@ -5,6 +5,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 支持线程限速。具体查看'pcs set'和'pcs context'命令的说明。
 * 支持AES-CBC-128, AES-CBC-192, AES-CBC-256加密。
 
+[![Build Status]][Appveyor]
+
 查看 [初级使用教程]
 
 编译 (Debian)：
@@ -432,6 +434,8 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 2. 下载大文件时，程序会在磁盘上预分配文件空间，此过程耗时较久。
 * 3. 上传大文件后，通过 'pcs meta'获取到的md5值与本地文件计算出的md5不匹配，这个应是百度网盘的bug。（测试时，把上传的文件下载到本地后，对比md5值是匹配的）
 
+[Appveyor]: https://ci.appveyor.com/project/GangZhuo/baidupcs/branch/master
+[Build Status]: https://ci.appveyor.com/api/projects/status/etib00a5ta70cpfr?svg=true
 [baidupcs-dependencies.zip]: https://sourceforge.net/projects/baidupcs/files/Dependencies/
 [适用Windows的预编译版本]:   https://github.com/GangZhuo/BaiduPCS/releases
 [BaiduCloudDisk for .Net 4.0]: https://github.com/GangZhuo/BaiduPCS_NET/releases
