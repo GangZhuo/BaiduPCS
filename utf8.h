@@ -26,10 +26,10 @@ int u8_size(const wchar_t *src, int srcsz);
 /* single character to UTF-8 */
 int u8_wc_toutf8(char *dest, wchar_t ch);
 
-/* character number to byte offset ÕÒµ½µÚcharnum¸ö×Ö·ûµÄ¿ªÊ¼Î»ÖÃ£¬strÊÇutf8±àÂëµÄÒ»´®×Ö·û£¬ÍùºóÒÆ¶¯charnum¸ö×Ö·û£¬Êµ¼ÊÒÆ¶¯µÄ×Ö½ÚÊıÁ¿¼´ÊÇ·µ»ØÖµ */
+/* character number to byte offset æ‰¾åˆ°ç¬¬charnumä¸ªå­—ç¬¦çš„å¼€å§‹ä½ç½®ï¼Œstræ˜¯utf8ç¼–ç çš„ä¸€ä¸²å­—ç¬¦ï¼Œå¾€åç§»åŠ¨charnumä¸ªå­—ç¬¦ï¼Œå®é™…ç§»åŠ¨çš„å­—èŠ‚æ•°é‡å³æ˜¯è¿”å›å€¼ */
 int u8_offset(const char *str, int charnum);
 
-/* byte offset to character number ÕÒµ½offset×Ö½ÚÖĞ°üº¬µÄ×Ö·ûÊıÁ¿£¬sÊÇutf8±àÂëµÄÒ»´®×Ö·û£¬ÍùºóÒÆ¶¯offset¸ö×Ö½Ú£¬Êµ¼ÊÒÆ¶¯µÄ×Ö·ûÊıÁ¿¼´ÊÇ·µ»ØÖµ */
+/* byte offset to character number æ‰¾åˆ°offsetå­—èŠ‚ä¸­åŒ…å«çš„å­—ç¬¦æ•°é‡ï¼Œsæ˜¯utf8ç¼–ç çš„ä¸€ä¸²å­—ç¬¦ï¼Œå¾€åç§»åŠ¨offsetä¸ªå­—èŠ‚ï¼Œå®é™…ç§»åŠ¨çš„å­—ç¬¦æ•°é‡å³æ˜¯è¿”å›å€¼ */
 int u8_charnum(const char *s, int offset);
 
 /* return next character, updating an index variable */

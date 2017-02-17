@@ -1,16 +1,16 @@
 
-ʹ�ò�����������£�
-1. ʹ�� pcs_create() ����һ��Pcs���󡣸ú�����Ҫ����cookie�ļ���·����
-   Pcs��ʹ�ø��ļ��д洢��Cookie��
-   ��Pcs�����ͷź󣬽����µ�Cookieд�뵽���ļ��С�
-2. ʹ�� pcs_islogin() ������ȡ�Ƿ��Ѿ���¼��
-3. ����Ѿ���¼�������ʹ�� pcs_sysUID() ������ȡ��¼�û���UID��
-4. ���δ��¼������Ҫ���趨ʶ����֤��Ļص�������Ȼ��ʹ��pcs_login()������¼��
-   ����ʹ�� pcs_setopt �� pcs_setopts ���趨��ȡ��֤��Ļص�������
-5. ��¼�ɹ��󣬼���ʹ�� pcs_quota, pcs_list, pcs_upload�Ⱥ���������ο� pcs.h �еĶ��塣
-6. ʹ����ɺ�ʹ�� pcs_destroy �ͷ�pcs����
+使用步骤大体上如下：
+1. 使用 pcs_create() 创建一个Pcs对象。该函数需要传入cookie文件的路径，
+   Pcs将使用该文件中存储的Cookie。
+   当Pcs对象释放后，将把新的Cookie写入到该文件中。
+2. 使用 pcs_islogin() 函数获取是否已经登录。
+3. 如果已经登录，则可以使用 pcs_sysUID() 函数获取登录用户的UID。
+4. 如果未登录，则需要先设定识别验证码的回调函数，然后使用pcs_login()函数登录。
+   可以使用 pcs_setopt 和 pcs_setopts 来设定获取验证码的回调函数。
+5. 登录成功后，即可使用 pcs_quota, pcs_list, pcs_upload等函数，具体参考 pcs.h 中的定义。
+6. 使用完成后，使用 pcs_destroy 释放pcs对象。
 
-   ʾ��1��
+   示例1：
 		PcsBool cb_get_verify_code(unsigned char *ptr, size_t size, char *captcha, size_t captchaSize, void *state)
 		{
 			FILE *pf;
@@ -49,7 +49,7 @@
 			Pcs pcs;
 			PcsRes pcsres;
 			
-			/* ����һ��Pcs���� */
+			/* 创建一个Pcs对象 */
 			pcs = pcs_create(cookie_file);
 			if ((pcsres = pcs_islogin(pcs)) != PCS_LOGIN) {
 				pcs_setopts(pcs, 
@@ -58,7 +58,7 @@
 					PCS_OPTION_END);
 				pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code);
 				/*
-					��Ҳ���԰� pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code); �ϲ���pcs_setopts��ȥ���磺
+					你也可以把 pcs_setopt(pcs, PCS_OPTION_CAPTCHA_FUNCTION, cb_get_verify_code); 合并到pcs_setopts中去，如：
 					pcs_setopts(pcs, 
 						PCS_OPTION_USERNAME, username,
 						PCS_OPTION_PASSWORD, password,
@@ -82,4 +82,4 @@
 		}
 		
 		
-����Բο�main.c������ȡ����ϸ��ʹ��ʾ����
+你可以参考main.c，来获取更详细的使用示例。

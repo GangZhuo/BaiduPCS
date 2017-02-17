@@ -1,4 +1,4 @@
-﻿
+
 const char *get_login_errmsg(int error)
 {
 	const char *errmsg = 0;

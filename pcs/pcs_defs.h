@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_DEFS_H
+#ifndef _PCS_DEFS_H
 #define _PCS_DEFS_H
 
 #include <curl/curl.h>

@@ -1,4 +1,4 @@
-﻿#ifndef _OPENSSL_MD5_H
+#ifndef _OPENSSL_MD5_H
 #define _OPENSSL_MD5_H
 
 #include <stddef.h>

@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_SHELL_SHELL_H
+#ifndef _PCS_SHELL_SHELL_H
 #define _PCS_SHELL_SHELL_H
 
 #include <time.h>

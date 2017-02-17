@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_FILEINFO_H
+#ifndef _PCS_FILEINFO_H
 #define _PCS_FILEINFO_H
 
 #include "pcs_defs.h"

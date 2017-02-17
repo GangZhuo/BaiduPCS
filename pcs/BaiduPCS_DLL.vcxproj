@@ -59,6 +59,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;BAIDUPCS_EXPORTS;PCS_STATIC_LIB;CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\curl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -82,6 +83,7 @@ Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;BAIDUPCS_EXPORTS;PCS_STATIC_LIB;CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\curl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

@@ -1,43 +1,43 @@
-Ä¿Â¼½á¹¹ÃèÊöÈçÏÂ£º
+ç›®å½•ç»“æ„æè¿°å¦‚ä¸‹ï¼š
 
 /
- |-baidupcs.sln (Microsoft Visual Studio 2012 ½â¾ö·½°¸£¬¿ÉÒÔÖ±½ÓÊ¹ÓÃVS2012´ò¿ª)
+ |-baidupcs.sln (Microsoft Visual Studio 2012 è§£å†³æ–¹æ¡ˆï¼Œå¯ä»¥ç›´æ¥ä½¿ç”¨VS2012æ‰“å¼€)
  |-README.md 
- |-pcs (ËùÓĞÔ´´úÂëÔÚÕâ¸öÄ¿Â¼ÖĞ)
+ |-pcs (æ‰€æœ‰æºä»£ç åœ¨è¿™ä¸ªç›®å½•ä¸­)
    |-cJSON.c
-   |-cJSON.h (cJSONÊÇÒ»¸öµÚÈı·½¿ªÔ´µÄ¶ÁÈ¡JSONµÄ¿â)
+   |-cJSON.h (cJSONæ˜¯ä¸€ä¸ªç¬¬ä¸‰æ–¹å¼€æºçš„è¯»å–JSONçš„åº“)
    |-dir.c 
-   |-dir.h (±¾µØÎÄ¼şÏà¹Øº¯Êı:°üº¬¶ÁÈ¡Ä¿Â¼¡¢Éè¶¨×îºóĞŞ¸ÄÊ±¼äµÈ)
+   |-dir.h (æœ¬åœ°æ–‡ä»¶ç›¸å…³å‡½æ•°:åŒ…å«è¯»å–ç›®å½•ã€è®¾å®šæœ€åä¿®æ”¹æ—¶é—´ç­‰)
    |-hashtable.c
-   |-hashtable.h (¹şÏ£±íµÄCÓïÑÔÊµÏÖ)
-   |-main.c (°üº¬Èë¿Úº¯Êı¡¢ºÍquota,list,upload,downloadµÈ×ÓÃüÁîµÄÊµÏÖ)
+   |-hashtable.h (å“ˆå¸Œè¡¨çš„Cè¯­è¨€å®ç°)
+   |-main.c (åŒ…å«å…¥å£å‡½æ•°ã€å’Œquota,list,upload,downloadç­‰å­å‘½ä»¤çš„å®ç°)
    |-main_args.c
-   |-main_args.h (Ê¹ÓÃargparser¶ÁÈ¡´«ÈëµÄ²ÎÊı)
+   |-main_args.h (ä½¿ç”¨argparserè¯»å–ä¼ å…¥çš„å‚æ•°)
    |-makefile (Makefile for Linux)
    |-makefile-cygwin (Makefile for cygwin)
    |-pcs.c
-   |-pcs.h (°Ù¶ÈÍøÅÌ API)
-   |-pcs.vcxproj (VS2012µÄÏîÄ¿ÎÄ¼ş)
-   |-pcs.vcxproj.filters (VS2012ÏîÄ¿ÎÄ¼ş)
-   |-pcs_cookie.c.del (ÒÑÉ¾³ı)
-   |-pcs_cookie.h.del (ÒÑÉ¾³ı)
-   |-pcs_defs.h (ÍøÅÌAPI¹«ÓÃµÄ¶¨Òå)
+   |-pcs.h (ç™¾åº¦ç½‘ç›˜ API)
+   |-pcs.vcxproj (VS2012çš„é¡¹ç›®æ–‡ä»¶)
+   |-pcs.vcxproj.filters (VS2012é¡¹ç›®æ–‡ä»¶)
+   |-pcs_cookie.c.del (å·²åˆ é™¤)
+   |-pcs_cookie.h.del (å·²åˆ é™¤)
+   |-pcs_defs.h (ç½‘ç›˜APIå…¬ç”¨çš„å®šä¹‰)
    |-pcs_fileinfo.c
-   |-pcs_fileinfo.h (¶¨ÒåÁËPcsFileInfo¶ÔÏó£¬ºÍÏà¹Øº¯Êı)
+   |-pcs_fileinfo.h (å®šä¹‰äº†PcsFileInfoå¯¹è±¡ï¼Œå’Œç›¸å…³å‡½æ•°)
    |-pcs_http.c
-   |-pcs_http.h (·â×°libcurlµÄ·½·¨£¬Ìá¹©Ò»Ğ©º¯ÊıÓÃÓÚ·¢ËÍºÍ½ÓÊÕhttpÇëÇó)
+   |-pcs_http.h (å°è£…libcurlçš„æ–¹æ³•ï¼Œæä¾›ä¸€äº›å‡½æ•°ç”¨äºå‘é€å’Œæ¥æ”¶httpè¯·æ±‚)
    |-pcs_io.c
-   |-pcs_io.h (ÊµÏÖÁËºÍÃüÁîĞĞ½»»¥µÄ·½·¨)
-   |-pcs_list.c.del (ÒÑÉ¾³ı)
-   |-pcs_list.h.del (ÒÑÉ¾³ı)
+   |-pcs_io.h (å®ç°äº†å’Œå‘½ä»¤è¡Œäº¤äº’çš„æ–¹æ³•)
+   |-pcs_list.c.del (å·²åˆ é™¤)
+   |-pcs_list.h.del (å·²åˆ é™¤)
    |-pcs_mem.c
-   |-pcs_mem.h (pcs_malloc,pcs_freeµÈÄÚ´æº¯Êı£¬¶¨Òå_DEBUGºêÊ±£¬ÊµÏÖÄÚ´æĞ¹Â©¼ì²é)
+   |-pcs_mem.h (pcs_malloc,pcs_freeç­‰å†…å­˜å‡½æ•°ï¼Œå®šä¹‰_DEBUGå®æ—¶ï¼Œå®ç°å†…å­˜æ³„æ¼æ£€æŸ¥)
    |-pcs_pan_api_resinfo.c
-   |-pcs_pan_api_resinfo.h (¶¨ÒåÁË°Ù¶ÈÍøÅÌfilemanagerµÄ·µ»Ø¶ÔÏó£¬¼°ÆäÏà¹Øº¯Êı)
+   |-pcs_pan_api_resinfo.h (å®šä¹‰äº†ç™¾åº¦ç½‘ç›˜filemanagerçš„è¿”å›å¯¹è±¡ï¼ŒåŠå…¶ç›¸å…³å‡½æ•°)
    |-pcs_slist.c
-   |-pcs_slist.h (¶¨ÒåÁË×Ö·û´®Á´±í£¬ºÍÏà¹Øº¯Êı)
+   |-pcs_slist.h (å®šä¹‰äº†å­—ç¬¦ä¸²é“¾è¡¨ï¼Œå’Œç›¸å…³å‡½æ•°)
    |-pcs_utils.c
-   |-pcs_utils.h (¶¨ÒåÁËÒ»Ğ©¹«ÓÃµÄ¹¤¾ßº¯Êı)
+   |-pcs_utils.h (å®šä¹‰äº†ä¸€äº›å…¬ç”¨çš„å·¥å…·å‡½æ•°)
    |-utf8.c
-   |-utf8.h (Ò»Ğ©ºÍUTF8±àÂë×ª»»Ïà¹ØµÄº¯Êı)
- |-win32 (ÏîÄ¿ÒÀÀµÏîµÄWIN32°æ±¾)
+   |-utf8.h (ä¸€äº›å’ŒUTF8ç¼–ç è½¬æ¢ç›¸å…³çš„å‡½æ•°)
+ |-win32 (é¡¹ç›®ä¾èµ–é¡¹çš„WIN32ç‰ˆæœ¬)

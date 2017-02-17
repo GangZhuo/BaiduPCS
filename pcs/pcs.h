@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_H
+#ifndef _PCS_H
 #define _PCS_H
 
 #include "pcs_defs.h"

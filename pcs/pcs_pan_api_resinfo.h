@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_PAN_API_RESINFO_H
+#ifndef _PCS_PAN_API_RESINFO_H
 #define _PCS_PAN_API_RESINFO_H
 
 /*网盘API返回数据格式*/

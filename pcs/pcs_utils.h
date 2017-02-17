@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_UTILS_H
+#ifndef _PCS_UTILS_H
 #define _PCS_UTILS_H
 
 #include <stdarg.h>

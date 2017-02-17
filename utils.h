@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_SHELL_UTILS_H
+#ifndef _PCS_SHELL_UTILS_H
 #define _PCS_SHELL_UTILS_H
 
 /*

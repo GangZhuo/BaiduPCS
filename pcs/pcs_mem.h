@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_MEM_H
+#ifndef _PCS_MEM_H
 #define _PCS_MEM_H
 
 /* 自定义malloc,free方法。用于检查内存泄漏。 */

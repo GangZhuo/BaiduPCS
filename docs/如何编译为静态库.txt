@@ -1,13 +1,13 @@
-ÔÚlinuxÏÂ±àÒë¾²Ì¬¿âµÄ·½·¨£º
+åœ¨linuxä¸‹ç¼–è¯‘é™æ€åº“çš„æ–¹æ³•ï¼š
 $>cd baidupcs/pcs
 $>make libpcs.a
 
-Ê¹ÓÃ·½·¨£º
-1. °üº¬pcs_mem.hºÍpcs.h
+ä½¿ç”¨æ–¹æ³•ï¼š
+1. åŒ…å«pcs_mem.hå’Œpcs.h
    #include <pcs_mem.h>
    #include <pcs.h>
    
-2. Ê¹ÓÃ pcs_create() º¯Êı´´½¨Ò»¸öPcs¶ÔÏó£¬Ê¹ÓÃÍê³ÉºóĞèÊ¹ÓÃpcs_destroy()À´ÊÍ·Å¶ÔÏó¡£
+2. ä½¿ç”¨ pcs_create() å‡½æ•°åˆ›å»ºä¸€ä¸ªPcså¯¹è±¡ï¼Œä½¿ç”¨å®Œæˆåéœ€ä½¿ç”¨pcs_destroy()æ¥é‡Šæ”¾å¯¹è±¡ã€‚
    
    
    

@@ -1,4 +1,4 @@
-﻿#ifndef _OPENSSL_RSA_H
+#ifndef _OPENSSL_RSA_H
 #define _OPENSSL_RSA_H
 
 #include <stddef.h>

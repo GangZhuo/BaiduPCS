@@ -1,4 +1,4 @@
-﻿#ifndef _PCS_HTTP_H
+#ifndef _PCS_HTTP_H
 #define _PCS_HTTP_H
 
 #include <stdarg.h>

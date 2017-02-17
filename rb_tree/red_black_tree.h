@@ -43,7 +43,7 @@ typedef struct rb_red_blk_tree {
   void (*DestroyInfo)(void* a, void *state);
   void (*PrintKey)(const void* a, void *state);
   void (*PrintInfo)(void* a, void *state);
-  int  (*EnumerateInfo)(void*, void*); /*·µ»Ø0±íÊ¾¼ÌĞøÖ´ĞĞ£¬·µ»Ø·Ç0Öµ±íÊ¾ÖĞ¶ÏÖ´ĞĞ¡£*/
+  int  (*EnumerateInfo)(void*, void*); /*è¿”å›0è¡¨ç¤ºç»§ç»­æ‰§è¡Œï¼Œè¿”å›é0å€¼è¡¨ç¤ºä¸­æ–­æ‰§è¡Œã€‚*/
   void *compareState;
   void *destroyKeyState;
   void *destroyInfoState;
