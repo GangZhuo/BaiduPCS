@@ -1590,7 +1590,7 @@ static char *pcs_append_substr(char *dst, char **src,
 	return dst;
 }
 
-inline void escape_jump_url(char *url)
+static void escape_jump_url(char *url)
 {
 	char *p = url, *s = url;
 	while (*p) {
