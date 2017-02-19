@@ -36,10 +36,12 @@
 #include "arg.h"
 #ifdef WIN32
 # include "utf8.h"
+#ifndef __MINGW32__
 # define lseek _lseek
 # define fileno _fileno
 # define fseeko _fseeki64
 # define ftello _ftelli64
+#endif
 #endif
 #include "shell.h"
 

@@ -18,10 +18,12 @@
 #include "pcs.h"
 
 #ifdef WIN32
+#ifndef __MINGW32__
 # define lseek _lseek
 # define fileno _fileno
 # define fseeko _fseeki64
 # define ftello _ftelli64
+#endif
 
 # define snprintf _snprintf
 # define vsnprintf _vsnprintf

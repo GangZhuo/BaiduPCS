@@ -28,10 +28,10 @@ endif
 
 PCS_CCFLAGS = -fPIC $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS)
 
-all: bin/libpcs.a bin/pcs
+all: bin/pcs
 
-bin/pcs : pre bin/libpcs.a $(SHELL_OBJS)
-	$(CC) -o $@ $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto -lpthread
+bin/pcs : pre $(PCS_OBJS) $(SHELL_OBJS)
+	$(CC) -o $@ $(PCS_OBJS) $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -lm -lcurl -lssl -lcrypto -lpthread
 
 bin/shell_arg.o: arg.c arg.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) arg.c
@@ -49,9 +49,6 @@ bin/rb_tree_stack.o: rb_tree/stack.c rb_tree/stack.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) rb_tree/stack.c
 bin/red_black_tree.o: rb_tree/red_black_tree.c rb_tree/red_black_tree.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) rb_tree/red_black_tree.c
-
-bin/libpcs.a : pre $(PCS_OBJS)
-	$(AR) crv $@ $(PCS_OBJS)
 
 bin/cJSON.o: pcs/cJSON.c pcs/cJSON.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/cJSON.c
@@ -75,9 +72,6 @@ bin/err_msg.o: pcs/err_msg.c
 bin/libpcs.so: pre $(PCS_OBJS)
 	$(CC) -shared -fPIC -o $@ $(PCS_OBJS) -lcurl -lssl -lcrypto
 
-pcs4-dev : pre bin/libpcs.so $(SHELL_OBJS)
-	$(CC) -o bin/pcs $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -L./bin -lpcs -lm -lcurl -lssl -lcrypto -lpthread
-
 .PHONY : install
 install:
 	cp ./bin/pcs /usr/local/bin
@@ -86,25 +80,9 @@ install:
 uninstall:
 	rm /usr/local/bin/pcs
 
-.PHONY : install4-dev
-install4-dev:
-	mkdir /usr/local/include/pcs
-	cp ./pcs/*.h /usr/local/include/pcs/
-	cp ./bin/libpcs.so /usr/local/lib/
-	cp ./bin/pcs /usr/local/bin
-	ldconfig
-
-.PHONY : uninstall4-dev
-uninstall4-dev:
-	rm /usr/local/bin/pcs
-	rm /usr/local/lib/libpcs.so
-	rm /usr/local/include/pcs/*.h
-	rm -r /usr/local/include/pcs
-	ldconfig
-
 .PHONY : clean
 clean :
-	-rm -f ./bin/*.o ./bin/*.so ./bin/libpcs.a ./bin/pcs
+	-rm -f ./bin/*.o ./bin/*.so ./bin/pcs
 
 .PHONY : pre
 pre :
