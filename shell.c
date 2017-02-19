@@ -6732,7 +6732,7 @@ int main(int argc, char *argv[])
 	ShellContext context = { 0 };
 	int rc = 0;
 	char *errmsg = NULL, *val = NULL;
-	setlocale(LC_ALL, "chs");
+	setlocale(LC_ALL, "");
 	app_name = filename(argv[0]);
 	if (parse_arg(&arg, argc, argv, u8_is_utf8_sys() ? NULL : mbs2utf8)) {
 		usage();
