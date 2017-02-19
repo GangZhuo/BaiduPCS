@@ -4,6 +4,7 @@
 # include <io.h>
 # include <direct.h>
 # include <sys/utime.h>
+# include <WinSock2.h>
 # include <Windows.h>
 #else
 # include <stdio.h>
