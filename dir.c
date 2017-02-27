@@ -254,12 +254,20 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 	struct stat st;
 	char *subdir;
 	int len;
-
 	len = strlen(dir);
 	pDir = opendir(dir);
 	if (pDir == NULL) return -1;
 	cusor = *pCusor;
 	while ((ent = readdir(pDir)) != NULL) {
+		subdir = (char *)pcs_malloc(len + strlen(ent->d_name) + 2);
+		strcpy(subdir, dir);
+		if (subdir[len - 1] != '/' && subdir[len - 1] != '\\') strcat(subdir, "/");
+		strcat(subdir, ent->d_name);
+		struct stat path_stat;
+		stat(subdir, &path_stat);
+		ent->d_type = S_ISREG(path_stat.st_mode) ? 8 :
+				(S_ISDIR(path_stat.st_mode) ? 4 : 0);
+		pcs_free(subdir);
 		if (ent->d_type == 4) {
 			if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
 				continue;
@@ -298,6 +306,7 @@ static int GetDirectoryFilesHelp(const char *dir, LocalFileInfo **pCusor, int re
 			if (pCnt) (*pCnt)++;
 			if (on) (*on)(info, parent, state);
 		}
+		else return -1;
 	}
 	closedir(pDir);
 	*pCusor = cusor;
