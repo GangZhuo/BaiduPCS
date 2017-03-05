@@ -4884,8 +4884,7 @@ static int combin_with_remote_dir_files(ShellContext *context, rb_red_blk_tree *
 				if (info->isdir) {
 					if (check_local_dir_exist) {
 						rbn = RBExactQuery(rb, (void *)(info->path + skip));
-						meta = (MyMeta *)rbn->info;
-						if (meta->flag & FLAG_ON_LOCAL) {
+						if (rbn && ((meta = (MyMeta *)rbn->info)->flag & FLAG_ON_LOCAL)) {
 							if (combin_with_remote_dir_files(context, rb, info->path, recursive, skip, total_cnt, check_local_dir_exist)) {
 								pcs_filist_destroy(list); 
 								return -1;
