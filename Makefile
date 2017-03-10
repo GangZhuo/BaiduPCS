@@ -74,11 +74,11 @@ bin/libpcs.so: pre $(PCS_OBJS)
 
 .PHONY : install
 install:
-	cp ./bin/pcs /usr/local/bin
+	sh install.sh install
 
 .PHONY : uninstall
 uninstall:
-	rm /usr/local/bin/pcs
+	sh install.sh uninstall
 
 .PHONY : clean
 clean :
