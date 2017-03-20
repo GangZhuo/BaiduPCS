@@ -15,7 +15,7 @@ PCS_OBJS     =  bin/cJSON.o \
 				bin/err_msg.o \
 				bin/utf8.o \
 				bin/pcs_buffer.o \
-				bin/pcs_passport_dv
+				bin/pcs_passport_dv.o
 
 SHELL_OBJS   =  bin/shell_arg.o \
 				bin/shell.o \
