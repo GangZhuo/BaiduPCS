@@ -105,10 +105,10 @@ typedef struct pkg_t {
 	int focus;
 } pkg_t;
 
-typedef struct key_t {
+typedef struct jskey_t {
 	int keycode;
 	int flags;
-} key_t;
+} jskey_t;
 
 static char *passport_base64(const char *input, int length)
 {
@@ -890,12 +890,12 @@ static int passport_randi(int i)
 	return v;
 }
 
-static int passport_keycodes(key_t *keys, const char *username, int n)
+static int passport_keycodes(jskey_t *keys, const char *username, int n)
 {
 	int i, len, wlen, ch;
 	int shift;
 	wchar_t *wchs;
-	key_t *key;
+	jskey_t *key;
 
 	if (!username) return pcs_error(PCS_EINVAL);
 
@@ -959,7 +959,7 @@ static int passport_keycodes(key_t *keys, const char *username, int n)
 static int passport_dv_imitate_input_username(pkg_t *pkg, int *ptime, const char *username)
 {
 	int i, time, error = PCS_OK;
-	key_t keys[MAX_KEYDOWN] = { 0 };
+	jskey_t keys[MAX_KEYDOWN] = { 0 };
 
 	if (!username) return pcs_error(PCS_EINVAL);
 
