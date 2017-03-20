@@ -13,7 +13,9 @@ PCS_OBJS     =  bin/cJSON.o \
 				bin/pcs_slist.o \
 				bin/pcs_utils.o \
 				bin/err_msg.o \
-				bin/utf8.o
+				bin/utf8.o \
+				bin/pcs_buffer.o \
+				bin/pcs_passport_dv
 
 SHELL_OBJS   =  bin/shell_arg.o \
 				bin/shell.o \
@@ -88,6 +90,10 @@ bin/err_msg.o: pcs/err_msg.c
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/err_msg.c
 bin/utf8.o: pcs/utf8.c
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/utf8.c
+bin/pcs_buffer.o: pcs/pcs_buffer.c
+	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_buffer.c
+bin/pcs_passport_dv.o: pcs/pcs_passport_dv.c
+	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_passport_dv.c
 
 bin/libpcs.so: pre $(PCS_OBJS)
 	$(CC) -shared -fPIC -o $@ $(PCS_OBJS) -lcurl -lssl -lcrypto
