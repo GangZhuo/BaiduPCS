@@ -248,7 +248,7 @@ static void buf_encode_xor(char *buf, int len)
 static void buf_decode_xor(char *buf, int len)
 {
 	unsigned char *p = (unsigned char*)buf + len - 1;
-	while (p > buf) {
+	while (p > (unsigned char*)buf) {
 		*p = (*p ^ *(p - 1)) & 0xFF;
 		p--;
 	}
