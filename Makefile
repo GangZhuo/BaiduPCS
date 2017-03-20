@@ -33,6 +33,12 @@ else
 CYGWIN_CCFLAGS = 
 endif
 
+ifeq ($(LC_OS_NAME), mingw6)
+MINGW_CCFLAGS = -lshlwapi
+else
+MINGW_CCFLAGS = 
+endif
+
 ifeq ($(LC_OS_NAME), darwin)
 APPLE_CCFLAGS = -I/usr/local/opt/openssl/include -L/usr/local/opt/openssl/lib
 else
@@ -46,7 +52,7 @@ else
 CCFLAGS:=-g -D_FILE_OFFSET_BITS=64 -DDEBUG -D_DEBUG
 endif
 
-PCS_CCFLAGS = -fPIC $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS)
+PCS_CCFLAGS = -fPIC $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) $(MINGW_CCFLAGS)
 
 all: bin/pcs
 
