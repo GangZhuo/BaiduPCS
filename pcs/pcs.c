@@ -16,6 +16,7 @@
 #include "pcs_http.h"
 #include "cJSON.h"
 #include "pcs.h"
+#include "pcs_passport_dv.h"
 
 #ifdef WIN32
 #ifndef __MINGW32__
@@ -1630,6 +1631,7 @@ static char *pcs_get_pass_v3_jump_url(__in Pcs handle, char *html)
 }
 
 static PcsRes pcs_dologin(__in Pcs handle,
+	__in int64_t starttime,
 	__in const char *code_string,
 	__in const char *token,
 	__out int *errorno,
@@ -1637,7 +1639,7 @@ static PcsRes pcs_dologin(__in Pcs handle,
 {
 	struct pcs *pcs = (struct pcs *)handle;
 	PcsRes res;
-	char captch[32], *post_data, *html;
+	char captch[32], *post_data, *html, *dv;
 	const char *errmsg;
 
 	memset(captch, 0, sizeof(captch));
@@ -1648,6 +1650,11 @@ static PcsRes pcs_dologin(__in Pcs handle,
 			pcs_set_errmsg(handle, "canceled");
 			return res;
 		}
+	}
+
+	if (passport_build_dv(&dv, starttime, pcs->username)) {
+		pcs_set_errmsg(handle, "Can't build 'dv'.");
+		return PCS_BUILD_POST_DATA;
 	}
 
 	post_data = pcs_http_build_post_data(pcs->http,
@@ -1674,8 +1681,12 @@ static PcsRes pcs_dologin(__in Pcs handle,
 		"rsakey", "",
 		"crypttype", "",
 		"ppui_logintime", "2602",
+		"dv", dv,
 		"callback", "parent.bd__pcbs__msdlhs",
 		NULL);
+
+	pcs_free(dv);
+
 	if (!post_data) {
 		pcs_set_errmsg(handle, "Can't build the post data.");
 		return PCS_BUILD_POST_DATA;
@@ -2018,6 +2029,7 @@ PCS_API PcsRes pcs_login(Pcs handle)
 	char *html = NULL;
 	char *token = NULL, *code_string = NULL;
 	int error = -1, retry_times;
+	int64_t starttime;
 
 	res = pcs_prelogin(handle, &token, &code_string);
 	if (res != PCS_OK) {
@@ -2026,13 +2038,15 @@ PCS_API PcsRes pcs_login(Pcs handle)
 		return res;
 	}
 
+	starttime = pcs_jstime() - 20000; /* 设置为 20秒 前打开的页面 */
+
 	retry_times = 0;
 
 try_login:
 	
 	pcs_free(html);
 	html = NULL;
-	res = pcs_dologin(handle, code_string, token, &error, &html);
+	res = pcs_dologin(handle, starttime, code_string, token, &error, &html);
 	if (res != PCS_OK) {
 		pcs_free(token);
 		pcs_free(code_string);

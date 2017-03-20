@@ -75,11 +75,17 @@
     <ClCompile Include="arg.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="utf8.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="pcs\err_msg.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="pcs\pcs_passport_dv.c">
+      <Filter>Source Files\pcs</Filter>
+    </ClCompile>
+    <ClCompile Include="pcs\pcs_buffer.c">
+      <Filter>Source Files\pcs</Filter>
+    </ClCompile>
+    <ClCompile Include="pcs\utf8.c">
+      <Filter>Source Files\pcs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -140,14 +146,20 @@
     <ClInclude Include="arg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="utf8.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="pcs\openssl_rsa.h">
       <Filter>Header Files\pcs</Filter>
     </ClInclude>
     <ClInclude Include="version.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="pcs\pcs_passport_dv.h">
+      <Filter>Header Files\pcs</Filter>
+    </ClInclude>
+    <ClInclude Include="pcs\pcs_buffer.h">
+      <Filter>Header Files\pcs</Filter>
+    </ClInclude>
+    <ClInclude Include="pcs\utf8.h">
+      <Filter>Header Files\pcs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

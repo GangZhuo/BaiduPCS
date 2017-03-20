@@ -4,8 +4,26 @@ ver = release
 OS_NAME = $(shell uname -s | cut -c1-6)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
 
-PCS_OBJS     = bin/cJSON.o bin/pcs.o bin/pcs_fileinfo.o bin/pcs_http.o bin/pcs_mem.o bin/pcs_pan_api_resinfo.o bin/pcs_slist.o bin/pcs_utils.o bin/err_msg.o
-SHELL_OBJS   = bin/shell_arg.o bin/shell.o bin/dir.o bin/rb_tree_misc.o bin/rb_tree_stack.o bin/red_black_tree.o bin/shell_utils.o bin/hashtable.o
+PCS_OBJS     =  bin/cJSON.o \
+				bin/pcs.o \
+				bin/pcs_fileinfo.o \
+				bin/pcs_http.o \
+				bin/pcs_mem.o \
+				bin/pcs_pan_api_resinfo.o \
+				bin/pcs_slist.o \
+				bin/pcs_utils.o \
+				bin/err_msg.o \
+				bin/utf8.o
+
+SHELL_OBJS   =  bin/shell_arg.o \
+				bin/shell.o \
+				bin/dir.o \
+				bin/rb_tree_misc.o \
+				bin/rb_tree_stack.o \
+				bin/red_black_tree.o \
+				bin/shell_utils.o \
+				bin/hashtable.o
+
 #CCFLAGS      = -DHAVE_ASPRINTF -DHAVE_ICONV
 ifeq ($(LC_OS_NAME), cygwin)
 CYGWIN_CCFLAGS = -largp
@@ -68,9 +86,14 @@ bin/pcs_utils.o: pcs/pcs_utils.c pcs/pcs_mem.h pcs/pcs_defs.h pcs/pcs_utils.h pc
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_utils.c
 bin/err_msg.o: pcs/err_msg.c
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/err_msg.c
+bin/utf8.o: pcs/utf8.c
+	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/utf8.c
 
 bin/libpcs.so: pre $(PCS_OBJS)
 	$(CC) -shared -fPIC -o $@ $(PCS_OBJS) -lcurl -lssl -lcrypto
+
+bin/libpcs.a : pre $(PCS_OBJS)
+	$(AR) crv $@ $(PCS_OBJS)
 
 .PHONY : install
 install:

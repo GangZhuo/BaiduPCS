@@ -396,12 +396,41 @@ PCS_API const char *pcs_time2str(time_t time)
 	}
 }
 
+/* 等同 javascript 中的 '(new Date()).getTime()'。 */
+PCS_API int64_t pcs_jstime()
+{
+	int64_t sec, usec;
+#if defined(_WIN32)
+	static int mode = 0;
+	static int64_t addsec = 0, freq = 1;
+	BOOL retval;
+	int64_t qpc;
+	if (mode == 0) {
+		retval = QueryPerformanceFrequency((LARGE_INTEGER*)&freq);
+		freq = (freq == 0) ? 1 : freq;
+		retval = QueryPerformanceCounter((LARGE_INTEGER*)&qpc);
+		addsec = (int64_t)time(NULL);
+		addsec = addsec - (int64_t)((qpc / freq) & 0x7fffffff);
+		mode = 1;
+	}
+	retval = QueryPerformanceCounter((LARGE_INTEGER*)&qpc);
+	retval = retval * 2;
+	sec = (qpc / freq) + addsec;
+	usec = ((qpc % freq) * 1000000 / freq);
+#else
+	struct timeval time;
+	gettimeofday(&time, NULL);
+	sec = time.tv_sec;
+	usec = time.tv_usec;
+#endif
+	return sec * 1000 + usec / 1000;
+}
+
 PCS_API char *pcs_js_timestr()
 {
 	static char s[32];
-
-	snprintf(s, sizeof(s), "%d", (int)time(NULL) * 1000);
-
+	int64_t tm = pcs_jstime();
+	snprintf(s, sizeof(s), "%" PRId64, tm);
 	return s;
 }
 

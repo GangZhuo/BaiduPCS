@@ -57,20 +57,20 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;BAIDUPCS_EXPORTS;PCS_STATIC_LIB;CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\curl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)deps\curl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)deps\lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>libcurl_a.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>libcmt.lib</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>Copy /Y /B "$(SolutionDir)deps\openssl\bin\libeay32.dll" "$(OutDir)libeay32.dll"
-Copy /Y /B "$(SolutionDir)deps\openssl\bin\ssleay32.dll" "$(OutDir)ssleay32.dll"
-Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -81,7 +81,7 @@ Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;BAIDUPCS_EXPORTS;PCS_STATIC_LIB;CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\curl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -90,13 +90,13 @@ Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(SolutionDir)deps\curl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)deps\lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>libcurl_a.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>libcmt.lib</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>Copy /Y /B "$(SolutionDir)deps\openssl\bin\libeay32.dll" "$(OutDir)libeay32.dll"
-Copy /Y /B "$(SolutionDir)deps\openssl\bin\ssleay32.dll" "$(OutDir)ssleay32.dll"
-Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -106,25 +106,31 @@ Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</
     <ClInclude Include="openssl_md5.h" />
     <ClInclude Include="openssl_rsa.h" />
     <ClInclude Include="pcs.h" />
+    <ClInclude Include="pcs_buffer.h" />
     <ClInclude Include="pcs_defs.h" />
     <ClInclude Include="pcs_fileinfo.h" />
     <ClInclude Include="pcs_http.h" />
     <ClInclude Include="pcs_mem.h" />
     <ClInclude Include="pcs_pan_api_resinfo.h" />
+    <ClInclude Include="pcs_passport_dv.h" />
     <ClInclude Include="pcs_slist.h" />
     <ClInclude Include="pcs_utils.h" />
+    <ClInclude Include="utf8.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.c" />
     <ClCompile Include="cJSON.c" />
     <ClCompile Include="err_msg.c" />
     <ClCompile Include="pcs.c" />
+    <ClCompile Include="pcs_buffer.c" />
     <ClCompile Include="pcs_fileinfo.c" />
     <ClCompile Include="pcs_http.c" />
     <ClCompile Include="pcs_mem.c" />
     <ClCompile Include="pcs_pan_api_resinfo.c" />
+    <ClCompile Include="pcs_passport_dv.c" />
     <ClCompile Include="pcs_slist.c" />
     <ClCompile Include="pcs_utils.c" />
+    <ClCompile Include="utf8.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
