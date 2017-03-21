@@ -30,8 +30,9 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 ### 1. 获取源代码
     git clone https://github.com/GangZhuo/BaiduPCS.git
 ### 2. 安装依赖
-    到 http://windows.php.net/downloads/php-sdk/deps/vc14/x86/ 下载需要的依赖包：libcurl,
-    openssl, libssh2。下载后，把压缩包解压到 deps 目录。
+    到 https://github.com/GangZhuo/BaiduPCS/releases/tag/0.2.6 下载需要的依赖包 [deps-win32.zip] 。
+    
+    下载后，把压缩包解压到 deps 目录。
     
     最终目录结构为：
 
@@ -43,18 +44,12 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 	 | |_rbtree
 	 | |_(etc ...)
 	 |_deps
-	   |_curl
-	   | |_bin
-	   | |_include
-	   | |_lib
-	   |_libssh2
-	   | |_bin
-	   | |_include
-	   | |_lib
-	   |_openssl
-	   | |_bin
-	   | |_include
-	   | |_lib
+	   |_include
+	   | |_curl
+	   | |_openssl
+	   |_lib
+	   | |_x64
+	   | |_x86
 
 
 ### 3. 编译源代码
@@ -447,3 +442,4 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 [预编译 ipk for Openwrt]:    http://sourceforge.net/projects/baidupcs/files/Openwrt/
 [初级使用教程]:    https://github.com/GangZhuo/BaiduPCS/wiki/BaiduPCS-%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8
 [windows.php.net]:    http://windows.php.net/downloads/php-sdk/deps/vc14/x86/
+[deps-win32.zip]:   https://github.com/GangZhuo/BaiduPCS/releases/download/0.2.6/deps-win32.zip

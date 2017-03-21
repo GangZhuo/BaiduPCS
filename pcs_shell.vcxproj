@@ -57,20 +57,20 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\curl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)deps\curl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)deps\lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>libcurl_a.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>libcmt.lib</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>Copy /Y /B "$(SolutionDir)deps\openssl\bin\libeay32.dll" "$(OutDir)libeay32.dll"
-Copy /Y /B "$(SolutionDir)deps\openssl\bin\ssleay32.dll" "$(OutDir)ssleay32.dll"
-Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -82,7 +82,7 @@ Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>CURL_STATICLIB;LIBCONFIG_STATIC;PCRE_STATIC;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;_FILE_OFFSET_BITS=64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\curl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -91,24 +91,26 @@ Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(SolutionDir)deps\curl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)deps\lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>libcurl_a.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>libcmt.lib</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>Copy /Y /B "$(SolutionDir)deps\openssl\bin\libeay32.dll" "$(OutDir)libeay32.dll"
-Copy /Y /B "$(SolutionDir)deps\openssl\bin\ssleay32.dll" "$(OutDir)ssleay32.dll"
-Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="arg.c" />
     <ClCompile Include="dir.c" />
     <ClCompile Include="hashtable.c" />
+    <ClCompile Include="pcs\pcs_buffer.c" />
+    <ClCompile Include="pcs\pcs_passport_dv.c" />
+    <ClCompile Include="pcs\utf8.c" />
     <ClCompile Include="rb_tree\misc.c" />
     <ClCompile Include="rb_tree\red_black_tree.c" />
     <ClCompile Include="rb_tree\stack.c" />
     <ClCompile Include="shell.c" />
-    <ClCompile Include="utf8.c" />
     <ClCompile Include="utils.c" />
     <ClCompile Include="pcs\cJSON.c" />
     <ClCompile Include="pcs\pcs.c" />
@@ -124,11 +126,13 @@ Copy /Y /B "$(SolutionDir)deps\libssh2\bin\libssh2.dll" "$(OutDir)libssh2.dll"</
     <ClInclude Include="arg.h" />
     <ClInclude Include="dir.h" />
     <ClInclude Include="hashtable.h" />
+    <ClInclude Include="pcs\pcs_buffer.h" />
+    <ClInclude Include="pcs\pcs_passport_dv.h" />
+    <ClInclude Include="pcs\utf8.h" />
     <ClInclude Include="rb_tree\misc.h" />
     <ClInclude Include="rb_tree\red_black_tree.h" />
     <ClInclude Include="rb_tree\stack.h" />
     <ClInclude Include="shell.h" />
-    <ClInclude Include="utf8.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="version.h" />
     <ClInclude Include="pcs\cJSON.h" />

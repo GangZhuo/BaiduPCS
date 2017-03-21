@@ -35,7 +35,7 @@
 #include "utils.h"
 #include "arg.h"
 #ifdef WIN32
-# include "utf8.h"
+# include "pcs/utf8.h"
 #ifndef __MINGW32__
 # define lseek _lseek
 # define fileno _fileno

@@ -21,7 +21,9 @@ const char *get_login_errmsg(int error)
 	case 4: // "您输入的帐号或密码有误";
 		errmsg = "Wrong password";
 		break;
-	case 5: // "请在弹出的窗口操作,或重新登录";
+	case 5: // "您所处的网络存在安全风险，请切换网络或使用短信登录";
+		errmsg = "There is a security risk in your network, please use SMS to log in.";
+		break;
 	case 120019: //请在弹出的窗口操作,或重新登录
 	case 400031: //请在弹出的窗口操作,或重新登录
 		errmsg = "See popped out window.";

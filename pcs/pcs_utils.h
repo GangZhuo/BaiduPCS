@@ -70,6 +70,9 @@ PCS_API int pcs_strlen(const char *s);
 
 PCS_API const char *pcs_time2str(time_t time);
 
+/* 等同 javascript 中的 '(new Date()).getTime()'。 */
+PCS_API int64_t pcs_jstime();
+
 PCS_API char *pcs_js_timestr();
 
 #endif
