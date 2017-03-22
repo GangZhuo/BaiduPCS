@@ -52,7 +52,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 	 |  |-(etc ...)
 
 ### 3. 编译源代码
-    使用 Microsoft Visual Studio Community 2015 打开源码根目录下的 baidupcs.sln，并执行编译操作，
+    使用 Microsoft Visual Studio Community 2015 (Update 3) 打开源码根目录下的 baidupcs.sln，并执行编译操作，
 	将在 Debug 或 Release 目录下产生 pcs.exe 文件。
 
 #### 下载 [适用Windows的预编译版本] 或 下载 .net4.0 带窗体版本 [BaiduCloudDisk for .Net 4.0] 
