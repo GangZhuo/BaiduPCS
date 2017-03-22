@@ -47,7 +47,7 @@ endif
 
 ifneq ($(ver), debug)
 $(warning "Use 'make ver=debug' to build for gdb debug.")
-CCFLAGS:=-D_FILE_OFFSET_BITS=64 -Os
+CCFLAGS:=-D_FILE_OFFSET_BITS=64
 else
 CCFLAGS:=-g -D_FILE_OFFSET_BITS=64 -DDEBUG -D_DEBUG
 endif
