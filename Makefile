@@ -33,7 +33,7 @@ else
 CYGWIN_CCFLAGS = 
 endif
 
-ifeq ($(LC_OS_NAME), mingw6)
+ifeq ($(LC_OS_NAME), $(filter $(LC_OS_NAME),mingw3 mingw6))
 MINGW_CCFLAGS = -lshlwapi
 else
 MINGW_CCFLAGS = 
@@ -57,7 +57,7 @@ PCS_CCFLAGS = -fPIC $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) $(MINGW_CCFLAG
 all: bin/pcs
 
 bin/pcs : pre $(PCS_OBJS) $(SHELL_OBJS)
-	$(CC) -o $@ $(PCS_OBJS) $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) -lm -lcurl -lssl -lcrypto -lpthread
+	$(CC) -o $@ $(PCS_OBJS) $(SHELL_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) $(MINGW_CCFLAGS) -lm -lcurl -lssl -lcrypto -lpthread
 
 bin/shell_arg.o: arg.c arg.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) arg.c
@@ -102,7 +102,7 @@ bin/pcs_passport_dv.o: pcs/pcs_passport_dv.c
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/pcs_passport_dv.c
 
 bin/libpcs.so: pre $(PCS_OBJS)
-	$(CC) -shared -fPIC -o $@ $(PCS_OBJS) -lcurl -lssl -lcrypto
+	$(CC) -shared -fPIC -o $@ $(PCS_OBJS) $(CCFLAGS) $(CYGWIN_CCFLAGS) $(APPLE_CCFLAGS) $(MINGW_CCFLAGS) -lm -lcurl -lssl -lcrypto -lpthread
 
 bin/libpcs.a : pre $(PCS_OBJS)
 	$(AR) crv $@ $(PCS_OBJS)
