@@ -38,19 +38,18 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 	somedirectory
 	 |_BaiduPCS
-	 | |_docs
-	 | |_openwrt
-	 | |_pcs
-	 | |_rbtree
-	 | |_(etc ...)
 	 |_deps
-	   |_include
-	   | |_curl
-	   | |_openssl
-	   |_lib
-	   | |_x64
-	   | |_x86
-
+	 |  |_include
+	 |  |  |_curl
+	 |  |  |_openssl
+	 |  |_lib
+	 |  |  |_x64
+	 |  |  |_x86
+	 |  |_docs
+	 |  |_openwrt
+	 |  |_pcs
+	 |  |_rbtree
+	 |  |_(etc ...)
 
 ### 3. 编译源代码
     使用 Microsoft Visual Studio Community 2015 打开源码根目录下的 baidupcs.sln，并执行编译操作，
