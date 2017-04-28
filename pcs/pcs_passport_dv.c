@@ -917,6 +917,8 @@ static int passport_keycodes(jskey_t *keys, const char *username, int n)
 				shift = 1;
 				key++;
 				i++;
+				if (i >= n)
+					break;
 			}
 			key->flags = DV_CKEY_SHIFT;
 			if (ch >= 'A' && ch <= 'Z')
