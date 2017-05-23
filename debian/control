@@ -4,6 +4,8 @@ Priority: optional
 Maintainer: Boyuan Yang <073plan@gmail.com>
 Build-Depends:
  debhelper (>= 9),
+ dh-exec,
+ dh-autoreconf,
  libssl-dev,
  libcurl4-openssl-dev,
 Standards-Version: 3.9.8
@@ -11,7 +13,6 @@ Homepage: https://github.com/GangZhuo/BaiduPCS
 
 Package: baidupcs
 Architecture: any
-Multi-Arch: foreign
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},

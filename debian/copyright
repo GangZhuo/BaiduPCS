@@ -18,7 +18,7 @@ Files:     pcs/cJSON.h
 Copyright: 2009 Dave Gamble
 License:   Expat
 
-Files:     pcs/openssl_aes.h
+Files:     pcs/openssl_*.h
 Copyright: 1998-2002 The OpenSSL Project.
 License:   OpenSSL
  Redistribution and use in source and binary forms, with or without
