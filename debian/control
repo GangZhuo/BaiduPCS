@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Boyuan Yang <073plan@gmail.com>
 Build-Depends:
- debhelper (>= 10),
+ debhelper (>= 9),
  libssl-dev,
  libcurl4-openssl-dev,
 Standards-Version: 3.9.8
