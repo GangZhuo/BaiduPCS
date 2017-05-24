@@ -9,6 +9,22 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 查看 [初级使用教程]
 
+打包安装 (Debian)：
+===================================
+
+### 1. 安装编译依赖
+    apt update
+    apt install build-essential dh-autoreconf dpkg-dev libssl-dev libcurl4-openssl-dev
+### 2. 获取源代码
+    git clone https://github.com/GangZhuo/BaiduPCS.git
+### 3. 构建打包
+    cd BaiduPCS
+    dpkg-buildpackage -us -uc -i -b
+### 4. 安装
+    cd ..
+    sudo apt install ./baidupcs_*.deb
+
+
 编译 (Debian)：
 ===================================
 程序依赖于 libcurl。
@@ -23,7 +39,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     make
     make install #将安装到/usr/local/bin下
 ### 4. 手动安装到其他目录，例如 /usr/bin 下 
-    cp ./bin/pcs /usr/bin/
+    cp ./baidupcs /usr/bin/
 
 编译 (Windows)：
 ===================================
@@ -53,7 +69,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 
 ### 3. 编译源代码
     使用 Microsoft Visual Studio Community 2015 (Update 3) 打开源码根目录下的 baidupcs.sln，并执行编译操作，
-	将在 Debug 或 Release 目录下产生 pcs.exe 文件。
+	将在 Debug 或 Release 目录下产生 baidupcs.exe 文件。
 
 #### 下载 [适用Windows的预编译版本] 或 下载 .net4.0 带窗体版本 [BaiduCloudDisk for .Net 4.0] 
 
@@ -69,7 +85,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     make
     make install #将安装到/usr/local/bin下
 ### 4. 手动安装到其他目录，例如 /usr/bin 下
-    cp ./bin/pcs /usr/bin/
+    cp ./baidupcs /usr/bin/
 
 编译 (Openwrt)：
 ===================================
@@ -80,7 +96,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
         make menuconfig # select Utilities/BaiduPCS
         make V=99 package/BaiduPCS/openwrt/compile
 
-#### 或下载 [预编译 ipk for Openwrt] ，CPU: ar71xx, brcm71xx, brcm47xx, ramips_24kec
+#### 或下载 [预编译 ipk for Openwrt] ，CPU: ar71xx, brcm71xx, brcm47xx, ramips\_24kec
 
 命令列表：
 ===================================
@@ -89,36 +105,36 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     例：
         /data/data.txt 即是网盘绝对路径，表示网盘根目录下的data目录中的data.txt文件。
         data.txt 即是相对路径，表示当前工作目录下的data.txt文件。
-        当前工作目录可通过 'pcs pwd' 命令来查看，当前工作目录可通过 'pcs cd'命令切换。
-        可通过 'pcs help' 查看支持的子命令；可在子命令后加 '-h' 查看子命令帮助，
-        也可调用类似于 'pcs help <command>' 的命令来查看子命令的帮助。
+        当前工作目录可通过 'baidupcs pwd' 命令来查看，当前工作目录可通过 'baidupcs cd'命令切换。
+        可通过 'baidupcs help' 查看支持的子命令；可在子命令后加 '-h' 查看子命令帮助，
+        也可调用类似于 'baidupcs help <command>' 的命令来查看子命令的帮助。
         例如：
-            pcs move -h。
-            pcs help move 此命令等价于上一行的命令
+            baidupcs move -h。
+            baidupcs help move 此命令等价于上一行的命令
 
 
 ### 直接显示网盘中文本文件内容
-    pcs cat <file>
+    baidupcs cat <file>
     
     示例：
-      pcs cat note.txt
-      pcs cat /my/todo.txt
+      baidupcs cat note.txt
+      baidupcs cat /my/todo.txt
 
 ### 切换工作目录
-    pcs cd <dir>
+    baidupcs cd <dir>
     
     示例：
-      pcs cd pcs
-      pcs cd /backup/20140618
+      baidupcs cd baidupcs
+      baidupcs cd /backup/20140618
 
 ### 复制网盘文件或目录
-    pcs copy <old path> <new path>
+    baidupcs copy <old path> <new path>
     
     示例：
-      pcs copy data.txt data_20140118.txt
+      baidupcs copy data.txt data_20140118.txt
 
 ### 比较异同
-    pcs compare [-cderu] <local path> <remote path>
+    baidupcs compare [-cderu] <local path> <remote path>
     
     比较本地文件和远端文件、本地目录和远端目录的异同。
     默认选项是'-cdu'，即打印出需要上传的文件、
@@ -146,12 +162,12 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
       -u  只打印出需要上传的文件或目录
     
     示例：
-       pcs compare music music
-       pcs compare -r ~/music music
+       baidupcs compare music music
+       baidupcs compare -r ~/music music
     
 
 ### 显示当前上下文
-    pcs context
+    baidupcs context
     
     上下文包括：
         当前使用的Cookie文件、验证码图片保存路径、
@@ -195,28 +211,28 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     
 
 ### 下载文件
-    pcs download [-f] <remote file> <local file>
-	pcs d [-f] <remote file> <local file>
+    baidupcs download [-f] <remote file> <local file>
+	baidupcs d [-f] <remote file> <local file>
     
-    只能下载文件，如果需要下载目录，请使用 'pcs synch -d <local dir> <remote dir>'。
+    只能下载文件，如果需要下载目录，请使用 'baidupcs synch -d <local dir> <remote dir>'。
     
     选项：
       -f   如果本地文件存在的话，强制替换
     
     示例：
-      pcs download /backup/data.20140118.tar.gz ~/download/data.20140118.tar.gz
+      baidupcs download /backup/data.20140118.tar.gz ~/download/data.20140118.tar.gz
 
 ### 直接保存文本到网盘中
-    pcs echo [-a] <remote file> <text>
+    baidupcs echo [-a] <remote file> <text>
     
     选项：
       -a  指定把文本添加到文件末尾，而不是完全替换
       
     示例：
-      pcs echo data.txt "The text that saved by pcs."
+      baidupcs echo data.txt "The text that saved by baidupcs."
 
 ### 编码/解码本地文件
-    pcs encode [-def] <src> <dst>
+    baidupcs encode [-def] <src> <dst>
 	
     选项：
       -d  使用上下文中的密钥来解密<src>文件并输出结果到<dst>中。
@@ -225,23 +241,23 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 	  -f  强制覆盖<dst>文件。
       
     示例：
-      pcs encode -e data.txt data-sec.txt
-	  pcs encode -d data-sec.txt data-plain.txt
-	  pcs encode -h
+      baidupcs encode -e data.txt data-sec.txt
+	  baidupcs encode -d data-sec.txt data-plain.txt
+	  baidupcs encode -h
 
 ### 查看帮助
-    pcs help [command name]
+    baidupcs help [command name]
     
     查看帮助。
     
     示例：
-       pcs help
-       pcs help compare
-       pcs help -h
+       baidupcs help
+       baidupcs help compare
+       baidupcs help -h
 
 ### 列出网盘根目录下的文件或目录
-    pcs list [dir]
-    pcs ls [dir]
+    baidupcs list [dir]
+    baidupcs ls [dir]
 	
     输出格式为：
         * 第一列指示是否是目录，如果是目录则输出 d，否则输出 -
@@ -250,86 +266,86 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
         * 如果指定了 --thumb 选项，则第四列是缩略图地址（如果有的话）
 
     示例：
-       pcs list
-       pcs list /music
-       pcs list -h
+       baidupcs list
+       baidupcs list /music
+       baidupcs list -h
        
     列出目录时会自动分页显示，如果需要修改分页大小的话，
-    使用'pcs set --list_page_size=20'来修改，把list_page_size设置为0，则关闭分页。
+    使用'baidupcs set --list_page_size=20'来修改，把list_page_size设置为0，则关闭分页。
 
 ### 登录网盘
-    pcs login [--username=<username>] [--password=<password>]
+    baidupcs login [--username=<username>] [--password=<password>]
     
     登录可能需要输入验证码。目前的处理办法是把验证码图片写入到本地文件，用户打开文件识别验证码。
-    可通过 'pcs set --captcha_file=<path> 来指定验证码保存路径，
-    例如：'pcs set --captcha_file=/var/www/xxx.com/captch.gif'将文件保存到网站目录下。
-    可通过 'pcs context' 查看当前的执行上下文。执行上下文包括验证码图片保存路径等其他信息。
+    可通过 'baidupcs set --captcha_file=<path> 来指定验证码保存路径，
+    例如：'baidupcs set --captcha_file=/var/www/xxx.com/captch.gif'将文件保存到网站目录下。
+    可通过 'baidupcs context' 查看当前的执行上下文。执行上下文包括验证码图片保存路径等其他信息。
     
     示例：
-      pcs login -h 可查看login命令的使用方法
-      pcs login    会提示输入用户名和密码
-      pcs login --username=gang 指定用户名登录
-      pcs login --username=gang --password=123456 指定用户名和密码登录
+      baidupcs login -h 可查看login命令的使用方法
+      baidupcs login    会提示输入用户名和密码
+      baidupcs login --username=gang 指定用户名登录
+      baidupcs login --username=gang --password=123456 指定用户名和密码登录
       
 ### 退出网盘
-    pcs logout
+    baidupcs logout
 
 ### 显示网盘文件或目录的元数据
-    pcs meta <file>
+    baidupcs meta <file>
     
     示例：
-       pcs meta
-       pcs meta note.txt
+       baidupcs meta
+       baidupcs meta note.txt
 
 ### 创建目录
-    pcs mkdir <dir>
+    baidupcs mkdir <dir>
     
     示例：
-      pcs mkdir subdir
-      pcs mkdir /music/china
+      baidupcs mkdir subdir
+      baidupcs mkdir /music/china
 
 ### 移动网盘文件或目录
-    pcs move <src> <dst>
-    pcs mv <src> <dst>
+    baidupcs move <src> <dst>
+    baidupcs mv <src> <dst>
     
     示例：
-      pcs move /data_20140118.txt /subdir/data.txt
-      pcs move music /my/music
+      baidupcs move /data_20140118.txt /subdir/data.txt
+      baidupcs move music /my/music
 
 ### 显示当前网盘的工作目录
-    pcs pwd
+    baidupcs pwd
 
     示例：
-      pcs pwd
+      baidupcs pwd
 
 ### 显示网盘配额
-    pcs quota [-e]
+    baidupcs quota [-e]
     
     选项：
       -e   打印精确的网盘配额
       
     示例：
-       pcs quota
-       pcs quota -e
+       baidupcs quota
+       baidupcs quota -e
 
 ### 删除文件或目录
-    pcs remove <path>
-	pcs rm <path>
+    baidupcs remove <path>
+	baidupcs rm <path>
     
     示例：
-      pcs remove /subdir/data_20140118.txt
+      baidupcs remove /subdir/data_20140118.txt
 
 ### 重命名网盘文件或目录
-    pcs rename <src> <new name>
-	pcs ren <src> <new name>
+    baidupcs rename <src> <new name>
+	baidupcs ren <src> <new name>
     
     注意：<new name>是新的文件名字，而不是文件路径。如果需要移动文件到另一个目录，请使用 'pcs move'。
     
     示例：
-      pcs rename /data.txt data_20140118.txt
+      baidupcs rename /data.txt data_20140118.txt
 
 ### 设置上下文
-    pcs set [--captcha_file=<path>] [--cookie_file=<path>] ...
+    baidupcs set [--captcha_file=<path>] [--cookie_file=<path>] ...
     
     选项：
 	--captcha_file=<file path>         设置验证码图片保存路径
@@ -347,24 +363,24 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 	--user_agent=<user-agent>          设置 User-Agent。
 
     示例：
-      pcs set -h
-      pcs set --cookie_file="/tmp/pcs.cookie"
-      pcs set --captcha_file="/tmp/vc.git"
-      pcs set --list_page_size=20 --list_sort_name=name --list_sort_direction=desc
-      pcs set --secure_enable=true --secure_key=123456 --secure_method=aes-cbc-256
+      baidupcs set -h
+      baidupcs set --cookie_file="/tmp/pcs.cookie"
+      baidupcs set --captcha_file="/tmp/vc.git"
+      baidupcs set --list_page_size=20 --list_sort_name=name --list_sort_direction=desc
+      baidupcs set --secure_enable=true --secure_key=123456 --secure_method=aes-cbc-256
 
 ### 搜索文件
-    pcs search [-r] [dir] <key>
+    baidupcs search [-r] [dir] <key>
     
     示例：
-       pcs search note.txt          在当前工作目录搜索 note.txt
-       pcs search /music desc.mp3   在/music目录搜索 desc.mp3
-       pcs search -r note.txt       在当前工作目录递归搜索 note.txt
-       pcs search -r /music desc.mp3 在/music目录递归搜索 desc.mp3
+       baidupcs search note.txt          在当前工作目录搜索 note.txt
+       baidupcs search /music desc.mp3   在/music目录搜索 desc.mp3
+       baidupcs search -r note.txt       在当前工作目录递归搜索 note.txt
+       baidupcs search -r /music desc.mp3 在/music目录递归搜索 desc.mp3
 
 ### 同步目录
-    pcs synch [-cdenru] <local path> <remote path>
-	pcs s [-cdenru] <local path> <remote path>
+    baidupcs synch [-cdenru] <local path> <remote path>
+	baidupcs s [-cdenru] <local path> <remote path>
     
     同步本地文件和远端文件、本地目录和远端目录。
     默认选项是'-cdu'，即上传需要上传的文件、下载需要下载的文件和打印无法确定上传下载的文件。
@@ -392,34 +408,34 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
       -u  只上传需要上传的文件或目录
     
     示例：
-       pcs synch music music
-       pcs synch -r ~/music music
-       pcs synch -u music music     只上传需要上传的文件，等价于备份
-       pcs synch -d music music     只下载需要下载的文件，等价于还原
-       pcs synch -du music music    上传需要上传的文件，并且下载需要下载的文件，等价于同步
+       baidupcs synch music music
+       baidupcs synch -r ~/music music
+       baidupcs synch -u music music     只上传需要上传的文件，等价于备份
+       baidupcs synch -d music music     只下载需要下载的文件，等价于还原
+       baidupcs synch -du music music    上传需要上传的文件，并且下载需要下载的文件，等价于同步
        
     注意：推荐每次都带上'-c'选项，可以打印出不知道如何处理的文件或目录，防止漏上传或下载。
 
 ### 上传文件
-    pcs upload [-f] <local file> <remote file>
-	pcs u [-f] <local file> <remote file>
+    baidupcs upload [-f] <local file> <remote file>
+	baidupcs u [-f] <local file> <remote file>
     
     只能上传文件，如果需要上传目录，请使用 'pcs synch' 命令。
     
     示例：
-       pcs upload ~/data.tar.gz /backup/data.20140118.tar.gz
+       baidupcs upload ~/data.tar.gz /backup/data.20140118.tar.gz
 
 ### 显示程序版本
-    pcs version
+    baidupcs version
     
     示例：
-       pcs version
+       baidupcs version
 
 ### 显示当前登录用户
-    pcs who
+    baidupcs who
 
     示例：
-       pcs who
+       baidupcs who
 
 注意：
 ===================================

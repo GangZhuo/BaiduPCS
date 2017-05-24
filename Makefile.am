@@ -40,10 +40,10 @@ baidupcs_SOURCES = \
 baidupcs_CFLAGS = $(AM_CFLAGS)
 baidupcs_LDADD = $(COMMON_LIBS)
 
-lib_LTLIBRARIES = libpcs.la
-libpcs_la_SOURCES = $(pcs_src)
-libpcs_la_LDFLAGS = -version-info $(VERSION_INFO)
-libpcs_la_LIBADD = $(pcs_LDADD)
+lib_LTLIBRARIES = libbaidupcs.la
+libbaidupcs_la_SOURCES = $(pcs_src)
+libbaidupcs_la_LDFLAGS = -version-info $(VERSION_INFO)
+libbaidupcs_la_LIBADD = $(pcs_LDADD)
 pcsincludedir = $(includedir)/pcs
 pcsinclude_HEADERS = pcs/pcs.h \
 					 pcs/pcs_buffer.h \
