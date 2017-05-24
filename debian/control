@@ -4,7 +4,6 @@ Priority: optional
 Maintainer: Boyuan Yang <073plan@gmail.com>
 Build-Depends:
  debhelper (>= 9),
- dh-exec,
  dh-autoreconf,
  libssl-dev,
  libcurl4-openssl-dev,

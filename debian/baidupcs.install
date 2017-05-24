@@ -1,2 +1,1 @@
-#!/usr/bin/dh-exec
-baidupcs => usr/bin/pcs
+baidupcs usr/bin/

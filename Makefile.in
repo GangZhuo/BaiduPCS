@@ -140,21 +140,22 @@ am__uninstall_files_from_dir = { \
 am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)" \
 	"$(DESTDIR)$(pcsincludedir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libpcs_la_DEPENDENCIES =
+libbaidupcs_la_DEPENDENCIES =
 am__dirstamp = $(am__leading_dot)dirstamp
 am__objects_1 = pcs/cJSON.lo pcs/pcs_fileinfo.lo pcs/pcs_http.lo \
 	pcs/pcs_mem.lo pcs/pcs_pan_api_resinfo.lo pcs/pcs_slist.lo \
 	pcs/pcs_utils.lo pcs/err_msg.lo pcs/utf8.lo pcs/pcs.lo \
 	pcs/pcs_buffer.lo pcs/pcs_passport_dv.lo
-am_libpcs_la_OBJECTS = $(am__objects_1)
-libpcs_la_OBJECTS = $(am_libpcs_la_OBJECTS)
+am_libbaidupcs_la_OBJECTS = $(am__objects_1)
+libbaidupcs_la_OBJECTS = $(am_libbaidupcs_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-libpcs_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(libpcs_la_LDFLAGS) $(LDFLAGS) -o $@
+libbaidupcs_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(AM_CFLAGS) $(CFLAGS) $(libbaidupcs_la_LDFLAGS) $(LDFLAGS) -o \
+	$@
 PROGRAMS = $(bin_PROGRAMS)
 am__objects_2 = baidupcs-shell.$(OBJEXT) baidupcs-arg.$(OBJEXT) \
 	baidupcs-dir.$(OBJEXT) rb_tree/baidupcs-misc.$(OBJEXT) \
@@ -211,8 +212,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libpcs_la_SOURCES) $(baidupcs_SOURCES)
-DIST_SOURCES = $(libpcs_la_SOURCES) $(baidupcs_SOURCES)
+SOURCES = $(libbaidupcs_la_SOURCES) $(baidupcs_SOURCES)
+DIST_SOURCES = $(libbaidupcs_la_SOURCES) $(baidupcs_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -428,10 +429,10 @@ baidupcs_SOURCES = \
 
 baidupcs_CFLAGS = $(AM_CFLAGS)
 baidupcs_LDADD = $(COMMON_LIBS)
-lib_LTLIBRARIES = libpcs.la
-libpcs_la_SOURCES = $(pcs_src)
-libpcs_la_LDFLAGS = -version-info $(VERSION_INFO)
-libpcs_la_LIBADD = $(pcs_LDADD)
+lib_LTLIBRARIES = libbaidupcs.la
+libbaidupcs_la_SOURCES = $(pcs_src)
+libbaidupcs_la_LDFLAGS = -version-info $(VERSION_INFO)
+libbaidupcs_la_LIBADD = $(pcs_LDADD)
 pcsincludedir = $(includedir)/pcs
 pcsinclude_HEADERS = pcs/pcs.h \
 					 pcs/pcs_buffer.h \
@@ -570,8 +571,8 @@ pcs/pcs_buffer.lo: pcs/$(am__dirstamp) pcs/$(DEPDIR)/$(am__dirstamp)
 pcs/pcs_passport_dv.lo: pcs/$(am__dirstamp) \
 	pcs/$(DEPDIR)/$(am__dirstamp)
 
-libpcs.la: $(libpcs_la_OBJECTS) $(libpcs_la_DEPENDENCIES) $(EXTRA_libpcs_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(libpcs_la_LINK) -rpath $(libdir) $(libpcs_la_OBJECTS) $(libpcs_la_LIBADD) $(LIBS)
+libbaidupcs.la: $(libbaidupcs_la_OBJECTS) $(libbaidupcs_la_DEPENDENCIES) $(EXTRA_libbaidupcs_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(libbaidupcs_la_LINK) -rpath $(libdir) $(libbaidupcs_la_OBJECTS) $(libbaidupcs_la_LIBADD) $(LIBS)
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
