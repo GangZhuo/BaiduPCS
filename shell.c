@@ -1270,7 +1270,7 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 	}
 	tm = time(&tm);
 	if (tm != ds->time) {
-		int64_t left_size = ds->file_size - ds->downloaded_size;
+		int64_t left_size = ds->file_size - ds->resume_from - ds->downloaded_size;
 		int64_t remain_tm = (ds->speed > 0) ? (left_size / ds->speed) : 0;
 		ds->time = tm;
 		printf("%s", pcs_utils_readable_size((double)ds->downloaded_size + (double)ds->resume_from, tmp, 63, NULL));
