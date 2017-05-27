@@ -210,7 +210,7 @@ struct RBEnumerateState
 {
 	int		first, second, other;
 	int		print_op;	/* 允许打印的 OP 标记。
-						 * 例如："OP_EQ | OP_LEFT | OP_RIGHT" 
+						 * 例如："OP_EQ | OP_LEFT | OP_RIGHT"
 						 * 将只打印 op 为 OP_EQ, OP_LEFT 和 OP_RIGHT 三项的节点
 						 */
 	int		print_flag;
@@ -2010,7 +2010,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->list_page_size = PRINT_PAGE_SIZE;
 	context->list_sort_name = pcs_utils_strdup("name");
 	context->list_sort_direction = pcs_utils_strdup("asc");
-	
+
 	context->secure_method = pcs_utils_strdup("plaintext");
 	context->secure_key = pcs_utils_strdup("");
 	context->secure_enable = 0;
@@ -2819,7 +2819,7 @@ static void rb_print_info(void *a, void *state)
 	printf("  local_exist: %s,\n", (meta->flag & FLAG_ON_LOCAL) ? "true" : "false");
 	print_time("  local_mtime: \"%s\",\n", meta->local_mtime);
 	printf("  local_isdir: %s,\n", meta->local_isdir ? "true" : "false");
-	
+
 	printf("  remote_path: \"%s\",\n", meta->remote_path);
 	printf("  remote_exist: %s,\n", (meta->flag & FLAG_ON_REMOTE) ? "true" : "false");
 	print_time("  remote_mtime: \"%s\",\n", meta->remote_mtime);
@@ -2973,7 +2973,7 @@ static void print_meta_list_head(int first, int second, int other)
 *   first  - 第一列宽度，第一列为操作成功还是失败的标记列。不存在时，传入0
 *   second - 第二列宽度，第二列为本地文件的路径
 *   other  - 剩下列的总宽度，不包括第三列。第三列宽度为固定值2
-*   meta   - 待打印的 meta 
+*   meta   - 待打印的 meta
 */
 static void print_meta_list_row(int first, int second, int other, MyMeta *meta)
 {
@@ -3204,7 +3204,7 @@ static int rb_print_meta(void *a, void *state)
 		meta->op_st = OP_ST_PROCESSING;
 
 	print_meta_list_row(s->first, s->second, s->other, meta);
-	
+
 	if (s->process) {
 		int rc = (*s->process)(meta, s, s->processState);
 		clear_current_print_line();
@@ -3244,7 +3244,7 @@ static int rb_decide_op(void *a, void *state)
 	int len;
 
 	if (!meta || !s) return 0;
-	
+
 	decide_op(meta);
 	meta->op_st = OP_ST_NONE;
 
@@ -3549,7 +3549,7 @@ static int create_file(const char *file, int64_t fsize)
  *   op_st          - 用于接收操作状态的。即 OP_ST_FAIL， OP_ST_SUCC， OP_ST_SKIP
  * 成功后返回0，失败后返回非0值
  */
-static inline int do_download(ShellContext *context, 
+static inline int do_download(ShellContext *context,
 	const char *local_file, const char *remote_file, time_t remote_mtime,
 	const char *local_basedir, const char *remote_basedir, const char *md5,
 	char **pErrMsg, int *op_st)
@@ -4193,7 +4193,7 @@ static int restore_upload_state(struct UploadState *us, const char *slice_local_
 	return 0;
 }
 
-static inline int do_upload(ShellContext *context, 
+static inline int do_upload(ShellContext *context,
 	const char *local_file, const char *remote_file, PcsBool is_force,
 	const char *local_basedir, const char *remote_basedir,
 	char **pErrMsg, int *op_st)
@@ -4762,7 +4762,7 @@ static int parse_compare_args(struct args *g, compare_arg *cmpArg)
 
 	cmpArg->local_file = u8_is_utf8_sys() ? g->argv[0] : utf82mbs(g->argv[0]);
 	cmpArg->remote_file = g->argv[1];
-	
+
 	return 0;
 }
 
@@ -4886,13 +4886,13 @@ static int combin_with_remote_dir_files(ShellContext *context, rb_red_blk_tree *
 						rbn = RBExactQuery(rb, (void *)(info->path + skip));
 						if (rbn && ((meta = (MyMeta *)rbn->info)->flag & FLAG_ON_LOCAL)) {
 							if (combin_with_remote_dir_files(context, rb, info->path, recursive, skip, total_cnt, check_local_dir_exist)) {
-								pcs_filist_destroy(list); 
+								pcs_filist_destroy(list);
 								return -1;
 							}
 						}
 					}
 					else if (combin_with_remote_dir_files(context, rb, info->path, recursive, skip, total_cnt, check_local_dir_exist)) {
-						pcs_filist_destroy(list); 
+						pcs_filist_destroy(list);
 						return -1;
 					}
 				}
@@ -4991,7 +4991,7 @@ static int on_compared_dir(ShellContext *context, compare_arg *arg, rb_red_blk_t
 	return 0;
 }
 
-static int compare(ShellContext *context, compare_arg *arg, 
+static int compare(ShellContext *context, compare_arg *arg,
 	int (*onComparedFile)(ShellContext *context, compare_arg *arg, MyMeta *mm, void *state),
 	void *comparedFileState,
 	int(*onComparedDir)(ShellContext *context, compare_arg *arg, rb_red_blk_tree *rb, void *state),
@@ -6071,8 +6071,8 @@ static int cmd_set(ShellContext *context, struct args *arg)
 {
 	char *val = NULL;
 	int count = 0;
-	if (test_arg(arg, 0, 0, 
-		"cookie_file", "captcha_file", 
+	if (test_arg(arg, 0, 0,
+		"cookie_file", "captcha_file",
 		"list_page_size", "list_sort_name", "list_sort_direction",
 		"secure_method", "secure_key", "secure_enable", "timeout_retry", "max_thread", "max_speed_per_thread",
 		"user-agent",
@@ -6287,8 +6287,8 @@ static int synchDownload(MyMeta *meta, struct RBEnumerateState *s, void *state)
 		return 0;
 	}
 
-	return do_download(s->context, 
-		meta->path, meta->remote_path, meta->remote_mtime, 
+	return do_download(s->context,
+		meta->path, meta->remote_path, meta->remote_mtime,
 		s->local_basedir, s->remote_basedir, meta->md5,
 		&meta->msg, &meta->op_st);
 }
