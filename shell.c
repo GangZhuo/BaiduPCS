@@ -47,7 +47,7 @@
 
 #define USAGE "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36"
 #define TIMEOUT						60
-#define CONNECTTIMEOUT				10
+#define CONNECTTIMEOUT				1
 #define MAX_THREAD_NUM				100
 #define MIN_SLICE_SIZE				(512 * 1024) /*最小分片大小*/
 #define MAX_SLICE_SIZE				(10 * 1024 * 1024) /*最大分片大小*/
@@ -3365,6 +3365,7 @@ static void *download_thread(void *params)
 	ShellContext *context = ds->context;
 	struct DownloadThreadState *ts = pop_download_threadstate(ds);
 	Pcs *pcs;
+	srand((unsigned int)time(NULL));
 	if (ts == NULL) {
 		lock_for_download(ds);
 		ds->num_of_running_thread--;
@@ -3417,12 +3418,9 @@ static void *download_thread(void *params)
 			}
 			//ds->status = DOWNLOAD_STATUS_FAIL;
 			unlock_for_download(ds);
-			delay = (rand() % 10);
-#ifdef _WIN32
-			printf("Download slice failed, retry delay %d second, tid: %x. message: %s\n", delay, GetCurrentThreadId(), pcs_strerror(pcs));
-#else
-			printf("Download slice failed, retry delay %d second, tid: %p. message: %s\n", delay, pthread_self(), pcs_strerror(pcs));
-#endif
+			delay = rand();
+			delay %= 10;
+			printf("Low speed, retry delay %d second...\n", delay);
 			sleep(delay); /*10秒后重试*/
 			continue;
 		}
