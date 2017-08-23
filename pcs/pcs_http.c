@@ -816,7 +816,7 @@ PCS_API int pcs_http_get_response_size(PcsHttp handle)
 PCS_API char *pcs_http_get(PcsHttp handle, const char *url, PcsBool follow_location)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
-	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, 0, 0, 0, 0, 0, 0, 0);
+	pcs_http_prepare(http, HTTP_METHOD_GET, url, follow_location, &pcs_http_write, http, 0, 0, 0, 0, 0, 0);
 	return pcs_http_perform(http, url);
 }
 
@@ -834,7 +834,7 @@ PCS_API char *pcs_http_get_raw(PcsHttp handle, const char *url, PcsBool follow_l
 PCS_API char *pcs_http_post(PcsHttp handle, const char *url, char *post_data, PcsBool follow_location)
 {
 	struct pcs_http *http = (struct pcs_http *)handle;
-	pcs_http_prepare(http, HTTP_METHOD_POST, url, follow_location, &pcs_http_write, http, 0, 0, 0, 0, 0, 0, 0);
+	pcs_http_prepare(http, HTTP_METHOD_POST, url, follow_location, &pcs_http_write, http, 0, 0, 0, 0, 0, 0);
 	if (post_data)
 		curl_easy_setopt(http->curl, CURLOPT_POSTFIELDS, post_data);  
 	else
