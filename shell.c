@@ -3420,7 +3420,7 @@ static void *download_thread(void *params)
 			unlock_for_download(ds);
 			delay = rand();
 			delay %= 10;
-			printf("Low speed, retry after %d seconds.\n", delay);
+			printf("Low speed, retry after %d seconds.        \n", delay);
 			sleep(delay); /*10秒后重试*/
 			continue;
 		}
