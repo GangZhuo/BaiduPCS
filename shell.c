@@ -2209,6 +2209,28 @@ static void usage_encode()
 	printf("  %s encode -d cipher.txt plain.txt\n", app_name);
 }
 
+/*打印 fix 命令用法。*/
+static void usage_fix()
+{
+	version();
+	printf("\nUsage: %s fix [-fh] <md5> <length> <scrap> <remote path>\n", app_name);
+	printf("\nDescription:\n");
+	printf("  Fix file base md5 and scrap.\n");
+	printf("  Some times, we download a file from foreign website, the speed is slow.\n");
+	printf("  In the case, if we know the actual size and md5 of the file, we can \n");
+	printf("  download first 256KB block from the foreign website, \n");
+	printf("  and then use the \"pcs fix\" command to try to repair the file.\n");
+	printf("  After success, the file will be saved in Baidu netdisk. \n");
+	printf("  If somebody have been uploaded the file to Baidu netdisk, \n");
+	printf("  it should be 100 % successful.\n");
+	printf("\nOptions:\n");
+	printf("  -f    Force override the remote file when the file exists on netdisk.\n");
+	printf("  -h    Print the usage.\n");
+	printf("\nSamples:\n");
+	printf("  %s fix -h\n", app_name);
+	printf("  %s fix 39d768542cd2420771f28b9a3652412f 5849513984 ~/xxx.iso xxx.iso\n", app_name);
+}
+
 /*打印help命令用法*/
 static void usage_help()
 {
@@ -2551,6 +2573,7 @@ static void usage()
 	printf("  download Download the file\n");
 	printf("  echo     Write the text into net disk file\n");
 	printf("  encode   Encrypt/decrypt the file\n");
+	printf("  fix      Fix file base md5 and scrap\n");
 	printf("  help     Print the usage\n");
 	printf("  list     List the directory\n");
 	printf("  login    Login\n");
@@ -3387,18 +3410,20 @@ static void *download_thread(void *params)
 			PCS_OPTION_END);
 		res = pcs_download(pcs, ds->remote_file, convert_to_real_speed(context->max_speed_per_thread), ts->start, ts->end - ts->start);
 		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_OK) {
+			int delay;
 			lock_for_download(ds);
 			if (!ds->pErrMsg) {
 				(*(ds->pErrMsg)) = pcs_utils_sprintf("%s", pcs_strerror(pcs));
 			}
 			//ds->status = DOWNLOAD_STATUS_FAIL;
 			unlock_for_download(ds);
+			delay = (rand() % 10);
 #ifdef _WIN32
-			printf("Download slice failed, retry delay 10 second, tid: %x. message: %s\n", GetCurrentThreadId(), pcs_strerror(pcs));
+			printf("Download slice failed, retry delay %d second, tid: %x. message: %s\n", delay, GetCurrentThreadId(), pcs_strerror(pcs));
 #else
-			printf("Download slice failed, retry delay 10 second, tid: %p. message: %s\n", pthread_self(), pcs_strerror(pcs));
+			printf("Download slice failed, retry delay %d second, tid: %p. message: %s\n", delay, pthread_self(), pcs_strerror(pcs));
 #endif
-			sleep(10); /*10秒后重试*/
+			sleep(delay); /*10秒后重试*/
 			continue;
 		}
 		lock_for_download(ds);
@@ -3805,6 +3830,9 @@ static inline int do_download(ShellContext *context,
 #else
 			start_download_thread(&ds, NULL);
 #endif
+			if (i != 0) {
+				sleep(rand() % 10);
+			}
 		}
 
 		/*等待所有运行的线程退出*/
@@ -5501,6 +5529,142 @@ static int cmd_encode(ShellContext *context, struct args *arg)
 	return 0;
 }
 
+/*根据 MD5 和 前 256 字节的文件碎片，来找回文件*/
+static int cmd_fix(ShellContext *context, struct args *arg)
+{
+	int is_force = 0;
+	const char *content_md5 = NULL;
+	char *path = NULL, *errmsg = NULL;
+	char *remotePath = NULL, *scrapFile = NULL;
+	char slice_md5[33] = { 0 };
+	int64_t content_length;
+
+	LocalFileInfo *local;
+	PcsFileInfo *meta;
+
+	if (test_arg(arg, 4, 4, "f", "h", "help", NULL)) {
+		usage_fix();
+		return -1;
+	}
+	if (has_opts(arg, "h", "help", NULL)) {
+		usage_fix();
+		return 0;
+	}
+
+	is_force = has_opt(arg, "f");
+	content_md5 = arg->argv[0];
+	content_length = atoll(arg->argv[1]);
+	scrapFile = u8_is_utf8_sys() ? arg->argv[1] : utf82mbs(arg->argv[2]);
+	remotePath = arg->argv[3];
+
+	if (strnlen(content_md5, 33) != 32) {
+		fprintf(stderr, "Error: Invalid 'md5'.\n");
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+
+	/*检查本地文件 - 开始*/
+	local = GetLocalFileInfo(scrapFile);
+	if (!local) {
+		fprintf(stderr, "Error: The 'scrap' not exist.\n");
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+	else if (local->isdir) {
+		fprintf(stderr, "Error: The 'scrap' is directory: %s. \n", arg->argv[1]);
+		DestroyLocalFileInfo(local);
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+	if (local->size < PCS_RAPIDUPLOAD_THRESHOLD) {
+		DestroyLocalFileInfo(local);
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		fprintf(stderr, "The scrap size is not satisfied, the file must be great than %d.", PCS_RAPIDUPLOAD_THRESHOLD);
+		return -1;
+	}
+	/*检查本地文件 - 结束*/
+
+	//检查是否已经登录
+	if (!is_login(context, NULL)) {
+		DestroyLocalFileInfo(local);
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+
+	path = combin_net_disk_path(context->workdir, remotePath);
+	if (!path) {
+		assert(path);
+		DestroyLocalFileInfo(local);
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+
+	if (strcmp(path, "/") == 0) {
+		char *tmp = combin_net_disk_path(path, local->filename);
+		pcs_free(path);
+		path = tmp;
+	}
+
+	/*检查网盘文件 - 开始*/
+	meta = pcs_meta(context->pcs, path);
+	if (meta && meta->isdir) {
+		char *tmp = combin_net_disk_path(path, local->filename);
+		pcs_free(path);
+		path = tmp;
+		pcs_fileinfo_destroy(meta);
+		meta = pcs_meta(context->pcs, path);
+	}
+	DestroyLocalFileInfo(local);
+	if (meta && meta->isdir) {
+		fprintf(stderr, "Error: The remote file exist, and it is directory. %s\n", path);
+		pcs_fileinfo_destroy(meta);
+		pcs_free(path);
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+	else if (meta && !is_force) {
+		fprintf(stderr, "Error: The remote file exist. You can specify '-f' to force override. %s\n", path);
+		pcs_fileinfo_destroy(meta);
+		pcs_free(path);
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+	else if (meta && is_force) {
+		char *diskName = pcs_utils_filename(meta->path);
+		pcs_free(diskName);
+	}
+	if (meta) {
+		pcs_fileinfo_destroy(meta);
+		meta = NULL;
+	}
+	/*检查网盘文件 - 结束*/
+
+	if (!pcs_md5_file_slice(context->pcs, scrapFile, 0, PCS_RAPIDUPLOAD_THRESHOLD, slice_md5)) {
+		fprintf(stderr, "Error: Cannot get slice md5.\n");
+		pcs_free(path);
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+
+	/*开始修复*/
+	meta = pcs_rapid_upload_r(context->pcs, path,
+		is_force ? PcsTrue : PcsFalse,
+		content_length, content_md5, slice_md5);
+	if (meta == NULL) {
+		fprintf(stderr, "Error: %s\n", errmsg);
+		if (errmsg) pcs_free(errmsg);
+		pcs_free(path);
+		if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+		return -1;
+	}
+	printf("Fix Success, remote path: %s.\n", path);
+	if (errmsg) pcs_free(errmsg);
+	pcs_free(path);
+	if (meta) pcs_fileinfo_destroy(meta);
+	if (!u8_is_utf8_sys()) pcs_free(scrapFile);
+	return 0;
+}
+
 /*打印帮助信息*/
 static int cmd_help(ShellContext *context, struct args *arg)
 {
@@ -5553,6 +5717,10 @@ static int cmd_help(ShellContext *context, struct args *arg)
 	}
 	else if (strcmp(cmd, "encode") == 0) {
 		usage_encode();
+		rc = 0;
+	}
+	else if (strcmp(cmd, "fix") == 0) {
+		usage_fix();
 		rc = 0;
 	}
 	else if (strcmp(cmd, "list") == 0
@@ -6662,6 +6830,9 @@ static int exec_cmd(ShellContext *context, struct args *arg)
 	else if (strcmp(cmd, "encode") == 0) {
 		rc = cmd_encode(context, arg);
 	}
+	else if (strcmp(cmd, "fix") == 0) {
+		rc = cmd_fix(context, arg);
+	}
 	else if (strcmp(cmd, "list") == 0
 		|| strcmp(cmd, "ls") == 0) {
 		rc = cmd_list(context, arg);
@@ -6762,6 +6933,7 @@ int main(int argc, char *argv[])
 		printf("Can't create pcs context.\n");
 		goto exit_main;
 	}
+	srand((unsigned int)time(NULL));
 	rc = exec_cmd(&context, &arg);
 	destroy_pcs(context.pcs);
 	save_context(&context);
