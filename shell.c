@@ -2222,7 +2222,7 @@ static void usage_fix()
 	printf("  and then use the \"pcs fix\" command to try to repair the file.\n");
 	printf("  After success, the file will be saved in Baidu netdisk. \n");
 	printf("  If somebody have been uploaded the file to Baidu netdisk, \n");
-	printf("  it should be 100%% successful.\n");
+	printf("  it should be 100 % successful.\n");
 	printf("\nOptions:\n");
 	printf("  -f    Force override the remote file when the file exists on netdisk.\n");
 	printf("  -h    Print the usage.\n");
@@ -3410,18 +3410,20 @@ static void *download_thread(void *params)
 			PCS_OPTION_END);
 		res = pcs_download(pcs, ds->remote_file, convert_to_real_speed(context->max_speed_per_thread), ts->start, ts->end - ts->start);
 		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_OK) {
+			int delay;
 			lock_for_download(ds);
 			if (!ds->pErrMsg) {
 				(*(ds->pErrMsg)) = pcs_utils_sprintf("%s", pcs_strerror(pcs));
 			}
 			//ds->status = DOWNLOAD_STATUS_FAIL;
 			unlock_for_download(ds);
+			delay = (rand() % 10);
 #ifdef _WIN32
-			printf("Download slice failed, retry delay 10 second, tid: %x. message: %s\n", GetCurrentThreadId(), pcs_strerror(pcs));
+			printf("Download slice failed, retry delay %d second, tid: %x. message: %s\n", delay, GetCurrentThreadId(), pcs_strerror(pcs));
 #else
-			printf("Download slice failed, retry delay 10 second, tid: %p. message: %s\n", pthread_self(), pcs_strerror(pcs));
+			printf("Download slice failed, retry delay %d second, tid: %p. message: %s\n", delay, pthread_self(), pcs_strerror(pcs));
 #endif
-			sleep(10); /*10秒后重试*/
+			sleep(delay); /*10秒后重试*/
 			continue;
 		}
 		lock_for_download(ds);
@@ -3828,6 +3830,9 @@ static inline int do_download(ShellContext *context,
 #else
 			start_download_thread(&ds, NULL);
 #endif
+			if (i != 0) {
+				sleep(rand() % 10);
+			}
 		}
 
 		/*等待所有运行的线程退出*/
@@ -6928,6 +6933,7 @@ int main(int argc, char *argv[])
 		printf("Can't create pcs context.\n");
 		goto exit_main;
 	}
+	srand((unsigned int)time(NULL));
 	rc = exec_cmd(&context, &arg);
 	destroy_pcs(context.pcs);
 	save_context(&context);
