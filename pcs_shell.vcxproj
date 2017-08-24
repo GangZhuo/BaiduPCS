@@ -102,6 +102,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="arg.c" />
+    <ClCompile Include="cache.c" />
     <ClCompile Include="dir.c" />
     <ClCompile Include="hashtable.c" />
     <ClCompile Include="pcs\pcs_buffer.c" />
@@ -124,6 +125,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="arg.h" />
+    <ClInclude Include="cache.h" />
     <ClInclude Include="dir.h" />
     <ClInclude Include="hashtable.h" />
     <ClInclude Include="pcs\pcs_buffer.h" />

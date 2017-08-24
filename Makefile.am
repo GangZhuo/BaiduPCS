@@ -31,7 +31,8 @@ shell_src = shell.c \
 			rb_tree/red_black_tree.c \
 			rb_tree/stack.c \
 			utils.c \
-			hashtable.c
+			hashtable.c \
+			cache.c
 
 baidupcs_SOURCES = \
 				   $(shell_src) \
@@ -68,6 +69,7 @@ noinst_HEADERS =  pcs/BaiduPCS.h \
 				  arg.h \
 				  dir.h \
 				  hashtable.h \
+				  cache.h \
 				  rb_tree/misc.h \
 				  rb_tree/red_black_tree.h \
 				  rb_tree/stack.h
