@@ -132,8 +132,6 @@ PCS_API char* pcs_utils_readable_size(double size/*in bytes*/, char *buf, int bu
 /* Human-readable left time */
 PCS_API char* pcs_utils_readable_left_time(int64_t second, char *buf, int buf_size, char *sp)
 {
-	int i = 0;
-	const char* units[] = { "B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
 	int day = (int)(second / (24 * 60 * 60));
 	int hour = (int)((second % (24 * 60 * 60)) / (60 * 60));
 	int minute = (int)(((second % (24 * 60 * 60)) % (60 * 60)) / 60);
@@ -310,7 +308,7 @@ PCS_API const char *pcs_md5_file_s(const char *file_name)
 		printf("%s can't be openedn", file_name);
 		return 0;
 	}
-	while (length = fread(buffer, 1, 1024, file))
+	while ((length = fread(buffer, 1, 1024, file)))
 		MD5_Update(&md5, buffer, length);
 	MD5_Final(md, &md5);
 	fclose(file);
