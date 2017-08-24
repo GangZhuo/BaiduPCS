@@ -49,7 +49,8 @@
 #define USAGE "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36"
 #define TIMEOUT						60
 #define CONNECTTIMEOUT				1
-#define MAX_THREAD_NUM				100
+#define DEFAULT_THREAD_NUM			5
+#define MAX_THREAD_NUM				10000
 #define MIN_SLICE_SIZE				(512 * 1024) /*最小分片大小*/
 #define MAX_SLICE_SIZE				(10 * 1024 * 1024) /*最大分片大小*/
 #define MAX_FFLUSH_SIZE				(10 * 1024 * 1024) /*最大缓存大小*/
@@ -2031,7 +2032,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->secure_enable = 0;
 
 	context->timeout_retry = 1;
-	context->max_thread = 1;
+	context->max_thread = DEFAULT_THREAD_NUM;
 	context->max_speed_per_thread = 0;
 	context->max_upload_speed_per_thread = 0;
 	context->cache_size = MAX_CACHE_SIZE;
@@ -3400,6 +3401,9 @@ static void *download_thread(void *params)
 	struct DownloadThreadState *ts = pop_download_threadstate(ds);
 	Pcs *pcs;
 	srand((unsigned int)time(NULL));
+	if (ds->threads != ts) {
+		sleep(rand() % 5);
+	}
 	if (ts == NULL) {
 		lock_for_download(ds);
 		ds->num_of_running_thread--;
@@ -3869,7 +3873,6 @@ static inline int do_download(ShellContext *context,
 			thread_count = context->max_thread;
 		ds.num_of_running_thread = thread_count;
 		//printf("\nthread: %d, slice: %d\n", thread_count, ds.num_of_slice);
-		srand((unsigned int)time(NULL));
 #ifdef _WIN32
 		handles = (HANDLE *)pcs_malloc(sizeof(HANDLE) * thread_count);
 		memset(handles, 0, sizeof(HANDLE) * thread_count);
@@ -3880,9 +3883,6 @@ static inline int do_download(ShellContext *context,
 #else
 			start_download_thread(&ds, NULL);
 #endif
-			if (i != 0) {
-				sleep(rand() % 10);
-			}
 		}
 
 		/*等待所有运行的线程退出*/
