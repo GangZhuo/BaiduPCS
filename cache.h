@@ -3,7 +3,9 @@
 
 #include "pcs/pcs.h"
 
+#ifndef MAX_CACHE_SIZE
 #define MAX_CACHE_SIZE	(1 * 1024) /* 1MiB */
+#endif
 
 #ifdef __cplusplus
 extern "C" {
