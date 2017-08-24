@@ -34,12 +34,6 @@
 
 #define PCS_SKIP_SPACE(p) while((*p) && (*p == ' ' || *p == '\f' || *p == '\n' || *p == '\r' || *p == '\t' || *p == '\v')) p++
 
-//#define PCS_IS_TOKEN_CHAR(ch) (((ch) >= '0' && (ch) <= '9')\
-//								   || ((ch) >= 'a' && (ch) <= 'z')\
-//								   || ((ch) >= 'A' && (ch) <= 'Z')\
-//								   || (ch) == '_'\
-//								   || (ch) == '-')
-
 #define PCS_IS_TOKEN_CHAR(ch) ((ch) != '&' && (ch) != '?' && (ch) != '#' && (ch) > 32 && (ch) < 127)
 
 #define URL_HOME			"http://www.baidu.com"
@@ -128,9 +122,7 @@ PCS_API void pcs_set_errmsg(Pcs handle, const char *fmt, ...)
 
 PCS_API void pcs_cat_errmsg(Pcs handle, const char *fmt, ...)
 {
-	struct pcs *pcs = (struct pcs *)handle;
 	char *errmsg;
-	size_t sz = 0;
 	va_list args;
 	va_start(args, fmt);
 	errmsg = pcs_utils_vsprintf(fmt, args);
@@ -323,6 +315,9 @@ static char *pcs_get_yunData(const char *html, const char *key)
 		p++;
 	}
 	return val;
+#undef st_push
+#undef st_pop
+#undef st_top
 }
 
 /*从URL地址的QueryString中解析出类似于 &error=123&a= 的值。此例中，key传入"&error"，将返回123*/

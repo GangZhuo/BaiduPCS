@@ -24,6 +24,20 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     cd ..
     sudo apt install ./baidupcs_*.deb
 
+编译 (Debian) (新方法)：
+===================================
+程序依赖于 libcurl。
+
+### 1. 安装依赖
+    apt-get install build-essential libcurl4-openssl-dev libssl-dev
+### 2. 获取源代码
+    git clone https://github.com/GangZhuo/BaiduPCS.git
+### 3. 编译源代码
+    cd BaiduPCS
+    ./configure && make
+    make install #将安装到/usr/local/bin下
+### 4. 手动安装到其他目录，例如 /usr/bin 下 
+    cp ./baidupcs /usr/bin/
 
 编译 (Debian)：
 ===================================
@@ -35,11 +49,11 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     git clone https://github.com/GangZhuo/BaiduPCS.git
 ### 3. 编译源代码
     cd BaiduPCS
-    make clean
-    make
-    make install #将安装到/usr/local/bin下
+    make clean -f Makefile.old
+    make -f Makefile.old
+    make install -f Makefile.old #将安装到/usr/local/bin下
 ### 4. 手动安装到其他目录，例如 /usr/bin 下 
-    cp ./baidupcs /usr/bin/
+    cp ./bin/pcs /usr/bin/
 
 编译 (Windows)：
 ===================================

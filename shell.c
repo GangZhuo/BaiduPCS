@@ -34,6 +34,7 @@
 #include "dir.h"
 #include "utils.h"
 #include "arg.h"
+#include "cache.h"
 #ifdef WIN32
 # include "pcs/utf8.h"
 #ifndef __MINGW32__
@@ -47,7 +48,7 @@
 
 #define USAGE "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36"
 #define TIMEOUT						60
-#define CONNECTTIMEOUT				10
+#define CONNECTTIMEOUT				1
 #define MAX_THREAD_NUM				100
 #define MIN_SLICE_SIZE				(512 * 1024) /*最小分片大小*/
 #define MAX_SLICE_SIZE				(10 * 1024 * 1024) /*最大分片大小*/
@@ -57,6 +58,8 @@
 #define MAX_UPLOAD_SLICE_COUNT		1024
 
 #define convert_to_real_speed(speed) ((speed) * 1024)
+
+#define convert_to_real_cache_size(size) ((size) * 1024)
 
 #define PCS_CONTEXT_ENV				"PCS_CONTEXT"
 #define PCS_COOKIE_ENV				"PCS_COOKIE"
@@ -181,7 +184,6 @@ struct DownloadState
 	FILE *pf;
 	int64_t downloaded_size; /*已经下载的字节数*/
 	curl_off_t resume_from; /*断点续传时，从这个位置开始续传*/
-	size_t noflush_size; /*未执行fflush()的字节大小*/
 	time_t time; /*最后一次在屏幕打印信息的时间*/
 	size_t speed; /*用于统计下载速度*/
 	int64_t file_size; /*完整的文件的字节大小*/
@@ -193,6 +195,7 @@ struct DownloadState
 	int	status;
 	const char *remote_file;
 	struct DownloadThreadState *threads;
+	cathe_t cache;
 };
 
 struct DownloadThreadState
@@ -1031,6 +1034,7 @@ static const char *captchafile()
 static void init_download_state(struct DownloadState *ds)
 {
 	memset(ds, 0, sizeof(struct DownloadState));
+	cache_init(&ds->cache);
 #ifdef _WIN32
 	ds->mutex = CreateMutex(NULL, FALSE, NULL);
 #else
@@ -1053,6 +1057,7 @@ static void uninit_download_state(struct DownloadState *ds)
 		ts = ts->next;
 		pcs_free(ps);
 	}
+	cache_uninit(&ds->cache);
 }
 
 static void lock_for_download(struct DownloadState *ds)
@@ -1252,22 +1257,21 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 {
 	struct DownloadState *ds = (struct DownloadState *)userdata;
 	FILE *pf = ds->pf;
-	size_t i;
 	time_t tm;
 	char tmp[64];
+	int rc;
 	tmp[63] = '\0';
-	i = fwrite(ptr, 1, size, pf);
-	if (i != size) {
-		unlock_for_download(ds);
+	rc = cache_add(&ds->cache, ds->downloaded_size, ptr, size);
+	if (rc)
 		return 0;
+	ds->downloaded_size += size;
+	ds->speed += size;
+	if (ds->cache.total_size >= convert_to_real_cache_size(ds->context->cache_size)) {
+		rc = cache_flush(&ds->cache);
+		if (rc)
+			return 0;
 	}
-	ds->downloaded_size += i;
-	ds->speed += i;
-	ds->noflush_size += i;
-	if (ds->noflush_size > MAX_FFLUSH_SIZE) {
-		fflush(pf);
-		ds->noflush_size = 0;
-	}
+
 	tm = time(&tm);
 	if (tm != ds->time) {
 		int64_t left_size = ds->file_size - ds->downloaded_size;
@@ -1281,7 +1285,7 @@ static int download_write(char *ptr, size_t size, size_t contentlength, void *us
 		fflush(stdout);
 		ds->speed = 0;
 	}
-	return i;
+	return size;
 }
 
 static int download_write_for_multy_thread(char *ptr, size_t size, size_t contentlength, void *userdata)
@@ -1295,27 +1299,16 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	int rc;
 	tmp[63] = '\0';
 	lock_for_download(ds);
-	//lseek(fileno(pf), ts->start, SEEK_SET);
-	rc = fseeko((pf), ts->start, SEEK_SET);
-	if (rc) {
-		if (ds->pErrMsg) {
-			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
-			(*(ds->pErrMsg)) = pcs_utils_sprintf("fseeko() error.");
-		}
-		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
-		unlock_for_download(ds);
-		return 0;
-	}
 	if (ts->start + size > ts->end) {
 		size = (size_t)(ts->end - ts->start);
 		ts->status = DOWNLOAD_STATUS_OK;
 	}
 	if (size > 0) {
-		rc = fwrite(ptr, 1, size, pf);
-		if (rc != size) {
+		rc = cache_add(&ds->cache, ts->start, ptr, size);
+		if (rc) {
 			if (ds->pErrMsg) {
 				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
-				(*(ds->pErrMsg)) = pcs_utils_sprintf("fwrite() error.");
+				(*(ds->pErrMsg)) = pcs_utils_sprintf("cache_add() error.");
 			}
 			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
 			unlock_for_download(ds);
@@ -1325,26 +1318,35 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	ds->downloaded_size += size;
 	ts->start += size;
 	ds->speed += size;
-	ds->noflush_size += size;
 	if (ts->start == ts->end) {
 		ts->status = DOWNLOAD_STATUS_OK;
 		size = 0;
 	}
 
-	if (save_thread_states_to_file(pf, ds->file_size, ds->threads)) {
-		if (ds->pErrMsg) {
-			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
-			(*(ds->pErrMsg)) = pcs_utils_sprintf("save slices error.");
+	if (ds->cache.total_size >= convert_to_real_cache_size(context->cache_size)) {
+		rc = cache_flush(&ds->cache);
+		if (rc) {
+			if (ds->pErrMsg) {
+				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+				(*(ds->pErrMsg)) = pcs_utils_sprintf("cache_flush() error.");
+			}
+			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+			unlock_for_download(ds);
+			return 0;
 		}
-		ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
-		unlock_for_download(ds);
-		return 0;
+		rc = save_thread_states_to_file(pf, ds->file_size, ds->threads);
+		if (rc) {
+			if (ds->pErrMsg) {
+				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+				(*(ds->pErrMsg)) = pcs_utils_sprintf("save slices error.");
+			}
+			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+			unlock_for_download(ds);
+			return 0;
+		}
+		cache_reset(&ds->cache);
 	}
 
-	//if (ds->noflush_size > MAX_FFLUSH_SIZE) {
-	//	fflush(pf);
-	//	ds->noflush_size = 0;
-	//}
 	tm = time(&tm);
 	if (tm != ds->time) {
 		int64_t left_size = ds->file_size - ds->downloaded_size;
@@ -1359,7 +1361,6 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 		fflush(stdout);
 		ds->speed = 0;
 	}
-
 	unlock_for_download(ds);
 	return size;
 }
@@ -1796,6 +1797,10 @@ static char *context2str(ShellContext *context)
 	assert(item);
 	cJSON_AddItemToObject(root, "user_agent", item);
 
+	item = cJSON_CreateNumber(context->cache_size);
+	assert(item);
+	cJSON_AddItemToObject(root, "cache_size", item);
+
 	json = cJSON_Print(root);
 	assert(json);
 
@@ -1994,6 +1999,16 @@ static int restore_context(ShellContext *context, const char *filename)
 		context->user_agent = pcs_utils_strdup(item->valuestring);
 	}
 
+	item = cJSON_GetObjectItem(root, "cache_size");
+	if (item) {
+		if (((int)item->valueint) < 0) {
+			printf("warning: Invalid context.cache_size, the value should be >= 0, use default value: %d.\n", context->cache_size);
+		}
+		else {
+			context->cache_size = (int)item->valueint;
+		}
+	}
+
 	cJSON_Delete(root);
 	pcs_free(filecontent);
 	return 0;
@@ -2019,6 +2034,7 @@ static void init_context(ShellContext *context, struct args *arg)
 	context->max_thread = 1;
 	context->max_speed_per_thread = 0;
 	context->max_upload_speed_per_thread = 0;
+	context->cache_size = MAX_CACHE_SIZE;
 
 	context->user_agent = pcs_utils_strdup(USAGE);
 }
@@ -2438,6 +2454,7 @@ static void usage_set()
 	printf("  max_speed_per_thread Int        >= 0. The max speed in KiB per thread.\n");
 	printf("  max_upload_speed_per_thread Int >= 0. The max speed in KiB per thread.\n");
 	printf("  user_agent           String     set user agent.\n");
+	printf("  cache_size           Int        >= 0. The max cache size in KiB.\n");
 	printf("\nSamples:\n");
 	printf("  %s set -h\n", app_name);
 	printf("  %s set --cookie_file=\"/tmp/pcs.cookie\"\n", app_name);
@@ -2777,6 +2794,23 @@ static int set_max_upload_speed_per_thread(ShellContext *context, const char *va
 	v = atoi(val);
 	if (v < 0) return -1;
 	context->max_upload_speed_per_thread = v;
+	return 0;
+}
+
+/*设置上下文中的cache_size值*/
+static int set_cache_size(ShellContext *context, const char *val)
+{
+	const char *p = val;
+	int v;
+	if (!val || !val[0]) return -1;
+	while (*p) {
+		if (*p < '0' || *p > '9')
+			return -1;
+		p++;
+	}
+	v = atoi(val);
+	if (v < 0) return -1;
+	context->cache_size = v;
 	return 0;
 }
 
@@ -3365,6 +3399,7 @@ static void *download_thread(void *params)
 	ShellContext *context = ds->context;
 	struct DownloadThreadState *ts = pop_download_threadstate(ds);
 	Pcs *pcs;
+	srand((unsigned int)time(NULL));
 	if (ts == NULL) {
 		lock_for_download(ds);
 		ds->num_of_running_thread--;
@@ -3417,12 +3452,8 @@ static void *download_thread(void *params)
 			}
 			//ds->status = DOWNLOAD_STATUS_FAIL;
 			unlock_for_download(ds);
-			delay = (rand() % 10);
-#ifdef _WIN32
-			printf("Download slice failed, retry delay %d second, tid: %x. message: %s\n", delay, GetCurrentThreadId(), pcs_strerror(pcs));
-#else
-			printf("Download slice failed, retry delay %d second, tid: %p. message: %s\n", delay, pthread_self(), pcs_strerror(pcs));
-#endif
+			delay = rand();
+			delay %= 10;
 			sleep(delay); /*10秒后重试*/
 			continue;
 		}
@@ -3694,11 +3725,28 @@ static inline int do_download(ShellContext *context,
 			uninit_download_state(&ds);
 			return -1;
 		}
+		ds.cache.fp = ds.pf;
 		pcs_setopts(context->pcs,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, &ds,
 			PCS_OPTION_END);
 		res = pcs_download(context->pcs, remote_path, convert_to_real_speed(context->max_speed_per_thread), 0, 0);
+		if (ds.cache.total_size > 0) {
+			int rc = cache_flush(&ds.cache);
+			if (rc) {
+				if (pErrMsg) {
+					if (*pErrMsg) pcs_free(*pErrMsg);
+					(*pErrMsg) = pcs_utils_sprintf("%s\n", "cache_flush() error.");
+				}
+				if (op_st) (*op_st) = OP_ST_FAIL;
+				fclose(ds.pf);
+				pcs_free(tmp_local_path);
+				pcs_free(local_path);
+				pcs_free(remote_path);
+				uninit_download_state(&ds);
+				return -1;
+			}
+		}
 		fclose(ds.pf);
 		if (res != PCS_OK) {
 			if (pErrMsg) {
@@ -3793,13 +3841,14 @@ static inline int do_download(ShellContext *context,
 			uninit_download_state(&ds);
 			return -1;
 		}
+		ds.cache.fp = ds.pf;
 		//保存分片数据
-		printf("Saving slices...\r");
+		printf("Create/Load temporary file...\r");
 		fflush(stdout);
 		if (save_thread_states_to_file(ds.pf, ds.file_size, ds.threads)) {
 			if (pErrMsg) {
 				if (*pErrMsg) pcs_free(*pErrMsg);
-				(*pErrMsg) = pcs_utils_sprintf("Can't save slices into temp file: %s \n", tmp_local_path);
+				(*pErrMsg) = pcs_utils_sprintf("Can't save slices into temporary file: %s \n", tmp_local_path);
 			}
 			if (op_st) (*op_st) = OP_ST_FAIL;
 			DeleteFileRecursive(tmp_local_path);
@@ -3820,6 +3869,7 @@ static inline int do_download(ShellContext *context,
 			thread_count = context->max_thread;
 		ds.num_of_running_thread = thread_count;
 		//printf("\nthread: %d, slice: %d\n", thread_count, ds.num_of_slice);
+		srand((unsigned int)time(NULL));
 #ifdef _WIN32
 		handles = (HANDLE *)pcs_malloc(sizeof(HANDLE) * thread_count);
 		memset(handles, 0, sizeof(HANDLE) * thread_count);
@@ -3842,6 +3892,24 @@ static inline int do_download(ShellContext *context,
 			unlock_for_download(&ds);
 			if (running_thread_count < 1) break;
 			sleep(1);
+		}
+
+		if (ds.cache.total_size > 0) {
+			int rc = cache_flush(&ds.cache);
+			if (rc) {
+				if (pErrMsg) {
+					if (!(*pErrMsg))
+						(*pErrMsg) = pcs_utils_sprintf("%s\n", "cache_flush() error.");
+				}
+				if (op_st) (*op_st) = OP_ST_FAIL;
+				fclose(ds.pf);
+				DeleteFileRecursive(tmp_local_path);
+				pcs_free(tmp_local_path);
+				pcs_free(local_path);
+				pcs_free(remote_path);
+				uninit_download_state(&ds);
+				return -1;
+			}
 		}
 
 		fclose(ds.pf);
@@ -6243,7 +6311,7 @@ static int cmd_set(ShellContext *context, struct args *arg)
 		"cookie_file", "captcha_file", 
 		"list_page_size", "list_sort_name", "list_sort_direction",
 		"secure_method", "secure_key", "secure_enable", "timeout_retry", "max_thread", "max_speed_per_thread",
-		"user-agent",
+		"user-agent", "cache_size",
 		"h", "help", NULL) && arg->optc == 0) {
 		usage_set();
 		return -1;
@@ -6352,6 +6420,14 @@ static int cmd_set(ShellContext *context, struct args *arg)
 	if (has_optEx(arg, "user_agent", &val)) {
 		count++;
 		if (set_user_agent(context, val)) {
+			usage_set();
+			return -1;
+		}
+	}
+
+	if (has_optEx(arg, "cache_size", &val)) {
+		count++;
+		if (set_cache_size(context, val)) {
 			usage_set();
 			return -1;
 		}
@@ -6933,7 +7009,6 @@ int main(int argc, char *argv[])
 		printf("Can't create pcs context.\n");
 		goto exit_main;
 	}
-	srand((unsigned int)time(NULL));
 	rc = exec_cmd(&context, &arg);
 	destroy_pcs(context.pcs);
 	save_context(&context);

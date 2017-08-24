@@ -24,7 +24,8 @@ SHELL_OBJS   =  bin/shell_arg.o \
 				bin/rb_tree_stack.o \
 				bin/red_black_tree.o \
 				bin/shell_utils.o \
-				bin/hashtable.o
+				bin/hashtable.o \
+				bin/cache.o
 
 #CCFLAGS      = -DHAVE_ASPRINTF -DHAVE_ICONV
 ifeq ($(LC_OS_NAME), cygwin)
@@ -75,6 +76,8 @@ bin/rb_tree_stack.o: rb_tree/stack.c rb_tree/stack.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) rb_tree/stack.c
 bin/red_black_tree.o: rb_tree/red_black_tree.c rb_tree/red_black_tree.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) rb_tree/red_black_tree.c
+bin/cache.o: cache.c cache.h
+	$(CC) -o $@ -c $(PCS_CCFLAGS) cache.c
 
 bin/cJSON.o: pcs/cJSON.c pcs/cJSON.h
 	$(CC) -o $@ -c $(PCS_CCFLAGS) pcs/cJSON.c
