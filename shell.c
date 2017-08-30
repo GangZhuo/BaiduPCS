@@ -3777,19 +3777,11 @@ static inline int do_download(ShellContext *context,
 #ifdef _WIN32
 		HANDLE *handles = NULL;
 #endif
-		slice_count = context->max_thread;
-		if (slice_count < 1) slice_count = 1;
 		if (restore_download_state(&ds, tmp_local_path, &pendding_slice_count)) {
 			//分片开始
 			mode = "wb";
 			ds.resume_from = 0;
-			slice_size = fsize / slice_count;
-			if ((fsize % slice_count))
-				slice_size++;
-			if (slice_size <= MIN_SLICE_SIZE)
-				slice_size = MIN_SLICE_SIZE;
-			if (slice_size > MAX_SLICE_SIZE)
-				slice_size = MAX_SLICE_SIZE;
+			slice_size = MIN_SLICE_SIZE;
 			slice_count = (int)(fsize / slice_size);
 			if ((fsize % slice_size)) slice_count++;
 
