@@ -1352,10 +1352,13 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	if (tm != ds->time) {
 		int64_t left_size = ds->file_size - ds->downloaded_size;
 		int64_t remain_tm = (ds->speed > 0) ? (left_size / ds->speed) : 0;
+		double percent = (ds->file_size > 0) ?
+			(double)(100 * (ds->downloaded_size + ds->resume_from)) / (double)ds->file_size :
+			0;
 		ds->time = tm;
 		printf("\r                                                \r");
 		printf("%s", pcs_utils_readable_size((double)ds->downloaded_size + (double)ds->resume_from, tmp, 63, NULL));
-		printf("/%s \t", pcs_utils_readable_size((double)ds->file_size, tmp, 63, NULL));
+		printf("/%s (%.2f%%)\t", pcs_utils_readable_size((double)ds->file_size, tmp, 63, NULL), (float)percent);
 		printf("%s/s \t", pcs_utils_readable_size((double)ds->speed, tmp, 63, NULL));
 		printf(" %s        ", pcs_utils_readable_left_time(remain_tm, tmp, 63, NULL));
 		printf("\r");
