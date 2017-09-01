@@ -98,7 +98,7 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
     export LDFLAGS=-L/usr/local/opt/openssl/lib
     export CPPFLAGS=-I/usr/local/opt/openssl/include
     autoreconf
-    ./configure
+    ./configure LD=/usr/bin/ld OPENSSL_LIBS='-lssl -lcrypto -lz'
     make clean
     make
     make install #将安装到/usr/local/bin下
