@@ -204,6 +204,7 @@ struct DownloadThreadState
 	struct DownloadState *ds;
 	curl_off_t	start;
 	curl_off_t	end;
+	curl_off_t	postion;
 	int		status;
 	Pcs		*pcs;
 	int		tid;
@@ -1300,29 +1301,30 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 	int rc;
 	tmp[63] = '\0';
 	lock_for_download(ds);
-	if (ts->start + size > ts->end) {
-		size = (size_t)(ts->end - ts->start);
-		ts->status = DOWNLOAD_STATUS_OK;
+	if (ts->postion + size > ts->end) {
+		if (ds->pErrMsg) {
+			if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
+			(*(ds->pErrMsg)) = pcs_utils_sprintf("invalid size.");
+		}
+		ts->status = DOWNLOAD_STATUS_FAIL;
+		unlock_for_download(ds);
+		return 0;
 	}
 	if (size > 0) {
-		rc = cache_add(&ds->cache, ts->start, ptr, size);
+		rc = cache_add(&ds->cache, ts->postion, ptr, size);
 		if (rc) {
 			if (ds->pErrMsg) {
 				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
 				(*(ds->pErrMsg)) = pcs_utils_sprintf("cache_add() error.");
 			}
-			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL; /* Cause all threads to exit. */
 			unlock_for_download(ds);
 			return 0;
 		}
 	}
 	ds->downloaded_size += size;
-	ts->start += size;
+	ts->postion += size;
 	ds->speed += size;
-	if (ts->start == ts->end) {
-		ts->status = DOWNLOAD_STATUS_OK;
-		size = 0;
-	}
 
 	if (ds->cache.total_size >= convert_to_real_cache_size(context->cache_size)) {
 		rc = cache_flush(&ds->cache);
@@ -1331,7 +1333,7 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
 				(*(ds->pErrMsg)) = pcs_utils_sprintf("cache_flush() error.");
 			}
-			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL; /* Cause all threads to exit. */
 			unlock_for_download(ds);
 			return 0;
 		}
@@ -1341,7 +1343,7 @@ static int download_write_for_multy_thread(char *ptr, size_t size, size_t conten
 				if (*(ds->pErrMsg)) pcs_free(*(ds->pErrMsg));
 				(*(ds->pErrMsg)) = pcs_utils_sprintf("save slices error.");
 			}
-			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL;
+			ds->status = DOWNLOAD_STATUS_WRITE_FILE_FAIL; /* Cause all threads to exit. */
 			unlock_for_download(ds);
 			return 0;
 		}
@@ -3450,14 +3452,14 @@ static void *download_thread(void *params)
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION, &download_write_for_multy_thread,
 			PCS_OPTION_DOWNLOAD_WRITE_FUNCTION_DATA, ts,
 			PCS_OPTION_END);
-		res = pcs_download(pcs, ds->remote_file, convert_to_real_speed(context->max_speed_per_thread), ts->start, ts->end - ts->start);
-		if (res != PCS_OK && ts->status != DOWNLOAD_STATUS_OK) {
+		res = pcs_download(pcs, ds->remote_file, convert_to_real_speed(context->max_speed_per_thread), ts->postion, ts->end - ts->postion);
+		if (res != PCS_OK) {
 			int delay;
 			lock_for_download(ds);
 			if (!ds->pErrMsg) {
 				(*(ds->pErrMsg)) = pcs_utils_sprintf("%s", pcs_strerror(pcs));
 			}
-			//ds->status = DOWNLOAD_STATUS_FAIL;
+			ts->postion = ts->start; /* retry from beginning of slice */
 			unlock_for_download(ds);
 			delay = rand();
 			delay %= 10;
@@ -3557,11 +3559,12 @@ static int restore_download_state(struct DownloadState *ds, const char *tmp_loca
 			//printf("%d: ", thread_count);
 			if (ts->status != DOWNLOAD_STATUS_OK) {
 				ts->status = DOWNLOAD_STATUS_PENDDING;
+				ts->postion = ts->start;
 				if (pendding_count) (*pendding_count)++;
 				//printf("*");
 			}
 			//printf("%d/%d\n", (int)ts->start, (int)ts->end);
-			left_size += (ts->end - ts->start);
+			left_size += (ts->end - ts->postion);
 			if (tail == NULL) {
 				ds->threads = tail = ts;
 			}
@@ -3792,6 +3795,7 @@ static inline int do_download(ShellContext *context,
 				ts = (struct DownloadThreadState *) pcs_malloc(sizeof(struct DownloadThreadState));
 				ts->ds = &ds;
 				ts->start = start;
+				ts->postion = start;
 				start += slice_size;
 				ts->end = start;
 				if (ts->end > ((curl_off_t)fsize)) ts->end = (curl_off_t)fsize;
