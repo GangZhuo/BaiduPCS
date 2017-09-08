@@ -125,15 +125,17 @@ static inline void pcs_http_prepare(struct pcs_http *http, enum HttpMethod metho
 	}
 
 	// 设置文件续传的位置给libcurl
-	if (resume_from && max_length) {
+	if (resume_from || max_length) {
 		char *range = pcs_utils_sprintf("%" PRId64 "-%" PRId64, resume_from, resume_from + max_length - 1);
 		curl_easy_setopt(http->curl, CURLOPT_RANGE, range);
 		pcs_free(range);
 	}
 	else if (resume_from) {
+		curl_easy_setopt(http->curl, CURLOPT_RANGE, NULL);
 		curl_easy_setopt(http->curl, CURLOPT_RESUME_FROM_LARGE, resume_from);
 	}
 	else {
+		curl_easy_setopt(http->curl, CURLOPT_RANGE, NULL);
 		curl_easy_setopt(http->curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)0);
 	}
 
