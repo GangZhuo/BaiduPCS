@@ -111,7 +111,7 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
             AC_MSG_RESULT([yes])
             $1
         ], [
-            AC_MSG_RESULT([no])
+            AC_MSG_ERROR([can not link against openssl libraries])
             $2
         ])
     CPPFLAGS="$save_CPPFLAGS"
