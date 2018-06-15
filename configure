@@ -13658,8 +13658,7 @@ $as_echo "yes" >&6; }
 
 else
 
-            { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
+            as_fn_error $? "can not link against openssl libraries" "$LINENO" 5
 
 
 fi

@@ -161,7 +161,7 @@ am__objects_2 = baidupcs-shell.$(OBJEXT) baidupcs-arg.$(OBJEXT) \
 	baidupcs-dir.$(OBJEXT) rb_tree/baidupcs-misc.$(OBJEXT) \
 	rb_tree/baidupcs-red_black_tree.$(OBJEXT) \
 	rb_tree/baidupcs-stack.$(OBJEXT) baidupcs-utils.$(OBJEXT) \
-	baidupcs-hashtable.$(OBJEXT)
+	baidupcs-hashtable.$(OBJEXT) baidupcs-cache.$(OBJEXT)
 am__objects_3 = pcs/baidupcs-cJSON.$(OBJEXT) \
 	pcs/baidupcs-pcs_fileinfo.$(OBJEXT) \
 	pcs/baidupcs-pcs_http.$(OBJEXT) pcs/baidupcs-pcs_mem.$(OBJEXT) \
@@ -421,7 +421,8 @@ shell_src = shell.c \
 			rb_tree/red_black_tree.c \
 			rb_tree/stack.c \
 			utils.c \
-			hashtable.c
+			hashtable.c \
+			cache.c
 
 baidupcs_SOURCES = \
 				   $(shell_src) \
@@ -457,6 +458,7 @@ noinst_HEADERS = pcs/BaiduPCS.h \
 				  arg.h \
 				  dir.h \
 				  hashtable.h \
+				  cache.h \
 				  rb_tree/misc.h \
 				  rb_tree/red_black_tree.h \
 				  rb_tree/stack.h
@@ -673,6 +675,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/baidupcs-arg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/baidupcs-cache.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/baidupcs-dir.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/baidupcs-hashtable.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/baidupcs-shell.Po@am__quote@
@@ -840,6 +843,20 @@ baidupcs-hashtable.obj: hashtable.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='hashtable.c' object='baidupcs-hashtable.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(baidupcs_CFLAGS) $(CFLAGS) -c -o baidupcs-hashtable.obj `if test -f 'hashtable.c'; then $(CYGPATH_W) 'hashtable.c'; else $(CYGPATH_W) '$(srcdir)/hashtable.c'; fi`
+
+baidupcs-cache.o: cache.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(baidupcs_CFLAGS) $(CFLAGS) -MT baidupcs-cache.o -MD -MP -MF $(DEPDIR)/baidupcs-cache.Tpo -c -o baidupcs-cache.o `test -f 'cache.c' || echo '$(srcdir)/'`cache.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/baidupcs-cache.Tpo $(DEPDIR)/baidupcs-cache.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='cache.c' object='baidupcs-cache.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(baidupcs_CFLAGS) $(CFLAGS) -c -o baidupcs-cache.o `test -f 'cache.c' || echo '$(srcdir)/'`cache.c
+
+baidupcs-cache.obj: cache.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(baidupcs_CFLAGS) $(CFLAGS) -MT baidupcs-cache.obj -MD -MP -MF $(DEPDIR)/baidupcs-cache.Tpo -c -o baidupcs-cache.obj `if test -f 'cache.c'; then $(CYGPATH_W) 'cache.c'; else $(CYGPATH_W) '$(srcdir)/cache.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/baidupcs-cache.Tpo $(DEPDIR)/baidupcs-cache.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='cache.c' object='baidupcs-cache.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(baidupcs_CFLAGS) $(CFLAGS) -c -o baidupcs-cache.obj `if test -f 'cache.c'; then $(CYGPATH_W) 'cache.c'; else $(CYGPATH_W) '$(srcdir)/cache.c'; fi`
 
 pcs/baidupcs-cJSON.o: pcs/cJSON.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(baidupcs_CFLAGS) $(CFLAGS) -MT pcs/baidupcs-cJSON.o -MD -MP -MF pcs/$(DEPDIR)/baidupcs-cJSON.Tpo -c -o pcs/baidupcs-cJSON.o `test -f 'pcs/cJSON.c' || echo '$(srcdir)/'`pcs/cJSON.c
