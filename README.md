@@ -5,6 +5,11 @@ C/C++写的一个百度网盘工具，可以在linux终端中使用。
 * 支持线程限速。具体查看'pcs set'和'pcs context'命令的说明。
 * 支持AES-CBC-128, AES-CBC-192, AES-CBC-256加密。
 
+2018/9/1 rlm
+//安装时需要安装apt install dh-autoreconf
+//后cd到文件目录 sudo autoreconf -ivf 
+//否则make时会报错
+
 [![Build Status]][Appveyor]
 
 查看 [初级使用教程]
