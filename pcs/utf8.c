@@ -25,7 +25,7 @@ typedef uint32_t u_int32_t;
 #else
 #include <alloca.h>
 #endif
-
+#include <wchar.h>
 #include "utf8.h"
 
 static const u_int32_t offsetsFromUTF8[6] = {
